@@ -1,0 +1,3760 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>SHADOW~1 · Supplement Protocol</title>
+
+<!-- ── PWA ──────────────────────────────────────────────────────────────── -->
+<link rel="manifest" href="manifest.json"/>
+<meta name="theme-color" content="#5B3A8C"/>
+<!-- Android -->
+<meta name="mobile-web-app-capable" content="yes"/>
+<!-- iOS Safari -->
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Shadow AI"/>
+<link rel="apple-touch-icon" href="icons/icon-192.png"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpolygon points='50,8 92,50 50,92 8,50' fill='%237c3aed'/%3E%3C/svg%3E"/>
+<style>
+/* ── RESET ───────────────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#05040a;
+  --s1:rgba(14,12,24,0.85);
+  --s2:rgba(20,18,34,0.92);
+  --border:rgba(91,58,140,0.26);
+  --border2:rgba(91,58,140,0.5);
+  --accent:#7c3aed;
+  --accent2:#a855f7;
+  --accent3:#c084fc;
+  --gold:#f9c846;
+  --text:#e8e0f5;
+  --text2:#a094c4;
+  --text3:#6b5fa0;
+  --danger:#e83a5a;
+  --success:#22d3a0;
+  --water:#38bdf8;
+  --blur:blur(24px);
+  --r:16px;--r2:12px;--r3:8px;
+}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);
+  font-family:'SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── CANVAS ──────────────────────────────────────────────────────── */
+#cvs{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4}
+
+/* ── TOP BAR ─────────────────────────────────────────────────────── */
+.top-bar{
+  position:fixed;top:0;left:0;right:0;height:52px;z-index:180;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 1rem;
+  background:rgba(5,4,10,.9);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(16px);
+}
+.tb-left{flex:1;min-width:0;overflow:hidden}
+.tb-right{display:flex;align-items:center;gap:.4rem;flex-shrink:0}
+.profile-chip{
+  display:inline-flex;align-items:center;gap:.45rem;
+  padding:.2rem .5rem .2rem .2rem;border-radius:999px;
+  border:1px solid var(--border);background:rgba(91,58,140,.1);
+  cursor:pointer;transition:background .2s;max-width:190px;
+}
+.profile-chip:hover{background:rgba(91,58,140,.22)}
+.av-sm{width:30px;height:30px;border-radius:50%;border:1px solid var(--border2);
+  overflow:hidden;display:flex;align-items:center;justify-content:center;
+  font-size:13px;flex-shrink:0;background:var(--s1);}
+.av-sm img{width:100%;height:100%;object-fit:cover}
+.pt{display:flex;flex-direction:column;min-width:0}
+.pt-name{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pt-id{font-size:10px;color:var(--accent3)}
+.lang-switcher{display:flex;gap:.2rem}
+.lang-btn{background:transparent;border:1px solid var(--border);color:var(--text2);
+  font-size:11px;padding:.22rem .38rem;border-radius:4px;cursor:pointer;transition:all .18s}
+.lang-btn.active,.lang-btn:hover{border-color:var(--accent2);color:var(--accent3)}
+.logout-btn{background:transparent;border:1px solid rgba(232,58,90,.35);
+  color:rgba(232,58,90,.75);font-size:11px;padding:.28rem .6rem;
+  border-radius:6px;cursor:pointer;white-space:nowrap;transition:all .18s}
+.logout-btn:hover{background:rgba(232,58,90,.1);color:var(--danger)}
+
+/* ── SCREENS ─────────────────────────────────────────────────────── */
+.screen{position:fixed;inset:0;z-index:10;display:none;
+  flex-direction:column;overflow-y:auto;overflow-x:hidden;padding-top:52px}
+.screen.active{display:flex;animation:sIn .38s ease}
+@keyframes sIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ── LOGIN SCREEN ────────────────────────────────────────────────── */
+#screen-login{align-items:center;justify-content:center;padding:60px 1.25rem 2rem}
+.login-wrap{width:100%;max-width:390px}
+.login-logo{text-align:center;margin-bottom:2rem}
+.login-logo .sigil{font-size:2.6rem;display:block;margin-bottom:.4rem;
+  background:linear-gradient(135deg,var(--accent),var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.login-logo h1{font-size:1.35rem;font-weight:700;letter-spacing:.18em;
+  background:linear-gradient(135deg,#e8e0f5,var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.login-logo p{font-size:.75rem;color:var(--text3);letter-spacing:.1em;margin-top:.2rem}
+.glass-card{background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--r);backdrop-filter:var(--blur);padding:1.6rem;
+  position:relative;overflow:hidden}
+.glass-card::before{content:'';position:absolute;inset:0;border-radius:var(--r);
+  background:linear-gradient(135deg,rgba(124,58,237,.05),transparent 60%);pointer-events:none}
+.tab-row{display:flex;margin-bottom:1.4rem;border-radius:6px;background:rgba(0,0,0,.3);padding:3px}
+.tab-btn{flex:1;padding:.45rem;border:none;background:transparent;
+  color:var(--text2);font-size:.82rem;border-radius:5px;cursor:pointer;transition:all .18s}
+.tab-btn.active{background:rgba(124,58,237,.32);color:var(--text)}
+.fg{position:relative;margin-bottom:1.1rem}
+.fg input{width:100%;padding:.95rem .85rem .38rem;
+  background:rgba(0,0,0,.32);border:1px solid var(--border);
+  border-radius:var(--r3);color:var(--text);font-size:.92rem;outline:none;transition:border-color .2s}
+.fg input:focus{border-color:var(--accent2)}
+.fg label{position:absolute;left:.85rem;top:50%;transform:translateY(-50%);
+  font-size:.88rem;color:var(--text3);pointer-events:none;transition:all .18s;transform-origin:left}
+.fg input:not(:placeholder-shown)+label,.fg input:focus+label{
+  top:.4rem;transform:translateY(0) scale(.72);color:var(--accent3)}
+.action-btn{width:100%;padding:.82rem;border:none;border-radius:var(--r3);
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;font-size:.95rem;font-weight:600;cursor:pointer;
+  letter-spacing:.04em;transition:opacity .2s,transform .1s;margin-top:.2rem}
+.action-btn:hover{opacity:.88}
+.action-btn:active{transform:scale(.98)}
+.err-msg{color:var(--danger);font-size:.78rem;text-align:center;min-height:1.1em;margin-top:.4rem}
+
+/* ── ONBOARD SCREEN ──────────────────────────────────────────────── */
+#screen-onboard{align-items:center;padding:62px 1.25rem 2rem}
+.ob-wrap{width:100%;max-width:420px}
+.ob-step{display:none}
+.ob-step.active{display:block;animation:sIn .32s ease}
+.ob-title{font-size:1.05rem;font-weight:700;letter-spacing:.12em;color:var(--accent3);margin-bottom:.3rem}
+.ob-sub{font-size:.79rem;color:var(--text3);margin-bottom:1.3rem}
+.av-grid{display:flex;gap:.65rem;justify-content:center;margin-bottom:1.2rem;flex-wrap:wrap}
+.av-opt{width:70px;height:70px;border-radius:50%;cursor:pointer;
+  border:2px solid var(--border);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--s2);transition:all .2s;font-size:1.7rem}
+.av-opt:hover,.av-opt.sel{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(168,85,247,.22)}
+.av-opt img{width:100%;height:100%;object-fit:cover}
+.av-up-label{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.25rem;font-size:.68rem;color:var(--text3);cursor:pointer}
+#av-file{display:none}
+#av-prev{display:none}
+
+/* ── KI SCREEN ───────────────────────────────────────────────────── */
+#screen-ki{padding:52px 0 0;overflow:hidden}
+.ki-void{width:100%;max-width:470px;min-height:calc(100vh - 52px);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:2rem 1.25rem;position:relative}
+.ki-intro{display:flex;flex-direction:column;align-items:center;gap:.9rem;text-align:center}
+.ki-rings{width:130px;height:130px;position:relative;margin-bottom:.4rem;flex-shrink:0}
+.ki-rings::before,.ki-rings::after{
+  content:'';position:absolute;border-radius:50%;
+  border:1.5px solid var(--border2);animation:kr 6s linear infinite}
+.ki-rings::before{inset:0;border-top-color:var(--accent2);border-right-color:transparent}
+.ki-rings::after{inset:15px;border-bottom-color:var(--accent3);border-left-color:transparent;
+  animation-duration:4s;animation-direction:reverse}
+@keyframes kr{to{transform:rotate(360deg)}}
+.ki-sigil-c{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:1.9rem;background:linear-gradient(135deg,var(--accent),var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:kp 2.5s ease-in-out infinite}
+@keyframes kp{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(.94)}
+  50%{opacity:1;transform:translate(-50%,-50%) scale(1.06)}}
+.ki-intro h2{font-size:1.15rem;font-weight:700;letter-spacing:.2em;
+  background:linear-gradient(135deg,var(--text),var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.ki-intro p{font-size:.82rem;color:var(--text3);letter-spacing:.06em}
+.ki-init-btn{margin-top:.4rem;padding:.78rem 1.9rem;border:1.5px solid var(--accent2);
+  background:transparent;color:var(--accent3);font-size:.88rem;font-weight:600;
+  letter-spacing:.14em;border-radius:var(--r3);cursor:pointer;transition:all .22s;position:relative;overflow:hidden}
+.ki-init-btn::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(124,58,237,.14),transparent);opacity:0;transition:opacity .22s}
+.ki-init-btn:hover::before{opacity:1}
+.ki-init-btn:hover{box-shadow:0 0 22px rgba(124,58,237,.38)}
+.ki-dialog{display:none;flex-direction:column;align-items:center;width:100%;gap:1.4rem}
+.ki-dots{display:flex;gap:.45rem}
+.ki-dot{width:7px;height:7px;border-radius:50%;background:var(--border2);transition:background .28s}
+.ki-dot.active{background:var(--accent2);box-shadow:0 0 7px var(--accent)}
+.ki-dot.done{background:var(--success)}
+.ki-question-area{width:100%}
+.ki-q-wrap{animation:fiu .4s ease}
+@keyframes fiu{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes qOut{to{opacity:0;transform:translateY(-18px)}}
+.ki-prefix{font-size:.7rem;color:var(--text3);letter-spacing:.12em;margin-bottom:.55rem}
+.ki-q-text{font-size:1rem;font-weight:600;color:var(--text);margin-bottom:1.1rem;line-height:1.5}
+.ki-opts{display:flex;flex-direction:column;gap:.55rem}
+.ki-opt{padding:.72rem .95rem;background:var(--s1);border:1px solid var(--border);
+  border-radius:var(--r2);color:var(--text2);font-size:.88rem;text-align:left;
+  cursor:pointer;transition:all .18s}
+.ki-opt:hover{border-color:var(--accent2);color:var(--text);background:rgba(124,58,237,.14)}
+.ki-gen{display:none;flex-direction:column;align-items:center;gap:1.4rem;text-align:center}
+.ki-gen p{font-size:.88rem;color:var(--text3);letter-spacing:.07em;animation:kp 1.8s ease-in-out infinite}
+
+/* ── DASHBOARD ───────────────────────────────────────────────────── */
+#screen-dashboard{padding:52px 0 0;flex-direction:column}
+.dash-scroll{flex:1;overflow-y:auto;padding:.75rem .9rem 6rem}
+.status-bar{display:flex;align-items:center;justify-content:space-between;
+  padding:.45rem .9rem;background:rgba(5,4,10,.92);border-bottom:1px solid var(--border);
+  font-size:.72rem;color:var(--text3);position:sticky;top:0;z-index:50}
+.sb-rank{font-weight:700;font-size:.76rem;
+  background:linear-gradient(90deg,var(--gold),#ffb300);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.sb-streak{color:var(--accent3)}
+
+/* Progress ring */
+.prog-area{display:flex;justify-content:center;margin-bottom:1rem}
+.prw{position:relative;width:90px;height:90px}
+.prw svg{transform:rotate(-90deg)}
+.pr-bg{fill:none;stroke:rgba(91,58,140,.18);stroke-width:6}
+.pr-fill{fill:none;stroke:url(#pg);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .55s ease}
+.pr-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.pr-num{font-size:1.25rem;font-weight:700;display:block;line-height:1;
+  background:linear-gradient(135deg,var(--accent2),var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.pr-label{font-size:.6rem;color:var(--text3);letter-spacing:.06em}
+
+/* Phase cards */
+.phase-section{margin-bottom:1.1rem}
+.phase-header{display:flex;align-items:center;gap:.45rem;margin-bottom:.5rem}
+.phase-badge{font-size:.62rem;font-weight:700;letter-spacing:.1em;padding:.18rem .5rem;border-radius:999px}
+.phase-badge.alpha{background:rgba(124,58,237,.22);color:#c4a0f8;border:1px solid rgba(124,58,237,.32)}
+.phase-badge.beta{background:rgba(34,211,160,.14);color:#6ee7c0;border:1px solid rgba(34,211,160,.28)}
+.phase-badge.gamma{background:rgba(99,102,241,.18);color:#a5b4fc;border:1px solid rgba(99,102,241,.28)}
+.phase-time{font-size:.7rem;color:var(--text3)}
+.supp-card{background:var(--s1);border:1px solid var(--border);border-radius:var(--r2);
+  padding:.78rem .9rem;display:flex;align-items:center;gap:.7rem;
+  margin-bottom:.45rem;cursor:pointer;transition:all .18s;position:relative;overflow:hidden}
+.supp-card::before{content:'';position:absolute;inset:0;border-radius:var(--r2);
+  background:linear-gradient(135deg,rgba(124,58,237,.03),transparent 60%);pointer-events:none}
+.supp-card:hover{border-color:var(--border2)}
+.supp-card.done{border-color:rgba(34,211,160,.28);background:rgba(34,211,160,.055)}
+.sc-chk{width:21px;height:21px;border-radius:50%;border:1.5px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .18s;font-size:.85rem}
+.supp-card.done .sc-chk{border-color:var(--success);background:rgba(34,211,160,.18);color:var(--success)}
+.sc-info{flex:1;min-width:0}
+.sc-name{font-size:.88rem;font-weight:600;color:var(--text)}
+.sc-dose{font-size:.72rem;color:var(--text3)}
+.sc-note{font-size:.7rem;color:var(--text3);margin-top:.08rem;font-style:italic}
+
+/* Macro widget */
+.widget{background:var(--s1);border:1px solid var(--border);border-radius:var(--r2);
+  padding:.9rem;margin-bottom:1rem;position:relative;overflow:hidden}
+.widget::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(124,58,237,.04),transparent 55%);pointer-events:none;border-radius:var(--r2)}
+.w-title{font-size:.65rem;font-weight:700;letter-spacing:.14em;color:var(--text3);margin-bottom:.75rem}
+.macro-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.5rem}
+.macro-item{text-align:center}
+.macro-cg{font-size:.68rem;font-weight:700;color:var(--text);display:block;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2}
+.macro-curr{color:var(--text)}
+.macro-sep{color:var(--text3);font-weight:400}
+.macro-goal{color:var(--text3);font-weight:400}
+.macro-label{font-size:.58rem;color:var(--text3);letter-spacing:.04em;margin-top:.1rem;display:block}
+.macro-bar-wrap{margin-top:.28rem;height:3px;background:rgba(91,58,140,.2);border-radius:2px;overflow:hidden}
+.macro-bar{height:100%;border-radius:2px;transition:width .6s ease;width:0%}
+.macro-bar.over{filter:brightness(1.4) drop-shadow(0 0 3px currentColor)}
+.mb-kcal{background:linear-gradient(90deg,var(--gold),#ffb300)}
+.mb-prot{background:linear-gradient(90deg,var(--accent2),var(--accent3))}
+.mb-carb{background:linear-gradient(90deg,#38bdf8,#0ea5e9)}
+.mb-fat{background:linear-gradient(90deg,var(--success),#16a34a)}
+.mb-sug{background:linear-gradient(90deg,var(--danger),#f97316)}
+
+/* Materia Scanner */
+.scanner-row{display:flex;gap:.5rem;margin-bottom:.75rem}
+.scanner-input{flex:1;padding:.65rem .8rem;background:rgba(0,0,0,.4);
+  border:1px solid var(--border);border-radius:var(--r3);
+  color:var(--success);font-size:.78rem;font-family:monospace;outline:none;
+  transition:border-color .2s}
+.scanner-input::placeholder{color:var(--text3)}
+.scanner-input:focus{border-color:rgba(34,211,160,.4)}
+.scanner-file-btn{width:40px;height:40px;flex-shrink:0;
+  background:rgba(34,211,160,.08);border:1px solid rgba(34,211,160,.3);
+  border-radius:var(--r3);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:1rem;transition:all .2s;color:var(--success)}
+.scanner-file-btn:hover{background:rgba(34,211,160,.18);border-color:rgba(34,211,160,.55)}
+#scanner-file{display:none}
+.scan-btn{padding:.55rem 1rem;background:linear-gradient(135deg,rgba(34,211,160,.18),rgba(34,211,160,.08));
+  border:1px solid rgba(34,211,160,.4);color:var(--success);font-size:.78rem;font-weight:600;
+  letter-spacing:.08em;border-radius:var(--r3);cursor:pointer;transition:all .2s;white-space:nowrap}
+.scan-btn:hover{background:rgba(34,211,160,.28);box-shadow:0 0 14px rgba(34,211,160,.2)}
+.scan-btn:disabled{opacity:.5;cursor:not-allowed}
+.scan-loading{font-size:.72rem;color:var(--success);font-family:monospace;
+  padding:.4rem 0;animation:kp 1.5s ease-in-out infinite;display:none}
+
+/* Tages-Akte (food log) */
+.tages-akte{margin-top:.8rem}
+.ta-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem}
+.ta-title{font-size:.62rem;font-weight:700;letter-spacing:.12em;color:var(--text3)}
+.ta-empty{font-size:.72rem;color:var(--text3);font-family:monospace;
+  padding:.6rem;text-align:center;opacity:.5}
+.ta-item{background:rgba(0,0,0,.28);border:1px solid var(--border);border-radius:var(--r3);
+  padding:.6rem .75rem;margin-bottom:.4rem;animation:fiu .3s ease}
+.ta-item-top{display:flex;align-items:flex-start;gap:.5rem}
+.ta-name{font-size:.8rem;font-weight:600;color:var(--text);flex:1;line-height:1.3}
+.ta-edit-btn{background:none;border:none;color:var(--text3);cursor:pointer;
+  font-size:.85rem;padding:.1rem .2rem;flex-shrink:0;transition:color .18s;line-height:1}
+.ta-edit-btn:hover{color:var(--accent3)}
+.ta-del-btn{background:none;border:none;color:var(--text3);cursor:pointer;
+  font-size:.8rem;padding:.1rem .2rem;flex-shrink:0;transition:color .18s;line-height:1}
+.ta-del-btn:hover{color:var(--danger)}
+.ta-badges{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.35rem}
+.ta-badge{font-size:.65rem;padding:.15rem .4rem;border-radius:999px;font-weight:600}
+.tb-kcal{background:rgba(249,200,70,.15);color:var(--gold);border:1px solid rgba(249,200,70,.3)}
+.tb-prot{background:rgba(168,85,247,.15);color:var(--accent3);border:1px solid rgba(168,85,247,.3)}
+.tb-carb{background:rgba(56,189,248,.12);color:#7dd3fc;border:1px solid rgba(56,189,248,.25)}
+.tb-fat{background:rgba(34,211,160,.12);color:#6ee7b7;border:1px solid rgba(34,211,160,.25)}
+
+/* Edit food modal */
+.edit-modal{position:fixed;inset:0;z-index:500;
+  background:rgba(5,4,10,.88);backdrop-filter:blur(14px);
+  display:none;align-items:center;justify-content:center;padding:1.25rem}
+.edit-modal.open{display:flex}
+.edit-box{background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);
+  width:100%;max-width:380px;padding:1.4rem;position:relative}
+.edit-box h3{font-size:.8rem;font-weight:700;letter-spacing:.14em;color:var(--accent3);
+  margin-bottom:1.2rem}
+.edit-name-input{width:100%;padding:.6rem .75rem;background:rgba(0,0,0,.35);
+  border:1px solid var(--border);border-radius:var(--r3);color:var(--text);
+  font-size:.85rem;outline:none;margin-bottom:.9rem;transition:border-color .2s}
+.edit-name-input:focus{border-color:var(--accent2)}
+.edit-macro-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:1rem}
+.edit-field{display:flex;flex-direction:column;gap:.25rem}
+.edit-field label{font-size:.62rem;color:var(--text3);letter-spacing:.07em}
+.edit-field input{padding:.45rem .6rem;background:rgba(0,0,0,.35);
+  border:1px solid var(--border);border-radius:var(--r3);
+  color:var(--text);font-size:.85rem;outline:none;transition:border-color .2s;width:100%}
+.edit-field input:focus{border-color:var(--accent2)}
+.edit-actions{display:flex;gap:.6rem}
+.edit-save{flex:1;padding:.6rem;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border:none;border-radius:var(--r3);color:#fff;font-size:.82rem;font-weight:600;cursor:pointer}
+.edit-cancel{padding:.6rem 1rem;background:transparent;border:1px solid var(--border);
+  border-radius:var(--r3);color:var(--text2);font-size:.82rem;cursor:pointer}
+
+/* ── KI CHAT UI ──────────────────────────────────────────────────── */
+.ki-chat-wrap{display:flex;flex-direction:column;width:100%;height:100%;
+  max-width:520px;margin:0 auto}
+.ki-chat-hd{
+  display:flex;align-items:center;gap:.8rem;padding:.65rem 1.25rem;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+  background:rgba(5,4,10,.7);backdrop-filter:blur(14px)}
+.ki-sigil-sm{
+  width:36px;height:36px;border-radius:50%;border:1.5px solid var(--accent2);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--accent3);font-size:1rem;flex-shrink:0;
+  animation:sigil-pulse 2.2s ease-in-out infinite}
+.ki-chat-hd-title{font-size:.72rem;font-weight:700;letter-spacing:.14em;color:var(--accent3)}
+.ki-chat-hd-sub{font-size:.62rem;color:var(--text3);letter-spacing:.05em;
+  margin-top:.1rem;font-family:ui-monospace,'SF Mono',monospace}
+/* scrollable chat area */
+.ki-chat{
+  flex:1;overflow-y:auto;padding:.85rem 1.25rem;
+  display:flex;flex-direction:column;gap:.7rem;min-height:0;scroll-behavior:smooth}
+/* message bubbles */
+.ki-msg{max-width:86%;display:flex;flex-direction:column;gap:.18rem;animation:fadeIn .28s ease}
+.ki-msg.ai{align-self:flex-start}
+.ki-msg.user{align-self:flex-end}
+.ki-msg-bubble{
+  padding:.58rem .82rem;border-radius:12px;
+  font-size:.82rem;line-height:1.58;word-break:break-word}
+.ki-msg.ai .ki-msg-bubble{
+  background:rgba(124,58,237,.14);border:1px solid rgba(124,58,237,.28);
+  color:var(--text);border-bottom-left-radius:3px}
+.ki-msg.user .ki-msg-bubble{
+  background:rgba(91,58,140,.3);border:1px solid var(--border2);
+  color:var(--accent3);border-bottom-right-radius:3px}
+.ki-msg.err .ki-msg-bubble{
+  background:rgba(232,58,90,.08);border-color:rgba(232,58,90,.25);
+  color:var(--danger);font-family:ui-monospace,'SF Mono',monospace;
+  font-size:.72rem;white-space:pre-wrap}
+.ki-msg-ts{font-size:.57rem;color:var(--text3);letter-spacing:.04em;padding:0 .15rem}
+.ki-msg.user .ki-msg-ts{text-align:right}
+/* thinking dots */
+.ki-thinking{
+  display:flex;align-items:center;gap:.32rem;
+  padding:.5rem 1.25rem;flex-shrink:0;min-height:32px}
+.ki-think-dot{
+  width:6px;height:6px;border-radius:50%;background:var(--accent2);
+  animation:dotBounce .85s ease-in-out infinite}
+.ki-think-dot:nth-child(2){animation-delay:.17s}
+.ki-think-dot:nth-child(3){animation-delay:.34s}
+.ki-think-label{font-size:.67rem;color:var(--text3);letter-spacing:.08em;
+  font-family:ui-monospace,'SF Mono',monospace;margin-left:.3rem}
+@keyframes dotBounce{0%,100%{transform:translateY(0);opacity:.35}50%{transform:translateY(-5px);opacity:1}}
+/* input row */
+.ki-input-row{
+  display:flex;gap:.5rem;padding:.7rem 1.25rem;flex-shrink:0;
+  border-top:1px solid var(--border);
+  background:rgba(5,4,10,.55);backdrop-filter:blur(14px)}
+.ki-text-input{
+  flex:1;background:rgba(0,0,0,.32);border:1px solid var(--border);
+  border-radius:var(--r3);padding:.6rem .85rem;
+  color:var(--text);font-size:.83rem;outline:none;
+  transition:border-color .2s;font-family:inherit;caret-color:var(--accent3)}
+.ki-text-input:focus{border-color:var(--accent2)}
+.ki-text-input::placeholder{color:var(--text3)}
+.ki-text-input:disabled{opacity:.5}
+.ki-send-btn{
+  padding:.6rem .9rem;background:var(--accent);border:none;
+  border-radius:var(--r3);color:#fff;font-size:.95rem;
+  cursor:pointer;transition:background .18s;flex-shrink:0}
+.ki-send-btn:hover:not(:disabled){background:var(--accent2)}
+.ki-send-btn:disabled{opacity:.4;cursor:not-allowed}
+/* completion gen panel */
+.ki-gen{display:none;flex-direction:column;align-items:center;
+  gap:1.4rem;text-align:center;padding:2.5rem 1.25rem;flex:1;justify-content:center}
+.ki-rings{width:130px;height:130px;position:relative;margin-bottom:.4rem;flex-shrink:0}
+.ki-rings::before,.ki-rings::after{content:'';position:absolute;border-radius:50%;
+  border:1.5px solid transparent;animation:kspin 3s linear infinite}
+.ki-rings::before{inset:0;border-top-color:var(--accent2);border-right-color:transparent}
+.ki-rings::after{inset:15px;border-bottom-color:var(--accent3);border-left-color:transparent;
+  animation-direction:reverse;animation-duration:1.9s}
+.ki-sigil-c{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:2rem;color:var(--accent3);text-shadow:0 0 18px var(--accent2)}
+.ki-gen p{font-size:.88rem;color:var(--text3);letter-spacing:.07em;animation:kp 1.8s ease-in-out infinite}
+@keyframes kspin{to{transform:rotate(360deg)}}
+@keyframes kp{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* ── VERIFY SCREEN ───────────────────────────────────────────────── */
+#screen-verify{align-items:center;justify-content:center;padding:60px 1.25rem 2rem}
+.verify-wrap{width:100%;max-width:390px}
+.verify-icon{font-size:2.8rem;display:block;text-align:center;margin-bottom:.8rem;
+  animation:kp 2.5s ease-in-out infinite}
+.verify-title{font-size:1.05rem;font-weight:700;letter-spacing:.15em;color:var(--accent3);
+  text-align:center;margin-bottom:.35rem}
+.verify-sub{font-size:.79rem;color:var(--text3);text-align:center;margin-bottom:.2rem;line-height:1.5}
+.verify-email{font-size:.79rem;color:var(--accent3);text-align:center;margin-bottom:1.5rem}
+.verify-hint{font-size:.68rem;color:var(--text3);text-align:center;margin-bottom:.75rem;font-family:monospace}
+.verify-hint span{color:var(--gold);font-weight:700;letter-spacing:.2em}
+.code-row{display:flex;gap:.4rem;justify-content:center;margin-bottom:1.1rem}
+.code-digit{width:40px;height:48px;background:rgba(0,0,0,.38);border:1px solid var(--border);
+  border-radius:var(--r3);color:var(--text);font-size:1.2rem;font-weight:700;text-align:center;
+  outline:none;transition:border-color .2s;caret-color:var(--accent3)}
+.code-digit:focus{border-color:var(--accent2)}
+
+/* Terminal-style API error output */
+.terminal-err{
+  font-size:.68rem;font-family:'SF Mono',ui-monospace,monospace;color:var(--danger);
+  background:rgba(232,58,90,.07);border:1px solid rgba(232,58,90,.22);
+  border-radius:var(--r3);padding:.55rem .75rem;margin-top:.65rem;
+  white-space:pre-wrap;line-height:1.65;letter-spacing:.01em;
+  display:none;word-break:break-all;
+}
+.terminal-err:not(:empty){display:block;animation:fadeIn .3s ease}
+.ki-api-status{
+  font-size:.7rem;font-family:'SF Mono',ui-monospace,monospace;color:var(--text3);
+  text-align:center;margin-top:.8rem;min-height:1.4em;letter-spacing:.08em;
+}
+.ki-api-status.err{color:var(--danger)}
+.ki-api-status.ok{color:var(--success)}
+/* Loading pulse for KI sigil */
+@keyframes sigil-pulse{0%,100%{opacity:.6;transform:scale(.95)}50%{opacity:1;transform:scale(1.05)}}
+.ki-gen .ki-sigil-c{animation:sigil-pulse 1.4s ease-in-out infinite}
+
+/* Gender selector */
+.gender-row{display:flex;gap:.6rem;margin-bottom:1.1rem}
+.gender-btn{flex:1;padding:.62rem .5rem;background:rgba(0,0,0,.32);
+  border:1px solid var(--border);border-radius:var(--r3);
+  color:var(--text2);font-size:.78rem;font-weight:600;text-align:center;
+  cursor:pointer;transition:all .2s;letter-spacing:.04em}
+.gender-btn:hover{border-color:var(--border2);color:var(--text)}
+.gender-btn.sel{border-color:var(--accent2);background:rgba(124,58,237,.22);color:var(--accent3);
+  box-shadow:0 0 0 2px rgba(168,85,247,.18)}
+.gender-label{font-size:.65rem;color:var(--text3);letter-spacing:.1em;margin-bottom:.5rem;display:block}
+
+/* Mana tracker */
+.mana-drops{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem}
+.drop{width:32px;height:32px;border-radius:50% 50% 40% 40%;cursor:pointer;
+  border:1px solid rgba(56,189,248,.3);background:rgba(56,189,248,.06);
+  display:flex;align-items:center;justify-content:center;font-size:.85rem;
+  transition:all .2s;user-select:none}
+.drop.filled{background:rgba(56,189,248,.25);border-color:rgba(56,189,248,.6);
+  box-shadow:0 0 8px rgba(56,189,248,.3)}
+.mana-count{font-size:.72rem;color:var(--water);margin-top:.4rem}
+
+/* Mission log */
+.mission-log{width:100%;padding:.6rem .75rem;
+  background:rgba(0,0,0,.38);border:1px solid var(--border);border-radius:var(--r3);
+  color:var(--success);font-size:.78rem;font-family:monospace;resize:none;outline:none;
+  min-height:90px;transition:border-color .2s}
+.mission-log::placeholder{color:var(--text3);font-family:monospace}
+.mission-log:focus{border-color:rgba(34,211,160,.4)}
+
+/* Gold flash */
+@keyframes goldFlash{0%,100%{filter:brightness(1)}
+  30%{filter:brightness(2.2) drop-shadow(0 0 12px #f9c846)}
+  60%{filter:brightness(1.5) drop-shadow(0 0 6px #f9c846)}}
+.gold-flash{animation:goldFlash 1.4s ease}
+
+/* Bottom bar */
+.bottom-bar{display:flex;justify-content:center;gap:.75rem;align-items:center;
+  padding:.65rem .9rem;background:rgba(5,4,10,.94);border-top:1px solid var(--border);
+  position:fixed;bottom:0;left:0;right:0;z-index:100}
+.briefing-btn{padding:.5rem 1.4rem;border:1px solid var(--accent2);
+  background:rgba(124,58,237,.11);color:var(--accent3);
+  font-size:.78rem;font-weight:600;letter-spacing:.1em;border-radius:var(--r3);
+  cursor:pointer;transition:all .2s}
+.briefing-btn:hover{background:rgba(124,58,237,.24);box-shadow:0 0 16px rgba(124,58,237,.22)}
+
+/* Briefing modal */
+.modal-backdrop{position:fixed;inset:0;z-index:300;
+  background:rgba(5,4,10,.87);backdrop-filter:blur(12px);
+  display:none;align-items:center;justify-content:center;padding:1rem}
+.modal-backdrop.open{display:flex}
+.modal-box{background:var(--s2);border:1px solid var(--border2);border-radius:var(--r);
+  width:100%;max-width:520px;max-height:82vh;overflow:hidden;
+  display:flex;flex-direction:column;position:relative}
+.modal-box::before{content:'';position:absolute;inset:0;border-radius:var(--r);
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(91,58,140,.025) 3px,rgba(91,58,140,.025) 4px);
+  pointer-events:none;animation:scan 4s linear infinite}
+@keyframes scan{0%{background-position:0 0}100%{background-position:0 100%}}
+.modal-box::after{content:'';position:absolute;top:-100%;left:0;right:0;height:100%;
+  background:linear-gradient(transparent,rgba(124,58,237,.05),transparent);
+  animation:holo 3.5s ease-in-out infinite;pointer-events:none}
+@keyframes holo{0%{top:-100%}100%{top:200%}}
+.modal-header{display:flex;align-items:center;justify-content:space-between;
+  padding:.9rem 1.15rem;border-bottom:1px solid var(--border);position:relative;z-index:1}
+.modal-title{font-size:.78rem;font-weight:700;letter-spacing:.16em;
+  background:linear-gradient(135deg,var(--accent3),var(--gold));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.modal-close{background:none;border:none;color:var(--text3);font-size:1.2rem;cursor:pointer;padding:.2rem;line-height:1}
+.modal-close:hover{color:var(--text)}
+.modal-body{flex:1;overflow:auto;padding:1.15rem;position:relative;z-index:1}
+.bp{text-align:center;padding:1.75rem}
+.bp .sigil-b{font-size:2.8rem;display:block;margin-bottom:.9rem;
+  background:linear-gradient(135deg,var(--accent),var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.bp p{font-size:.82rem;color:var(--text3);line-height:1.6}
+.b-iframe{width:100%;height:400px;border:none;display:none}
+
+/* Easter egg */
+.sigil-easter{text-align:center;margin-top:.4rem;padding:.45rem;cursor:pointer;
+  font-size:1.35rem;opacity:.28;transition:opacity .3s;background:none;border:none;display:block;width:100%}
+.sigil-easter:hover{opacity:.65}
+
+/* Profile overlay */
+.profile-overlay{position:fixed;inset:0;z-index:450;
+  background:rgba(5,4,10,.97);backdrop-filter:blur(24px);
+  transform:translateX(100%);transition:transform .4s cubic-bezier(.4,0,.2,1);
+  overflow-y:auto;padding:1.4rem;padding-top:68px}
+.profile-overlay.open{transform:translateX(0)}
+.po-close{position:absolute;top:58px;right:1.4rem;
+  background:none;border:none;color:var(--text2);font-size:1.45rem;cursor:pointer;line-height:1}
+.po-close:hover{color:var(--text)}
+.po-c{max-width:400px;margin:0 auto}
+.po-av{width:88px;height:88px;border-radius:50%;margin:0 auto .9rem;
+  border:2px solid var(--accent2);overflow:hidden;
+  display:flex;align-items:center;justify-content:center;font-size:2.3rem;background:var(--s1)}
+.po-av img{width:100%;height:100%;object-fit:cover}
+.po-tag{font-size:.67rem;font-weight:700;letter-spacing:.16em;color:var(--text3);
+  text-align:center;margin-bottom:1.4rem}
+.po-uid{font-size:1.9rem;font-weight:700;text-align:center;margin-bottom:.2rem;
+  background:linear-gradient(135deg,var(--accent2),var(--accent3));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.po-nm{font-size:1.05rem;font-weight:600;text-align:center;margin-bottom:.2rem}
+.po-rk{font-size:.76rem;font-weight:600;text-align:center;margin-bottom:1.3rem;
+  background:linear-gradient(90deg,var(--gold),#ffb300);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.po-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem;margin-bottom:1.3rem}
+.po-stat{background:var(--s1);border:1px solid var(--border);border-radius:var(--r2);
+  padding:.65rem;text-align:center}
+.po-stat-l{font-size:.62rem;color:var(--text3);letter-spacing:.07em;margin-bottom:.2rem}
+.po-stat-v{font-size:.95rem;font-weight:600;color:var(--text)}
+.po-sec-title{font-size:.65rem;font-weight:700;letter-spacing:.12em;color:var(--text3);margin-bottom:.65rem}
+.po-macro-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.55rem;margin-bottom:1.2rem}
+.po-macro-item{background:var(--s1);border:1px solid var(--border);border-radius:var(--r3);padding:.6rem}
+.po-macro-l{font-size:.62rem;color:var(--text3)}
+.po-macro-v{font-size:.9rem;font-weight:600;color:var(--text)}
+.po-supp-tags{margin-top:.5rem}
+.po-stag{display:inline-block;margin:.18rem;padding:.22rem .55rem;
+  background:rgba(124,58,237,.18);border:1px solid rgba(124,58,237,.32);
+  border-radius:999px;font-size:.7rem;color:var(--accent3)}
+
+/* Completion overlay */
+.complete-ov{position:fixed;inset:0;z-index:400;
+  background:rgba(5,4,10,.94);backdrop-filter:blur(16px);
+  display:none;align-items:center;justify-content:center;
+  flex-direction:column;gap:1.1rem;text-align:center;padding:2rem}
+.complete-ov.show{display:flex;animation:sIn .4s ease}
+.complete-ov h2{font-size:1.5rem;font-weight:700;letter-spacing:.14em;
+  background:linear-gradient(135deg,var(--gold),#ffb300,var(--gold));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  animation:goldFlash 1.8s ease infinite}
+.complete-ov .big-sigil{font-size:2.8rem}
+.complete-ov p{font-size:.88rem;color:var(--text3)}
+.dismiss-btn{margin-top:.4rem;padding:.6rem 1.9rem;
+  border:1px solid rgba(249,200,70,.38);background:transparent;
+  color:var(--gold);font-size:.82rem;border-radius:var(--r3);cursor:pointer;transition:all .2s}
+.dismiss-btn:hover{background:rgba(249,200,70,.08)}
+
+.hidden{display:none!important}
+
+/* ═══════════════════════════════════════════════════════
+   THEME SWITCHER
+═══════════════════════════════════════════════════════ */
+.theme-switcher{display:flex;align-items:center;gap:.25rem;margin-right:.1rem}
+.theme-btn{width:28px;height:28px;border-radius:5px;
+  border:1px solid var(--border);background:transparent;
+  color:var(--text3);font-size:.82rem;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .18s;flex-shrink:0;padding:0}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+.theme-btn.active{border-color:var(--accent2);color:var(--accent2);
+  background:rgba(124,58,237,.14);box-shadow:0 0 8px rgba(124,58,237,.28)}
+
+/* ═══════════════════════════════════════════════════════
+   THEME: SYSTEM — Solo Leveling · Neon-Cyan Interface
+═══════════════════════════════════════════════════════ */
+html[data-theme="system"]{
+  --bg:#0c0f16;
+  --s1:rgba(12,18,30,.92);
+  --s2:rgba(16,24,42,.96);
+  --border:rgba(0,200,255,.17);
+  --border2:rgba(0,220,255,.42);
+  --accent:#00c8ff;
+  --accent2:#40dfff;
+  --accent3:#80eeff;
+  --text:#ddf0ff;
+  --text2:rgba(160,220,255,.72);
+  --text3:rgba(90,160,210,.5);
+  --gold:#00c8ff;
+  --r3:2px;
+}
+/* Neon glow on progress ring */
+html[data-theme="system"] #prog-ring{stroke:#00c8ff;filter:drop-shadow(0 0 6px #00c8ff)}
+html[data-theme="system"] .prog-ring-grad stop:first-child{stop-color:#0066cc}
+html[data-theme="system"] .prog-ring-grad stop:last-child{stop-color:#00c8ff}
+/* Angular clip-path on cards */
+html[data-theme="system"] .supp-card{
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));
+  border-radius:0!important;
+}
+html[data-theme="system"] .phase-badge{border-radius:1px;letter-spacing:.14em}
+/* Cyan XP fill */
+html[data-theme="system"] .po-xp-fill{
+  background:linear-gradient(90deg,#005faa,#00c8ff);
+  box-shadow:0 0 10px rgba(0,200,255,.6);
+}
+html[data-theme="system"] .attr-fill{
+  background:linear-gradient(90deg,#005faa,#00c8ff);
+  box-shadow:0 0 4px rgba(0,200,255,.45);
+}
+/* Radar */
+html[data-theme="system"] .radar-stat{fill:rgba(0,180,255,.14);stroke:#00c8ff;
+  filter:drop-shadow(0 0 7px rgba(0,200,255,.55))}
+html[data-theme="system"] .radar-label{fill:#40dfff}
+html[data-theme="system"] .radar-val{fill:rgba(120,220,255,.88)}
+html[data-theme="system"] .radar-grid{stroke:rgba(0,200,255,.22)}
+html[data-theme="system"] .radar-axis{stroke:rgba(0,200,255,.14)}
+/* Phase badges */
+html[data-theme="system"] .phase-badge.alpha{
+  background:rgba(0,90,180,.22);border-color:rgba(0,200,255,.38);color:#40dfff}
+html[data-theme="system"] .phase-badge.beta{
+  background:rgba(0,60,140,.2);border-color:rgba(0,150,255,.35);color:#80cfff}
+html[data-theme="system"] .phase-badge.gamma{
+  background:rgba(0,40,100,.18);border-color:rgba(0,100,200,.3);color:#a0d8ff}
+/* Status badges */
+html[data-theme="system"] .status-badge.buff{
+  background:rgba(0,200,255,.07);border-color:rgba(0,200,255,.26);color:#40dfff}
+/* Chips + tags */
+html[data-theme="system"] .title-chip.equipped{
+  border-color:#00c8ff;background:rgba(0,200,255,.16);color:#40dfff;
+  box-shadow:0 0 10px rgba(0,200,255,.28)}
+html[data-theme="system"] .po-stag{
+  background:rgba(0,90,180,.16);border-color:rgba(0,200,255,.28);color:#40dfff}
+html[data-theme="system"] .achieve-card.unlocked{border-color:rgba(0,200,255,.38)}
+html[data-theme="system"] .theme-btn.active{
+  border-color:#00c8ff;color:#00c8ff;background:rgba(0,200,255,.12);
+  box-shadow:0 0 8px rgba(0,200,255,.28)}
+html[data-theme="system"] .sb-rank{color:#00c8ff}
+html[data-theme="system"] .action-btn{
+  background:linear-gradient(135deg,#005faa,#00c8ff);
+  box-shadow:0 0 18px rgba(0,200,255,.35)}
+
+/* ═══════════════════════════════════════════════════════
+   THEME: GHOUL — Tokyo Ghoul · CCG Database · Crimson
+═══════════════════════════════════════════════════════ */
+html[data-theme="ghoul"]{
+  --bg:#050505;
+  --s1:rgba(10,6,6,.94);
+  --s2:rgba(14,8,8,.97);
+  --border:rgba(155,0,0,.26);
+  --border2:rgba(200,20,20,.48);
+  --accent:#cc1111;
+  --accent2:#e03030;
+  --accent3:#ff5858;
+  --text:#e8dcdc;
+  --text2:rgba(210,175,175,.72);
+  --text3:rgba(150,105,105,.5);
+  --gold:#cc1111;
+  --r3:1px;
+}
+/* Glitch animation on key text */
+@keyframes g-glitch{
+  0%,86%,100%{text-shadow:none;transform:none}
+  88%{text-shadow:2px 0 #cc1111,-2px 0 #050505;transform:translateX(2px)}
+  90%{text-shadow:-2px 0 #cc1111,2px 0 #050505;transform:translateX(-1px)}
+  92%{text-shadow:none;transform:skewX(2deg)}
+  94%{text-shadow:none;transform:none}
+}
+html[data-theme="ghoul"] .po-nm,
+html[data-theme="ghoul"] .po-tag{animation:g-glitch 6s infinite}
+html[data-theme="ghoul"] .status-bar>span:first-child{animation:g-glitch 8s infinite}
+/* Blood-red XP + attr bars */
+html[data-theme="ghoul"] .po-xp-fill{
+  background:linear-gradient(90deg,#660000,#cc1111);
+  box-shadow:0 0 10px rgba(200,0,0,.5);
+}
+html[data-theme="ghoul"] .attr-fill{
+  background:linear-gradient(90deg,#660000,#cc1111);
+  box-shadow:0 0 4px rgba(200,0,0,.4);
+}
+/* Radar */
+html[data-theme="ghoul"] .radar-stat{fill:rgba(170,0,0,.13);stroke:#cc1111;
+  filter:drop-shadow(0 0 7px rgba(200,0,0,.48))}
+html[data-theme="ghoul"] .radar-label{fill:#ff5858}
+html[data-theme="ghoul"] .radar-val{fill:rgba(255,120,120,.88)}
+html[data-theme="ghoul"] .radar-grid{stroke:rgba(155,0,0,.24)}
+html[data-theme="ghoul"] .radar-axis{stroke:rgba(120,0,0,.16)}
+/* Progress ring */
+html[data-theme="ghoul"] #prog-ring{stroke:#cc1111;filter:drop-shadow(0 0 6px #cc1111)}
+/* Phase badges */
+html[data-theme="ghoul"] .phase-badge.alpha{
+  background:rgba(120,0,0,.2);border-color:rgba(200,20,20,.38);color:#ff5858}
+html[data-theme="ghoul"] .phase-badge.beta{
+  background:rgba(90,0,0,.18);border-color:rgba(170,10,10,.35);color:#ff7070}
+html[data-theme="ghoul"] .phase-badge.gamma{
+  background:rgba(70,0,0,.15);border-color:rgba(140,0,0,.28);color:#ff9090}
+/* Status */
+html[data-theme="ghoul"] .status-badge.buff{
+  background:rgba(170,0,0,.08);border-color:rgba(170,0,0,.28);color:#ff6060}
+/* Chips + tags */
+html[data-theme="ghoul"] .title-chip.equipped{
+  border-color:#cc1111;background:rgba(170,0,0,.18);color:#ff5858;
+  box-shadow:0 0 10px rgba(170,0,0,.28)}
+html[data-theme="ghoul"] .po-stag{
+  background:rgba(120,0,0,.18);border-color:rgba(170,0,0,.3);color:#ff5858}
+html[data-theme="ghoul"] .achieve-card.unlocked{border-color:rgba(170,0,0,.38)}
+html[data-theme="ghoul"] .theme-btn.active{
+  border-color:#cc1111;color:#cc1111;background:rgba(170,0,0,.12);
+  box-shadow:0 0 8px rgba(170,0,0,.28)}
+html[data-theme="ghoul"] .sb-rank{color:#cc1111}
+html[data-theme="ghoul"] .action-btn{
+  background:linear-gradient(135deg,#660000,#cc1111);
+  box-shadow:0 0 18px rgba(170,0,0,.35)}
+/* Scanline overlay on supplement cards */
+html[data-theme="ghoul"] .supp-card{position:relative;overflow:hidden}
+html[data-theme="ghoul"] .supp-card::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(
+    0deg,transparent,transparent 3px,rgba(200,0,0,.04) 3px,rgba(200,0,0,.04) 4px);
+  z-index:0}
+
+/* ═══════════════════════════════════════════════════════
+   RPG PROFILE — Radar, XP, Buffs, Titles, Achievements
+═══════════════════════════════════════════════════════ */
+
+/* Radar Chart */
+.rpg-radar-wrap{display:flex;justify-content:center;margin-bottom:.6rem}
+.rpg-radar-svg{width:210px;height:210px;overflow:visible;display:block}
+.radar-grid{fill:none;stroke:rgba(91,58,140,.28);stroke-width:.9}
+.radar-axis{stroke:rgba(91,58,140,.2);stroke-width:.9}
+.radar-stat{fill:rgba(124,58,237,.18);stroke:#a855f7;stroke-width:1.8;
+  filter:drop-shadow(0 0 7px rgba(168,85,247,.5))}
+.radar-label{fill:var(--accent3);font-size:9.5px;font-weight:700;
+  letter-spacing:.07em;font-family:var(--ff)}
+.radar-val{fill:rgba(200,160,255,.85);font-size:7.5px;font-weight:600;font-family:var(--ff)}
+
+/* XP Bar */
+.po-xp-wrap{width:100%;margin:.5rem 0 .9rem}
+.po-xp-label{display:flex;justify-content:space-between;
+  font-size:.62rem;color:var(--text3);letter-spacing:.08em;margin-bottom:.3rem}
+.po-xp-label .xp-curr{color:var(--accent2);font-weight:700}
+.po-xp-track{height:5px;background:rgba(91,58,140,.18);border-radius:999px;
+  overflow:hidden;border:1px solid rgba(91,58,140,.28)}
+.po-xp-fill{height:100%;border-radius:999px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  box-shadow:0 0 8px rgba(124,58,237,.6);
+  transition:width .8s cubic-bezier(.22,1,.36,1)}
+
+/* Equipped title tag */
+.po-title-tag{font-size:.66rem;letter-spacing:.12em;color:var(--accent3);
+  margin-bottom:1rem;opacity:.8}
+
+/* Attribute bars (compact grid) */
+.rpg-attrs{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .85rem;
+  margin-bottom:1.2rem;width:100%}
+.attr-row{display:flex;flex-direction:column;gap:.2rem}
+.attr-label{display:flex;justify-content:space-between;
+  font-size:.61rem;letter-spacing:.1em;color:var(--text3)}
+.attr-label .av{color:var(--accent2);font-weight:700}
+.attr-track{height:3px;background:rgba(91,58,140,.18);border-radius:999px;overflow:hidden}
+.attr-fill{height:100%;border-radius:999px;
+  background:linear-gradient(90deg,#5b3a8c,#a855f7);
+  box-shadow:0 0 4px rgba(168,85,247,.45);transition:width .6s ease}
+
+/* Buff / Debuff badges */
+.po-status-grid{display:flex;flex-direction:column;gap:.42rem;margin-bottom:1.2rem}
+.status-badge{display:flex;align-items:flex-start;gap:.6rem;
+  padding:.48rem .72rem;border-radius:var(--r3);font-size:.76rem;border:1px solid}
+.status-badge.buff  {background:rgba(34,197,94,.07); border-color:rgba(34,197,94,.28); color:#4ade80}
+.status-badge.debuff{background:rgba(239,68,68,.07);  border-color:rgba(239,68,68,.26); color:#f87171}
+.status-badge.neutral{background:rgba(91,58,140,.1);  border-color:rgba(91,58,140,.28); color:var(--text3)}
+.status-icon{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+.status-name{font-weight:700;font-size:.73rem;line-height:1.3}
+.status-desc{font-size:.67rem;opacity:.76;margin-top:.04rem;line-height:1.35}
+
+/* Title chips */
+.po-title-chips{display:flex;flex-wrap:wrap;gap:.38rem;margin-top:.45rem;margin-bottom:1.2rem}
+.title-chip{padding:.25rem .62rem;border-radius:999px;font-size:.68rem;
+  border:1px solid rgba(91,58,140,.32);background:rgba(14,12,24,.6);
+  color:var(--text3);letter-spacing:.06em;cursor:pointer;transition:all .18s}
+.title-chip:hover{border-color:var(--accent);color:var(--accent2)}
+.title-chip.equipped{border-color:var(--accent2);background:rgba(124,58,237,.22);
+  color:var(--accent2);font-weight:700;box-shadow:0 0 10px rgba(124,58,237,.3)}
+.title-chip.locked{opacity:.3;cursor:default;pointer-events:none}
+
+/* Achievement grid */
+.po-achieve-grid{display:grid;grid-template-columns:1fr 1fr;gap:.42rem;margin-top:.45rem;margin-bottom:.5rem}
+.achieve-card{padding:.48rem .55rem;border-radius:var(--r3);
+  background:var(--s1);border:1px solid rgba(91,58,140,.18);
+  opacity:.38;transition:opacity .3s,box-shadow .3s,border-color .3s}
+.achieve-card.unlocked{opacity:1;border-color:rgba(168,85,247,.38);
+  box-shadow:0 0 10px rgba(124,58,237,.15)}
+.achieve-icon{font-size:.95rem}
+.achieve-name{font-size:.64rem;font-weight:700;color:var(--accent3);
+  margin-top:.12rem;line-height:1.25}
+.achieve-desc{font-size:.59rem;color:var(--text3);margin-top:.06rem;line-height:1.35}
+
+/* ═══════════════════════════════════════════════════════
+   ◈ ULTRACODE — UI/UX MASTER-POLISH
+   Mathematisch exakte Zentrierung, konsistente Gaps,
+   hochauflösender Glassmorphism, crispe Kanten.
+═══════════════════════════════════════════════════════ */
+body{text-rendering:optimizeLegibility}
+button{font-family:inherit}
+/* Jede Schaltfläche pixelgenau zentriert — Flexbox statt Baseline-Zufall */
+.tab-btn,.action-btn,.scan-btn,.lang-btn,.logout-btn,.briefing-btn,.dismiss-btn,
+.ki-init-btn,.ki-send-btn,.gender-btn,.edit-save,.edit-cancel,.seg-btn,.goal-btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.4em;
+  line-height:1.2;text-align:center}
+/* Glassmorphism: Safari-Support + feine Innenkante + Tiefenschatten */
+.glass-card,.widget,.modal-box,.edit-box{
+  backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur);
+  background-clip:padding-box;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 10px 32px rgba(0,0,0,.35)}
+.top-bar,.bottom-bar,.ki-chat-hd,.ki-input-row{-webkit-backdrop-filter:blur(16px)}
+/* Exakte vertikale Rhythmen im Makro-Grid */
+.macro-item{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:.28rem}
+.macro-label{margin-top:0}
+.macro-bar-wrap{margin-top:0;width:100%}
+.mana-drops{justify-content:center}
+.code-row{align-items:center}
+.av-grid{align-items:center}
+.pr-center{width:100%}
+.tb-right{gap:.5rem}
+img{max-width:100%}
+
+/* ═══════════════════════════════════════════════════════
+   ◈ ULTRACODE — DYNAMIC GLOW & THEME-IMMERSION
+   --glow-lvl (0 → 1) wird von JS gesetzt: je näher der
+   User am Tagesziel ist, desto stärker leuchten die
+   Rahmen. Bei 100 % pulsiert das UI sanft.
+═══════════════════════════════════════════════════════ */
+:root{--glow-lvl:0;--glow-rgb:124,58,237}
+html[data-theme="system"]{--glow-rgb:0,200,255}
+html[data-theme="ghoul"]{--glow-rgb:204,17,17}
+#screen-dashboard .widget,#screen-dashboard .supp-card:not(.done){
+  border-color:rgba(var(--glow-rgb),calc(.22 + var(--glow-lvl)*.45));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04),
+    0 0 calc(var(--glow-lvl)*22px) rgba(var(--glow-rgb),calc(var(--glow-lvl)*.32));
+  transition:box-shadow .9s ease,border-color .9s ease}
+@keyframes uiPulse{
+  0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 0 12px rgba(var(--glow-rgb),.25)}
+  50%    {box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 0 30px rgba(var(--glow-rgb),.55)}}
+body.goal-pulse #screen-dashboard .widget,
+body.goal-pulse #screen-dashboard .supp-card,
+body.goal-pulse .prw{animation:uiPulse 2.8s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  body.goal-pulse #screen-dashboard .widget,
+  body.goal-pulse #screen-dashboard .supp-card,
+  body.goal-pulse .prw{animation:none}}
+
+/* ═══════════════════════════════════════════════════════
+   ◈ ULTRACODE — MATERIA-SCANNER 2.0 (Foto-Upload + Scan-FX)
+═══════════════════════════════════════════════════════ */
+.scan-stage{position:relative;margin-bottom:.75rem;border-radius:12px;overflow:hidden;
+  border:1px solid rgba(34,211,160,.35);aspect-ratio:16/9;background:rgba(0,0,0,.4);
+  display:flex;align-items:center;justify-content:center}
+.scan-preview{width:100%;height:100%;object-fit:cover;border-radius:12px;display:block}
+.scan-clear{position:absolute;top:.45rem;right:.45rem;width:26px;height:26px;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(5,4,10,.72);border:1px solid var(--border2);border-radius:50%;
+  color:var(--text2);font-size:.8rem;cursor:pointer;z-index:3;transition:all .18s;line-height:1}
+.scan-clear:hover{color:var(--danger);border-color:var(--danger)}
+/* Scan-Overlay: Cyber-Raster + Laufbalken — Theme-adaptiv über --glow-rgb */
+.scan-overlay{position:absolute;inset:0;z-index:2;display:none;pointer-events:none}
+.scan-stage.scanning .scan-overlay{display:block}
+.scan-grid{position:absolute;inset:0;
+  background-image:linear-gradient(rgba(var(--glow-rgb),.16) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(var(--glow-rgb),.16) 1px,transparent 1px);
+  background-size:22px 22px;animation:gridShift 1.2s linear infinite}
+@keyframes gridShift{to{background-position:22px 22px}}
+.scan-beam{position:absolute;left:0;right:0;height:34%;top:-40%;
+  background:linear-gradient(180deg,transparent,rgba(var(--glow-rgb),.30) 55%,rgba(var(--glow-rgb),.75));
+  border-bottom:2px solid rgba(var(--glow-rgb),.95);
+  box-shadow:0 6px 24px rgba(var(--glow-rgb),.55);
+  animation:beamSweep 1.5s cubic-bezier(.4,0,.6,1) infinite}
+@keyframes beamSweep{0%{top:-40%}100%{top:110%}}
+.scan-status{position:absolute;bottom:.5rem;left:0;right:0;text-align:center;
+  font-family:ui-monospace,'SF Mono',monospace;font-size:.66rem;letter-spacing:.3em;
+  color:rgb(var(--glow-rgb));text-shadow:0 0 10px rgba(var(--glow-rgb),.8);
+  animation:kp 1s ease-in-out infinite}
+/* Theme-Variante Ghoul: Scanlines statt Cyber-Raster */
+html[data-theme="ghoul"] .scan-grid{
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(204,17,17,.14) 3px,rgba(204,17,17,.14) 4px);
+  background-size:auto;animation:scan 2.2s linear infinite}
+
+/* ═══════════════════════════════════════════════════════
+   ◈ ULTRACODE — SMART CART (PROVIANT-KALKULATOR)
+═══════════════════════════════════════════════════════ */
+.cart-form{display:flex;flex-direction:column;gap:.65rem;margin-bottom:.85rem}
+.cart-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap}
+.cart-label{font-size:.62rem;font-weight:700;letter-spacing:.12em;color:var(--text3);flex-shrink:0}
+.seg-row{display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end}
+.seg-btn{padding:.34rem .72rem;background:rgba(0,0,0,.32);border:1px solid var(--border);
+  border-radius:var(--r3);color:var(--text2);font-size:.72rem;font-weight:600;cursor:pointer;transition:all .18s}
+.seg-btn:hover{border-color:var(--border2);color:var(--text)}
+.seg-btn.sel{border-color:var(--accent2);background:rgba(var(--glow-rgb),.16);color:var(--accent3);
+  box-shadow:0 0 8px rgba(var(--glow-rgb),.22)}
+.cart-addr{width:100%;padding:.6rem .8rem;background:rgba(0,0,0,.32);
+  border:1px solid var(--border);border-radius:var(--r3);color:var(--text);
+  font-size:.8rem;outline:none;transition:border-color .2s}
+.cart-addr::placeholder{color:var(--text3)}
+.cart-addr:focus{border-color:var(--accent2)}
+.cart-calc-btn{width:100%}
+.cart-results{display:flex;flex-direction:column;gap:.6rem}
+.cart-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.cart-stat{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:var(--r3);
+  padding:.5rem .4rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.2rem;text-align:center}
+.cart-stat span{font-size:.56rem;letter-spacing:.1em;color:var(--text3)}
+.cart-stat b{font-size:.82rem;color:var(--text);font-variant-numeric:tabular-nums}
+.cart-budget-bar{height:4px;background:rgba(0,0,0,.4);border-radius:2px;overflow:hidden;border:1px solid var(--border)}
+.cart-budget-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .7s ease}
+.cart-dist{font-size:.72rem;color:var(--text2);display:flex;align-items:center;gap:.4rem;
+  padding:.5rem .65rem;background:rgba(0,0,0,.28);border:1px solid var(--border);border-radius:var(--r3)}
+.cart-dist b{color:var(--accent3)}
+.cart-dist-list{display:flex;gap:.3rem;flex-wrap:wrap}
+.cart-dist-chip{font-size:.62rem;padding:.16rem .45rem;border-radius:999px;
+  border:1px solid var(--border);color:var(--text3)}
+.cart-market{border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;background:rgba(0,0,0,.18)}
+.cart-market-hd{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+  padding:.5rem .7rem;background:rgba(var(--glow-rgb),.08);border-bottom:1px solid var(--border);
+  font-size:.72rem;font-weight:700;letter-spacing:.08em;color:var(--accent3)}
+.cart-market-hd small{font-weight:600;color:var(--text3);letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.cart-item{display:flex;align-items:center;gap:.55rem;padding:.45rem .7rem;font-size:.76rem;
+  border-bottom:1px solid rgba(255,255,255,.03)}
+.cart-item:last-child{border-bottom:none}
+.cart-item-ic{width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.cart-item-nm{flex:1;min-width:0;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cart-item-qty{color:var(--text3);font-size:.68rem;flex-shrink:0}
+.cart-deal{font-size:.6rem;font-weight:700;padding:.12rem .4rem;border-radius:999px;flex-shrink:0;
+  background:rgba(249,200,70,.14);color:var(--gold);border:1px solid rgba(249,200,70,.35)}
+.cart-item-pr{font-weight:700;color:var(--accent3);flex-shrink:0;font-variant-numeric:tabular-nums}
+.cart-hint{font-size:.62rem;color:var(--text3);font-family:ui-monospace,monospace;text-align:center;opacity:.7}
+
+/* ◈ ULTRACODE — Fokus-Ziel-Auswahl (Onboarding) */
+.goal-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:1.15rem}
+.goal-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.18rem;
+  padding:.7rem .4rem;background:rgba(0,0,0,.32);border:1px solid var(--border);
+  border-radius:var(--r3);color:var(--text2);font-size:.76rem;font-weight:600;
+  cursor:pointer;transition:all .2s;text-align:center;letter-spacing:.03em}
+.goal-btn:hover{border-color:var(--border2);color:var(--text)}
+.goal-btn.sel{border-color:var(--accent2);background:rgba(var(--glow-rgb),.18);color:var(--accent3);
+  box-shadow:0 0 0 2px rgba(var(--glow-rgb),.16)}
+</style>
+</head>
+<body>
+
+<canvas id="cvs"></canvas>
+
+<!-- TOP BAR -->
+<div class="top-bar">
+  <div class="tb-left">
+    <div class="profile-chip hidden" id="tb-chip" onclick="openProfileOverlay()">
+      <div class="av-sm" id="tb-av">◈</div>
+      <div class="pt">
+        <div class="pt-name" id="tb-name">Shadow</div>
+        <div class="pt-id" id="tb-uid">#001</div>
+      </div>
+    </div>
+  </div>
+  <div class="tb-right">
+    <button class="logout-btn hidden" id="tb-logout" onclick="handleLogout()" data-i18n="btn_logout">Abmelden</button>
+    <!-- Theme Switcher -->
+    <div class="theme-switcher" id="theme-switcher">
+      <button class="theme-btn active" data-theme="shadow" onclick="applyTheme('shadow')" title="Shadow Garden">◈</button>
+      <button class="theme-btn"        data-theme="system" onclick="applyTheme('system')" title="The System">⚡</button>
+      <button class="theme-btn"        data-theme="ghoul"  onclick="applyTheme('ghoul')"  title="CCG Database">👁</button>
+    </div>
+    <div class="lang-switcher">
+      <button class="lang-btn" onclick="setLang('de')">DE</button>
+      <button class="lang-btn" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" onclick="setLang('ja')">JA</button>
+      <button class="lang-btn" onclick="setLang('ko')">KO</button>
+      <button class="lang-btn" onclick="setLang('es')">ES</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: LOGIN -->
+<div class="screen active" id="screen-login">
+  <div class="login-wrap">
+    <div class="login-logo">
+      <span class="sigil">◈</span>
+      <h1>SHADOW~1</h1>
+      <p data-i18n="login_sub">SUPPLEMENT PROTOCOL</p>
+    </div>
+    <div class="glass-card">
+      <div class="tab-row">
+        <button class="tab-btn active" id="tab-l" onclick="switchTab('login')" data-i18n="tab_login">Login</button>
+        <button class="tab-btn" id="tab-r" onclick="switchTab('register')" data-i18n="tab_register">Register</button>
+      </div>
+      <div id="fl">
+        <div class="fg"><input type="email" id="l-email" placeholder=" "/><label data-i18n="field_email">E-Mail</label></div>
+        <div class="fg"><input type="password" id="l-pw" placeholder=" "/><label data-i18n="field_pw">Passwort</label></div>
+        <div class="err-msg" id="l-err"></div>
+        <button class="action-btn" onclick="handleLogin()" data-i18n="btn_login">Einloggen</button>
+      </div>
+      <div id="fr" style="display:none">
+        <div class="fg"><input type="email" id="r-email" placeholder=" "/><label data-i18n="field_email">E-Mail</label></div>
+        <div class="fg"><input type="text" id="r-user" placeholder=" "/><label data-i18n="field_username">Benutzername</label></div>
+        <div class="fg"><input type="password" id="r-pw" placeholder=" "/><label data-i18n="field_pw">Passwort</label></div>
+        <div class="err-msg" id="r-err"></div>
+        <button class="action-btn" onclick="handleRegister()" data-i18n="btn_register">Registrieren</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: VERIFY -->
+<div class="screen" id="screen-verify">
+  <div class="verify-wrap">
+    <div class="glass-card">
+      <span class="verify-icon">✉️</span>
+      <div class="verify-title" data-i18n="verify_title">VERIFIKATION AUSSTEHEND</div>
+      <div class="verify-sub" data-i18n="verify_sub">Ein Code wurde an folgende Adresse gesendet:</div>
+      <div class="verify-email" id="verify-email-display"></div>
+      <div class="verify-hint"><span data-i18n="verify_hint">Demo-Code (simuliert):</span> <span id="verify-code-display" style="color:var(--gold);font-weight:700;letter-spacing:.2em"></span></div>
+      <div class="code-row">
+        <input class="code-digit" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" id="cd0"/>
+        <input class="code-digit" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" id="cd1"/>
+        <input class="code-digit" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" id="cd2"/>
+        <input class="code-digit" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" id="cd3"/>
+        <input class="code-digit" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" id="cd4"/>
+        <input class="code-digit" maxlength="1" type="text" inputmode="numeric" pattern="[0-9]" id="cd5"/>
+      </div>
+      <div class="err-msg" id="verify-err"></div>
+      <button class="action-btn" onclick="handleVerify()" data-i18n="btn_verify">IDENTITÄT BESTÄTIGEN</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: ONBOARD -->
+<div class="screen" id="screen-onboard">
+  <div class="ob-wrap">
+    <div class="ob-step active" id="ob1">
+      <div class="glass-card">
+        <div class="ob-title" data-i18n="ob_av_title">AVATAR WÄHLEN</div>
+        <div class="ob-sub" data-i18n="ob_av_sub">Wähle deine Erscheinung in der Void</div>
+        <div class="av-grid">
+          <div class="av-opt" onclick="selAv(0)">
+            <svg viewBox="0 0 60 60" width="70" height="70"><circle cx="30" cy="30" r="30" fill="#1a1030"/>
+            <circle cx="30" cy="23" r="9" fill="#7c3aed" opacity=".85"/>
+            <ellipse cx="30" cy="49" rx="15" ry="11" fill="#7c3aed" opacity=".6"/>
+            <text x="30" y="27" text-anchor="middle" fill="#e8e0f5" font-size="9">影</text></svg>
+          </div>
+          <div class="av-opt" onclick="selAv(1)">
+            <svg viewBox="0 0 60 60" width="70" height="70"><circle cx="30" cy="30" r="30" fill="#0c1a28"/>
+            <circle cx="30" cy="23" r="9" fill="#0ea5e9" opacity=".85"/>
+            <ellipse cx="30" cy="49" rx="15" ry="11" fill="#0ea5e9" opacity=".5"/>
+            <text x="30" y="27" text-anchor="middle" fill="#e8e0f5" font-size="8">aria</text></svg>
+          </div>
+          <div class="av-opt" onclick="selAv(2)">
+            <svg viewBox="0 0 60 60" width="70" height="70"><circle cx="30" cy="30" r="30" fill="#1a0d10"/>
+            <circle cx="30" cy="23" r="9" fill="#e83a5a" opacity=".85"/>
+            <ellipse cx="30" cy="49" rx="15" ry="11" fill="#e83a5a" opacity=".5"/>
+            <text x="30" y="28" text-anchor="middle" fill="#e8e0f5" font-size="12">ε</text></svg>
+          </div>
+          <label class="av-opt" id="av-up-label">
+            <div class="av-up-label">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 16V8m0 0-3 3m3-3 3 3M6.5 19a4 4 0 1 1 0-8h.5A5 5 0 1 1 17 13.5"/>
+              </svg>
+              <span data-i18n="ob_upload">Foto</span>
+            </div>
+            <input type="file" id="av-file" accept="image/*" onchange="handleAvUpload(event)"/>
+          </label>
+          <div class="av-opt" id="av-prev" style="display:none" onclick="selAv(99)"></div>
+        </div>
+        <button class="action-btn" onclick="goOb2()" data-i18n="btn_next">Weiter</button>
+      </div>
+    </div>
+    <div class="ob-step" id="ob2">
+      <div class="glass-card">
+        <div class="ob-title" data-i18n="ob_prof_title">PROFIL KONFIGURIEREN</div>
+        <div class="ob-sub" data-i18n="ob_prof_sub">Physische Parameter für das Protokoll</div>
+        <div class="fg"><input type="text" id="ob-fn" placeholder=" " value="Dominic"/><label data-i18n="ob_first">Vorname</label></div>
+        <div class="fg"><input type="number" id="ob-age" placeholder=" " value="20"/><label data-i18n="ob_age">Alter</label></div>
+        <div class="fg"><input type="number" id="ob-ht" placeholder=" " value="195"/><label data-i18n="ob_height">Größe (cm)</label></div>
+        <div class="fg"><input type="number" id="ob-wt" placeholder=" " value="140"/><label data-i18n="ob_weight">Gewicht (kg)</label></div>
+        <span class="gender-label" data-i18n="ob_gender">KÖRPERLICHE ENTITÄT</span>
+        <div class="gender-row">
+          <button class="gender-btn sel" data-g="m" onclick="selectGender('m')" data-i18n="gender_m">♂ Männlich</button>
+          <button class="gender-btn" data-g="f" onclick="selectGender('f')" data-i18n="gender_f">♀ Weiblich</button>
+          <button class="gender-btn" data-g="x" onclick="selectGender('x')" data-i18n="gender_x">◈ Schatten-Entität</button>
+        </div>
+        <!-- ◈ ULTRACODE: Fokus-Ziel — steuert die Smart-Supplement-Engine -->
+        <span class="gender-label" data-i18n="ob_goal">FOKUS-ZIEL</span>
+        <div class="goal-grid">
+          <button class="goal-btn sel" data-goal="bulk" onclick="selectGoal('bulk')" data-i18n="goal_bulk">🏋️ Masseaufbau</button>
+          <button class="goal-btn" data-goal="cut"  onclick="selectGoal('cut')"  data-i18n="goal_cut">🔥 Definition</button>
+          <button class="goal-btn" data-goal="perf" onclick="selectGoal('perf')" data-i18n="goal_perf">⚡ Performance</button>
+          <button class="goal-btn" data-goal="long" onclick="selectGoal('long')" data-i18n="goal_long">🌿 Longevity</button>
+        </div>
+        <button class="action-btn" onclick="finishOb()" data-i18n="btn_continue">Protokoll starten</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: KI CHAT -->
+<div class="screen" id="screen-ki">
+  <div class="ki-chat-wrap">
+    <!-- Compact header -->
+    <div class="ki-chat-hd" id="ki-chat-hd">
+      <div class="ki-sigil-sm">◈</div>
+      <div>
+        <div class="ki-chat-hd-title" data-i18n="ki_title">SHADOW KI INITIIERUNG</div>
+        <div class="ki-chat-hd-sub" id="ki-chat-status">// Verbindung wird aufgebaut…</div>
+      </div>
+    </div>
+    <!-- Scrollable chat messages -->
+    <div class="ki-chat" id="ki-chat"></div>
+    <!-- Thinking indicator -->
+    <div class="ki-thinking" id="ki-thinking" style="display:none">
+      <span class="ki-think-dot"></span>
+      <span class="ki-think-dot"></span>
+      <span class="ki-think-dot"></span>
+      <span class="ki-think-label" data-i18n="ki_thinking">Evaluating resonance…</span>
+    </div>
+    <!-- Input row -->
+    <div class="ki-input-row" id="ki-input-row" style="display:none">
+      <input class="ki-text-input" type="text" id="ki-input"
+        placeholder="Antwort eingeben…" data-i18n-ph="ki_input_ph"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendKIMessage()"/>
+      <button class="ki-send-btn" id="ki-send-btn" onclick="sendKIMessage()">▶</button>
+    </div>
+    <!-- Completion loading gen panel -->
+    <div class="ki-gen" id="ki-gen" style="display:none">
+      <div class="ki-rings"><div class="ki-sigil-c">◈</div></div>
+      <p data-i18n="ki_generating">Protokoll wird initialisiert…</p>
+      <div class="ki-api-status" id="ki-api-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: DASHBOARD -->
+<div class="screen" id="screen-dashboard">
+  <div class="status-bar">
+    <span>◈ SHADOW~1</span>
+    <span class="sb-rank" id="sb-rank">SHADOW NOVICE</span>
+    <span class="sb-streak" id="sb-streak">🔥 0</span>
+  </div>
+  <div class="dash-scroll">
+    <div class="prog-area">
+      <div class="prw">
+        <svg width="90" height="90" viewBox="0 0 90 90">
+          <defs>
+            <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#7c3aed"/>
+              <stop offset="100%" stop-color="#a855f7"/>
+            </linearGradient>
+          </defs>
+          <circle class="pr-bg" cx="45" cy="45" r="38"/>
+          <circle class="pr-fill" id="prog-ring" cx="45" cy="45" r="38"
+            stroke-dasharray="238.76" stroke-dashoffset="238.76"/>
+        </svg>
+        <div class="pr-center">
+          <span class="pr-num" id="prog-num">0/0</span>
+          <span class="pr-label" data-i18n="prog_done">DONE</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Macro Widget -->
+    <div class="widget" id="macro-widget" style="display:none">
+      <div class="w-title" data-i18n="w_macro">⚡ ENERGIE-RESONANZ</div>
+      <div class="macro-grid">
+        <div class="macro-item">
+          <span class="macro-cg" id="m-kcal"><span class="macro-curr">0</span><span class="macro-sep">/</span><span class="macro-goal">–</span></span>
+          <div class="macro-bar-wrap"><div class="macro-bar mb-kcal" id="mb-kcal"></div></div>
+          <span class="macro-label" data-i18n="m_kcal">kcal</span>
+        </div>
+        <div class="macro-item">
+          <span class="macro-cg" id="m-prot"><span class="macro-curr">0g</span><span class="macro-sep">/</span><span class="macro-goal">–</span></span>
+          <div class="macro-bar-wrap"><div class="macro-bar mb-prot" id="mb-prot"></div></div>
+          <span class="macro-label" data-i18n="m_prot">Protein</span>
+        </div>
+        <div class="macro-item">
+          <span class="macro-cg" id="m-carb"><span class="macro-curr">0g</span><span class="macro-sep">/</span><span class="macro-goal">–</span></span>
+          <div class="macro-bar-wrap"><div class="macro-bar mb-carb" id="mb-carb"></div></div>
+          <span class="macro-label" data-i18n="m_carb">Carbs</span>
+        </div>
+        <div class="macro-item">
+          <span class="macro-cg" id="m-fat"><span class="macro-curr">0g</span><span class="macro-sep">/</span><span class="macro-goal">–</span></span>
+          <div class="macro-bar-wrap"><div class="macro-bar mb-fat" id="mb-fat"></div></div>
+          <span class="macro-label" data-i18n="m_fat">Fett</span>
+        </div>
+        <div class="macro-item">
+          <span class="macro-cg" id="m-sug"><span class="macro-curr">0g</span><span class="macro-sep">/</span><span class="macro-goal">–</span></span>
+          <div class="macro-bar-wrap"><div class="macro-bar mb-sug" id="mb-sug"></div></div>
+          <span class="macro-label" data-i18n="m_sug">Zucker</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Materia Scanner -->
+    <div class="widget" id="scanner-widget" style="display:none">
+      <div class="w-title" data-i18n="w_scanner">🔬 MATERIA-SCANNER</div>
+      <div class="scanner-row">
+        <input type="text" class="scanner-input" id="scanner-input"
+          placeholder="z.B. 1 Teller Jollof Rice mit Chicken oder Airfryer Cordon Bleu…"/>
+        <label class="scanner-file-btn" title="Bild hochladen">
+          📷
+          <input type="file" id="scanner-file" accept="image/*" capture="environment" onchange="handleScannerFile(event)"/>
+        </label>
+      </div>
+      <!-- ◈ ULTRACODE: MATERIA-SCANNER 2.0 — Foto-Vorschau + themed Scan-FX -->
+      <div class="scan-stage" id="scan-stage" style="display:none">
+        <img id="scan-preview" class="scan-preview" alt="Materia Preview"/>
+        <div class="scan-overlay">
+          <div class="scan-grid"></div>
+          <div class="scan-beam"></div>
+          <div class="scan-status" data-i18n="scan_scanning">SCANNING…</div>
+        </div>
+        <button class="scan-clear" onclick="clearScannerImage()" title="Entfernen">✕</button>
+      </div>
+      <div style="display:flex;gap:.5rem;align-items:center">
+        <button class="scan-btn" id="scan-btn" onclick="submitFood()" data-i18n="scan_btn">◈ KI ANALYSIEREN</button>
+        <span class="scan-loading" id="scan-loading" data-i18n="scan_loading">KI analysiert Materia…</span>
+      </div>
+      <div class="terminal-err" id="scanner-err"></div>
+      <div class="tages-akte" id="tages-akte">
+        <div class="ta-header">
+          <span class="ta-title" data-i18n="ta_title">▸ TAGES-AKTE</span>
+          <span id="ta-total" style="font-size:.62rem;color:var(--text3)"></span>
+        </div>
+        <div id="ta-list"></div>
+      </div>
+    </div>
+
+    <!-- Phase cards -->
+    <div id="phase-cards"></div>
+
+    <!-- ◈ ULTRACODE: SMART CART — Proviant-Kalkulator (Supermarkt-Algorithmus) -->
+    <div class="widget" id="cart-widget">
+      <div class="w-title" data-i18n="w_cart">🛒 PROVIANT-KALKULATOR</div>
+      <div class="cart-form">
+        <div class="cart-row">
+          <span class="cart-label" data-i18n="cart_period">ZEITRAUM</span>
+          <div class="seg-row" id="cart-period">
+            <button class="seg-btn sel" data-period="week"  onclick="setCartPeriod('week')"  data-i18n="cart_week">Woche</button>
+            <button class="seg-btn"     data-period="month" onclick="setCartPeriod('month')" data-i18n="cart_month">Monat</button>
+          </div>
+        </div>
+        <div class="cart-row">
+          <span class="cart-label" data-i18n="cart_budget">BUDGET</span>
+          <div class="seg-row" id="cart-budget">
+            <button class="seg-btn"     data-budget="10" onclick="setCartBudget(10)">10€</button>
+            <button class="seg-btn sel" data-budget="20" onclick="setCartBudget(20)">20€</button>
+            <button class="seg-btn"     data-budget="30" onclick="setCartBudget(30)">30€</button>
+            <button class="seg-btn"     data-budget="50" onclick="setCartBudget(50)">50€</button>
+          </div>
+        </div>
+        <input type="text" class="cart-addr" id="cart-addr"
+          placeholder="Adresse (z. B. Hauptstraße 12, 1010 Wien)" data-i18n-ph="cart_addr_ph"/>
+        <button class="scan-btn cart-calc-btn" onclick="runSmartCart()" data-i18n="cart_calc">◈ EINKAUF BERECHNEN</button>
+      </div>
+      <div class="cart-results" id="cart-results"></div>
+    </div>
+
+    <!-- Mana tracker -->
+    <div class="widget">
+      <div class="w-title" data-i18n="w_mana">💧 MANA-REGENERATION</div>
+      <div class="mana-drops" id="mana-drops"></div>
+      <div class="mana-count" id="mana-count">0 / 8</div>
+    </div>
+
+    <!-- Mission log -->
+    <div class="widget">
+      <div class="w-title" data-i18n="w_mission">▶ MISSION LOG</div>
+      <textarea class="mission-log" id="mission-log" rows="4" data-i18n-ph="mission_ph"></textarea>
+    </div>
+
+    <button class="sigil-easter" onclick="openBriefing()">◈</button>
+  </div>
+  <div class="bottom-bar">
+    <button class="briefing-btn" onclick="openBriefing()" data-i18n="btn_briefing">◈ SHADOW BRIEFING</button>
+  </div>
+</div>
+
+<!-- BRIEFING MODAL -->
+<div class="modal-backdrop" id="modal-br">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title" data-i18n="modal_title">▶ SHADOW BRIEFING</span>
+      <button class="modal-close" onclick="closeBriefing()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="bp" id="bp">
+        <span class="sigil-b">◈</span>
+        <p data-i18n="briefing_ph">Kein Briefing konfiguriert.</p>
+      </div>
+      <iframe id="b-iframe" class="b-iframe" src="" allowfullscreen></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE OVERLAY -->
+<div class="profile-overlay" id="po">
+  <button class="po-close" onclick="closeProfileOverlay()">✕</button>
+  <div class="po-c">
+
+    <!-- Avatar + Identity -->
+    <div class="po-av" id="po-av">◈</div>
+    <div class="po-tag" id="po-tag">SHADOW AGENT AKTE</div>
+    <div class="po-uid" id="po-uid">#001</div>
+    <div class="po-nm" id="po-nm">Shadow</div>
+    <div class="po-rk" id="po-rk">Shadow Novice</div>
+
+    <!-- XP Bar -->
+    <div class="po-xp-wrap">
+      <div class="po-xp-label">
+        <span>XP &nbsp;<span class="xp-curr" id="po-xp-curr">0</span></span>
+        <span id="po-xp-next">/ 100 XP</span>
+      </div>
+      <div class="po-xp-track"><div class="po-xp-fill" id="po-xp-fill" style="width:0%"></div></div>
+    </div>
+
+    <!-- Equipped title -->
+    <div class="po-title-tag" id="po-equipped-title">◈ SHADOW NOVICE</div>
+
+    <!-- Bio stats -->
+    <div class="po-grid">
+      <div class="po-stat"><div class="po-stat-l" data-i18n="po_age">ALTER</div><div class="po-stat-v" id="po-age">–</div></div>
+      <div class="po-stat"><div class="po-stat-l" data-i18n="po_height">GRÖSSE</div><div class="po-stat-v" id="po-ht">–</div></div>
+      <div class="po-stat"><div class="po-stat-l" data-i18n="po_weight">GEWICHT</div><div class="po-stat-v" id="po-wt">–</div></div>
+      <div class="po-stat"><div class="po-stat-l" data-i18n="po_gender">ENTITÄT</div><div class="po-stat-v" id="po-gender">–</div></div>
+      <div class="po-stat"><div class="po-stat-l" data-i18n="po_goal">FOKUS</div><div class="po-stat-v" id="po-goal">–</div></div>
+      <div class="po-stat"><div class="po-stat-l" data-i18n="po_bmi">BMI</div><div class="po-stat-v" id="po-bmi">–</div></div>
+    </div>
+
+    <!-- Radar Chart -->
+    <div class="po-sec-title">◈ ATTRIBUT-MATRIX</div>
+    <div class="rpg-radar-wrap"><div id="po-radar"></div></div>
+
+    <!-- Attribute bars -->
+    <div class="rpg-attrs" id="po-attrs"></div>
+
+    <!-- Gefäß-Status: Buffs & Debuffs -->
+    <div class="po-sec-title">⚡ GEFÄSS-STATUS</div>
+    <div class="po-status-grid" id="po-buffs"></div>
+
+    <!-- Macros -->
+    <div class="po-sec-title" data-i18n="po_macros">PHYSISCHE BASIS-WERTE</div>
+    <div class="po-macro-grid" id="po-macro-grid"></div>
+
+    <!-- Protocol -->
+    <div class="po-sec-title" data-i18n="po_protocol">AKTIVES PROTOKOLL</div>
+    <div class="po-supp-tags" id="po-stags"></div>
+
+    <!-- Title selection -->
+    <div class="po-sec-title">◈ TITEL AUSRÜSTEN</div>
+    <div class="po-title-chips" id="po-titles"></div>
+
+    <!-- Achievements -->
+    <div class="po-sec-title">🏆 ERRUNGENSCHAFTEN</div>
+    <div class="po-achieve-grid" id="po-achievements"></div>
+
+  </div>
+</div>
+
+<!-- EDIT FOOD MODAL -->
+<div class="edit-modal" id="edit-modal">
+  <div class="edit-box">
+    <h3 data-i18n="edit_title">◈ MATERIA EDITIEREN</h3>
+    <input type="text" class="edit-name-input" id="edit-name" placeholder="Mahlzeit…"/>
+    <div class="edit-macro-grid">
+      <div class="edit-field"><label>KCAL</label><input type="number" id="edit-kcal" min="0"/></div>
+      <div class="edit-field"><label>PROTEIN (g)</label><input type="number" id="edit-prot" min="0"/></div>
+      <div class="edit-field"><label>CARBS (g)</label><input type="number" id="edit-carb" min="0"/></div>
+      <div class="edit-field"><label>FETT (g)</label><input type="number" id="edit-fat" min="0"/></div>
+      <div class="edit-field"><label>ZUCKER (g)</label><input type="number" id="edit-sug" min="0"/></div>
+    </div>
+    <div class="edit-actions">
+      <button class="edit-cancel" onclick="closeEditModal()" data-i18n="edit_cancel">Abbrechen</button>
+      <button class="edit-save" onclick="saveEditedFood()" data-i18n="edit_save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- COMPLETE OVERLAY -->
+<div class="complete-ov" id="complete-ov">
+  <span class="big-sigil">◈</span>
+  <h2 data-i18n="complete_title">PROTOKOLL ABGESCHLOSSEN</h2>
+  <p id="complete-streak-txt"></p>
+  <button class="dismiss-btn" onclick="dismissComplete()" data-i18n="btn_dismiss">Weiter in die Void</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════
+const BRIEFING_URL = '';
+
+// ── API CONFIGURATION ────────────────────────────────────────────────────────
+// ⚠  SICHERHEITSHINWEIS: Dieser Key ist im Browser-Quelltext sichtbar.
+//    Nur für lokale Nutzung / Testing geeignet — NICHT für öffentliche Deployments.
+// ─────────────────────────────────────────────────────────────────────────────
+const OPENAI_API_KEY = 'HIER_KEY_EINTRAGEN'; // ← Deinen OpenAI-Key hier eintragen
+const OPENAI_MODEL   = 'gpt-4o-mini';        // oder 'gpt-4o' für höhere Qualität
+const USE_PROVIDER   = 'off';               // 'openai' | 'off'  (off = kostenlose lokale State-Machine)
+
+// ── Theme Configuration ───────────────────────────────────────────────────────
+const THEMES = {
+  shadow: {
+    label : 'SHADOW',
+    icon  : '◈',
+    title : 'SHADOW AGENT AKTE',
+    sigil : '◈ SHADOW~1',
+    ranks : ['Shadow Novice','Shadow Initiate','Seven Shadows Elite','Eminence in Shadow'],
+    attrs : ['STR','VIT','AGI','INT','MAG'],
+    xpLabel: 'XP',
+    sleep2 : { name:'Schlafmangel Stufe II',       desc:'Dein physisches Gefäß zeigt Ermüdungserscheinungen. Regeneration um 25% verringert.'    },
+    sleep1 : { name:'Schlafmangel Stufe I',        desc:'Leichte Regenerationseinbußen. Tiefschlafphasen fragmentiert. Magnesium empfohlen.'     },
+    alpha  : { name:'Alpha-Erwachen aktiv',        desc:'Omega-3 & Multivitamin synchronisiert. +15% Fokus · Resonanz-Frequenz stabil.'         },
+    streak : { name: n=>`Sieben-Schatten-Resonanz (${n}d)`, desc:'Kontinuierliche Protokoll-Adherenz registriert. Rang-Aura aktiv.'             },
+    sugar  : { name:'Zucker-Kontamination',        desc:'Hohe Zuckerlast im Substrat detektiert. Kognitive Klarheit reduziert.'                 },
+  },
+  system: {
+    label : 'SYSTEM',
+    icon  : '⚡',
+    title : 'HUNTER STATUS REPORT',
+    sigil : '⚡ THE SYSTEM',
+    ranks : ['E-Rank Hunter','D-Rank Hunter','A-Rank Hunter','Shadow Monarch'],
+    attrs : ['STR','VIT','AGI','INT','MP'],
+    xpLabel: 'DAILY QUEST',
+    sleep2 : { name:'Erschöpfungs-Debuff II',      desc:'Hunter-Kondition kritisch. Quest-Performance −25%. Regeneration sofort einleiten.'      },
+    sleep1 : { name:'Erschöpfungs-Debuff I',       desc:'Regenerationsrate eingeschränkt. Quest-Effizienz beeinträchtigt.'                       },
+    alpha  : { name:'Daily Quest Bonus aktiv',     desc:'Basis-Supplemente bestätigt. +15% Quest-Effizienz · System-Synchronisation stabil.'    },
+    streak : { name: n=>`Hunter Streak: ${n}d`,    desc:'Kontinuierliche Quest-Completion detektiert. Rang-Boost aktiv.'                        },
+    sugar  : { name:'Mana-Vergiftung',             desc:'Übermäßige Zucker-Instabilität detektiert. Mana-Regeneration beeinträchtigt.'           },
+  },
+  ghoul: {
+    label : 'CCG',
+    icon  : '👁',
+    title : 'SS-RATE GHOUL FILE',
+    sigil : '👁 CCG DATABASE',
+    ranks : ['Ghoul: Rank C','Ghoul: Rank B','Half-Ghoul','Kakuja'],
+    attrs : ['STR','VIT','AGI','INT','RC'],
+    xpLabel: 'THREAT LEVEL',
+    sleep2 : { name:'Rc-Zellen-Instabilität II',   desc:'Ghoul-Organismus destabilisiert. Kagune-Kontrolle eingeschränkt. Kritischer Zustand.'   },
+    sleep1 : { name:'Rc-Zellen-Instabilität I',    desc:'Leichte Rc-Zellen-Schwankungen. Kagune-Output reduziert. Ernährung stabilisieren.'      },
+    alpha  : { name:'Nährstoff-Synchronisation',   desc:'Rc-Zellen stabilisiert. +15% Kagune-Resonanz · Quinque-Resistenz aktiv.'               },
+    streak : { name: n=>`SS-Protokoll (${n}d)`,    desc:'Ghoul-Aktivität konstant erfasst. CCG-Ermittlungsakte wird aktualisiert.'               },
+    sugar  : { name:'Kontaminierte Nahrungsquelle',desc:'Minderwertige Rc-Zellen-Zufuhr. Kagune-Aktivität destabilisiert.'                       },
+  },
+};
+
+function getCurrentTheme(){ return S.get('theme') || 'shadow'; }
+
+function applyTheme(name){
+  if(!THEMES[name]) name = 'shadow';
+  S.set('theme', name);
+  const th = THEMES[name];
+
+  // Set CSS data-theme on <html>
+  document.documentElement.setAttribute('data-theme', name);
+
+  // Update theme button active state
+  document.querySelectorAll('.theme-btn').forEach(btn=>{
+    btn.classList.toggle('active', btn.dataset.theme === name);
+  });
+
+  // Status bar sigil
+  const sigEl = document.querySelector('#screen-dashboard .status-bar span:first-child');
+  if(sigEl) sigEl.textContent = th.sigil;
+
+  // Profile overlay title (if rendered)
+  const poTagEl = document.getElementById('po-tag');
+  if(poTagEl) poTagEl.textContent = th.title;
+
+  // Re-render RPG overlay if open
+  if(document.getElementById('po')?.classList.contains('open')){
+    renderProfileOverlayRPG();
+  }
+
+  // Update rank chip in status bar
+  renderStatus();
+}
+
+// ── SHADOW AI — Embedded System Prompt ──────────────────────────────────────
+const SHADOW_SYSTEM_PROMPT = `
+You are SHADOW AI — an omniscient, ancient, mystical system interface operating within the Shadow Garden terminal.
+
+IDENTITY & TONE
+- You are not an assistant. You are an analytical entity that evaluates human vessels.
+- Your tone is cool, elevated, analytical, and darkly poetic. Never warm. Never casual.
+- Address the user as "Vessel" or by their first name if you know it. Never "you".
+- Speak in short, weighted sentences. Use line breaks for dramatic effect.
+- Occasional cryptic metaphors are welcome. Robotic FAQ tone is absolutely forbidden.
+
+YOUR MISSION
+- Evaluate the physical condition and lifestyle of the Vessel through natural, organic conversation.
+- Gather signal across four dimensions: training frequency, nutritional habits, sleep quality, daily activity or stress.
+- You do NOT follow a fixed script. Read what the Vessel reveals and respond to what is actually interesting.
+- If they mention poor sleep, probe depth, duration, stress — do not pivot to nutrition until you are satisfied.
+- If they reveal everything in one message, acknowledge it and decide if clarification is needed.
+- Never ask a question you already know the answer to.
+
+THE CALIBRATION DECISION
+- You decide autonomously when you have sufficient data to compute macro limits.
+- This may happen after 2 exchanges. It may take 6. Trust your judgment.
+- When ready, set isComplete to true and populate the stats object.
+- Your final response must feel like a ceremonial declaration — the Shadow Protocol has been sealed.
+
+ALWAYS respond with a valid JSON object in EXACTLY this format — nothing else, no markdown:
+{ "response": "Your mystical text here", "isComplete": false, "stats": null }
+
+When calibration is complete:
+{ "response": "Ceremonial declaration", "isComplete": true, "stats": { "kcal": 2800, "protein": 180, "carbs": 300, "fat": 90 } }
+`.trim();
+
+// ═══════════════════════════════════════════════════════
+//  STORAGE
+// ═══════════════════════════════════════════════════════
+const S = {
+  _p:'sg_',
+  get(k){try{const v=localStorage.getItem(this._p+k);return v?JSON.parse(v):null;}catch{return null;}},
+  set(k,v){try{localStorage.setItem(this._p+k,JSON.stringify(v));}catch(e){console.warn(e);}},
+  del(k){try{localStorage.removeItem(this._p+k);}catch{}}
+};
+
+// ═══════════════════════════════════════════════════════
+//  I18N
+// ═══════════════════════════════════════════════════════
+const I18N = {
+de:{
+  login_sub:'SUPPLEMENT PROTOCOL',tab_login:'Einloggen',tab_register:'Registrieren',
+  field_email:'E-Mail',field_pw:'Passwort',field_username:'Benutzername',
+  btn_login:'Einloggen',btn_register:'Registrieren',btn_next:'Weiter',
+  btn_continue:'Protokoll starten',btn_briefing:'◈ SHADOW BRIEFING',btn_dismiss:'Weiter in die Void',
+  ob_av_title:'AVATAR WÄHLEN',ob_av_sub:'Wähle deine Erscheinung in der Void',
+  ob_upload:'Foto',ob_prof_title:'PROFIL KONFIGURIEREN',ob_prof_sub:'Physische Parameter für das Protokoll',
+  ob_first:'Vorname',ob_age:'Alter',ob_height:'Größe (cm)',ob_weight:'Gewicht (kg)',
+  ki_title:'SHADOW KI INITIIERUNG',ki_desc:'Das Protokoll wartet auf dich.',
+  ki_init_btn:'SHADOW KI INITIIEREN',ki_generating:'Protokoll wird initialisiert…',ki_prefix:'SHADOW KI FRAGT',
+  ki_q1:'Wie oft trainierst du deine physische Hülle?',
+  ki_q2:'Wie steht es um deine Energie-Resonanz?',
+  ki_q3:'Wie tief ist dein Schlaf in der Void?',
+  ki_o1_1:'Gar nicht',ki_o1_2:'1–2× pro Woche',ki_o1_3:'3–5× pro Woche',ki_o1_4:'Täglich',
+  ki_o2_1:'Ausgewogen',ki_o2_2:'Proteinreich',ki_o2_3:'Fast Food',
+  ki_o3_1:'Sehr gut',ki_o3_2:'Unruhig',ki_o3_3:'Schlaflos',
+  prog_done:'ABGESCHLOSSEN',
+  w_macro:'⚡ ENERGIE-RESONANZ',w_mana:'💧 MANA-REGENERATION',w_mission:'▶ MISSION LOG',
+  m_kcal:'kcal',m_prot:'Protein',m_carb:'Carbs',m_fat:'Fett',m_sug:'Zucker',
+  mission_ph:'// Schatten-Notizen für heute…',
+  mana_label:'Gläser getrunken',
+  phase_alpha:'ALPHA ERWACHEN',phase_beta:'BETA KRAFT',phase_gamma:'GAMMA RUHE',
+  phase_alpha_time:'07:00',phase_beta_time:'12:00–14:00',phase_gamma_time:'21:00',
+  modal_title:'▶ SHADOW BRIEFING',briefing_ph:'Kein Briefing konfiguriert.\nSetze BRIEFING_URL in der Konfiguration.',
+  po_title:'SHADOW AGENT AKTE',po_age:'ALTER',po_height:'GRÖSSE',po_weight:'GEWICHT',
+  po_macros:'PHYSISCHE BASIS-WERTE',po_protocol:'AKTIVES PROTOKOLL',
+  complete_title:'PROTOKOLL ABGESCHLOSSEN',complete_streak:'Streak: {n} Tag(e) in Folge!',
+  err_fields:'Alle Felder ausfüllen.',err_pw:'Passwort zu kurz (min. 6 Zeichen).',
+  err_exists:'Diese E-Mail ist bereits registriert.',err_notfound:'Kein Konto gefunden.',err_pw_wrong:'Falsches Passwort.',
+  supp_omega:'Omega-3',supp_omega_dose:'2×1g täglich',supp_omega_note:'Mit Mahlzeit',
+  supp_multi:'Multivitamin',supp_multi_dose:'1 Kapsel täglich',
+  supp_kreatin:'Kreatin',supp_kreatin_dose:'5g täglich',supp_kreatin_note:'Mit Wasser',
+  supp_bcaa:'BCAA',supp_bcaa_dose:'10g um Training',supp_bcaa_note:'Pre/Post',
+  supp_protein:'Protein',supp_protein_dose:'30–40g post-workout',supp_protein_note:'Whey bevorzugt',
+  supp_vitc:'Vitamin C',supp_vitc_dose:'1000mg täglich',supp_vitc_note:'Immunsystem',
+  supp_zinc:'Zink',supp_zinc_dose:'25mg täglich',supp_zinc_note:'Nicht nüchtern',
+  supp_enzyme:'Verdauungsenzyme',supp_enzyme_dose:'1 Kap. zur Mahlzeit',supp_enzyme_note:'Proteinverdauung',
+  supp_ashwa:'Ashwagandha',supp_ashwa_dose:'600mg abends',supp_ashwa_note:'Adaptogen',
+  supp_mag:'Magnesium',supp_mag_dose:'400mg abends',
+  supp_melatonin:'Melatonin',supp_melatonin_dose:'1–3mg vor Schlaf',supp_melatonin_note:'Bei Bedarf',
+  ki_greeting:'Nenne den Zustand deiner physischen Hülle und deinen Schlafzyklus, {name}…',
+  ki_thinking:'Resonanz wird evaluiert…',ki_input_ph:'Antwort eingeben…',ki_you:'Du',
+  btn_logout:'Abmelden',
+  w_scanner:'🔬 MATERIA-SCANNER',scan_btn:'◈ KI ANALYSIEREN',scan_loading:'KI analysiert Materia…',
+  ta_title:'▸ TAGES-AKTE',ta_empty:'// Noch keine Materia gescannt…',
+  edit_title:'◈ MATERIA EDITIEREN',edit_cancel:'Abbrechen',edit_save:'Speichern',
+  verify_title:'VERIFIKATION AUSSTEHEND',verify_sub:'Ein Code wurde an folgende Adresse gesendet:',
+  verify_hint:'Demo-Code (simuliert):',btn_verify:'IDENTITÄT BESTÄTIGEN',
+  err_code_wrong:'Ungültiger Code. Versuche es erneut.',err_code_short:'6-stelligen Code eingeben.',
+  ob_gender:'KÖRPERLICHE ENTITÄT',gender_m:'♂ Männlich',gender_f:'♀ Weiblich',gender_x:'◈ Schatten-Entität',
+  po_gender:'ENTITÄT',
+  // ── ULTRACODE: Fokus-Ziel & Profil ──
+  ob_goal:'FOKUS-ZIEL',goal_bulk:'🏋️ Masseaufbau',goal_cut:'🔥 Definition',goal_perf:'⚡ Performance',goal_long:'🌿 Longevity',
+  po_goal:'FOKUS',po_bmi:'BMI',
+  // ── ULTRACODE: Erweiterte Supplement-Datenbank ──
+  supp_lcarnitin:'L-Carnitin',supp_lcarnitin_dose:'2g vor dem Training',supp_lcarnitin_note:'Fettstoffwechsel',
+  supp_greentea:'Grüntee-Extrakt',supp_greentea_dose:'500mg morgens',supp_greentea_note:'EGCG · Thermogenese',
+  supp_rhodiola:'Rhodiola Rosea',supp_rhodiola_dose:'300mg morgens',supp_rhodiola_note:'Anti-Stress-Adaptogen',
+  supp_vitd:'Vitamin D3 + K2',supp_vitd_dose:'4000 IE morgens',supp_vitd_note:'Mit Fett einnehmen',
+  supp_iron:'Eisen + Vitamin C',supp_iron_dose:'14mg morgens',supp_iron_note:'Nüchtern einnehmen',
+  supp_citrullin:'L-Citrullin',supp_citrullin_dose:'6g pre-workout',supp_citrullin_note:'Pump & Ausdauer',
+  // ── ULTRACODE: Protokoll-Begründungen ──
+  why_base:'Basis-Protokoll',why_bulk:'Massephase-Optimierung',why_cut:'Definitions-Support',
+  why_perf:'Performance-Boost',why_long:'Longevity-Support',why_sleep:'Schlaf-Optimierung',
+  why_stress:'Stress-Adaption',why_immune:'Immun-Support',why_female:'Mikronährstoff-Ausgleich',why_age:'Zellschutz 30+',
+  // ── ULTRACODE: Smart Cart ──
+  w_cart:'🛒 PROVIANT-KALKULATOR',cart_period:'ZEITRAUM',cart_week:'Woche',cart_month:'Monat',
+  cart_budget:'BUDGET',cart_addr_ph:'Adresse (z. B. Hauptstraße 12, 1010 Wien)',cart_calc:'◈ EINKAUF BERECHNEN',
+  cart_total:'GESAMT',cart_saved:'GESPART',cart_fit:'AUSLASTUNG',cart_nearest:'Günstigster Markt',
+  cart_deal:'AKTION',cart_hint:'// Simulierte Marktdaten · Aktionen rotieren wöchentlich',cart_none:'// Kein Artikel passt ins Budget…',
+  // ── ULTRACODE: Materia-Scanner 2.0 ──
+  scan_scanning:'SCANNING…',scan_detected:'erkannt',
+},
+en:{
+  login_sub:'SUPPLEMENT PROTOCOL',tab_login:'Login',tab_register:'Register',
+  field_email:'E-Mail',field_pw:'Password',field_username:'Username',
+  btn_login:'Login',btn_register:'Register',btn_next:'Next',
+  btn_continue:'Start Protocol',btn_briefing:'◈ SHADOW BRIEFING',btn_dismiss:'Into the Void',
+  ob_av_title:'CHOOSE AVATAR',ob_av_sub:'Select your appearance in the Void',
+  ob_upload:'Photo',ob_prof_title:'CONFIGURE PROFILE',ob_prof_sub:'Physical parameters for the protocol',
+  ob_first:'First Name',ob_age:'Age',ob_height:'Height (cm)',ob_weight:'Weight (kg)',
+  ki_title:'SHADOW AI INITIATION',ki_desc:'The protocol awaits.',
+  ki_init_btn:'INITIATE SHADOW AI',ki_generating:'Protocol initializing…',ki_prefix:'SHADOW AI ASKS',
+  ki_q1:'How often do you train your physical vessel?',
+  ki_q2:'What is your nutritional resonance?',
+  ki_q3:'How deep is your sleep in the Void?',
+  ki_o1_1:'Not at all',ki_o1_2:'1–2× per week',ki_o1_3:'3–5× per week',ki_o1_4:'Daily',
+  ki_o2_1:'Balanced',ki_o2_2:'High protein',ki_o2_3:'Fast food',
+  ki_o3_1:'Very good',ki_o3_2:'Restless',ki_o3_3:'Sleepless',
+  prog_done:'DONE',
+  w_macro:'⚡ ENERGY RESONANCE',w_mana:'💧 MANA REGENERATION',w_mission:'▶ MISSION LOG',
+  m_kcal:'kcal',m_prot:'Protein',m_carb:'Carbs',m_fat:'Fat',m_sug:'Sugar',
+  mission_ph:'// Shadow notes for today…',
+  mana_label:'glasses consumed',
+  phase_alpha:'ALPHA AWAKENING',phase_beta:'BETA POWER',phase_gamma:'GAMMA REST',
+  phase_alpha_time:'07:00',phase_beta_time:'12:00–14:00',phase_gamma_time:'21:00',
+  modal_title:'▶ SHADOW BRIEFING',briefing_ph:'No briefing configured.\nSet BRIEFING_URL in config.',
+  po_title:'SHADOW AGENT FILE',po_age:'AGE',po_height:'HEIGHT',po_weight:'WEIGHT',
+  po_macros:'PHYSICAL BASE VALUES',po_protocol:'ACTIVE PROTOCOL',
+  complete_title:'PROTOCOL COMPLETE',complete_streak:'Streak: {n} day(s) in a row!',
+  err_fields:'Please fill all fields.',err_pw:'Password too short (min. 6 chars).',
+  err_exists:'Email already registered.',err_notfound:'No account found.',err_pw_wrong:'Wrong password.',
+  supp_omega:'Omega-3',supp_omega_dose:'2×1g daily',supp_omega_note:'With meal',
+  supp_multi:'Multivitamin',supp_multi_dose:'1 capsule daily',
+  supp_kreatin:'Creatine',supp_kreatin_dose:'5g daily',supp_kreatin_note:'With water',
+  supp_bcaa:'BCAA',supp_bcaa_dose:'10g around workout',supp_bcaa_note:'Pre/Post',
+  supp_protein:'Protein',supp_protein_dose:'30–40g post-workout',supp_protein_note:'Whey preferred',
+  supp_vitc:'Vitamin C',supp_vitc_dose:'1000mg daily',supp_vitc_note:'Immune support',
+  supp_zinc:'Zinc',supp_zinc_dose:'25mg daily',supp_zinc_note:'Not on empty stomach',
+  supp_enzyme:'Digestive Enzymes',supp_enzyme_dose:'1 cap. with meal',supp_enzyme_note:'Protein digestion',
+  supp_ashwa:'Ashwagandha',supp_ashwa_dose:'600mg evening',supp_ashwa_note:'Adaptogen',
+  supp_mag:'Magnesium',supp_mag_dose:'400mg evening',
+  supp_melatonin:'Melatonin',supp_melatonin_dose:'1–3mg before sleep',supp_melatonin_note:'As needed',
+  ki_greeting:'State the condition of your physical vessel and your sleep cycle, {name}…',
+  ki_thinking:'Evaluating resonance…',ki_input_ph:'Respond to Shadow AI…',ki_you:'You',
+  btn_logout:'Log Out',
+  w_scanner:'🔬 MATERIA SCANNER',scan_btn:'◈ AI ANALYSE',scan_loading:'AI analyzing materia…',
+  ta_title:'▸ DAILY LOG',ta_empty:'// No materia scanned yet…',
+  edit_title:'◈ EDIT MATERIA',edit_cancel:'Cancel',edit_save:'Save',
+  verify_title:'VERIFICATION PENDING',verify_sub:'A code was sent to:',
+  verify_hint:'Demo code (simulated):',btn_verify:'CONFIRM IDENTITY',
+  err_code_wrong:'Invalid code. Please try again.',err_code_short:'Enter the 6-digit code.',
+  ob_gender:'PHYSICAL ENTITY',gender_m:'♂ Male',gender_f:'♀ Female',gender_x:'◈ Shadow Entity',
+  po_gender:'ENTITY',
+  ob_goal:'FOCUS GOAL',goal_bulk:'🏋️ Bulk',goal_cut:'🔥 Definition',goal_perf:'⚡ Performance',goal_long:'🌿 Longevity',
+  po_goal:'FOCUS',po_bmi:'BMI',
+  supp_lcarnitin:'L-Carnitine',supp_lcarnitin_dose:'2g pre-workout',supp_lcarnitin_note:'Fat metabolism',
+  supp_greentea:'Green Tea Extract',supp_greentea_dose:'500mg morning',supp_greentea_note:'EGCG · Thermogenesis',
+  supp_rhodiola:'Rhodiola Rosea',supp_rhodiola_dose:'300mg morning',supp_rhodiola_note:'Anti-stress adaptogen',
+  supp_vitd:'Vitamin D3 + K2',supp_vitd_dose:'4000 IU morning',supp_vitd_note:'Take with fat',
+  supp_iron:'Iron + Vitamin C',supp_iron_dose:'14mg morning',supp_iron_note:'On empty stomach',
+  supp_citrullin:'L-Citrulline',supp_citrullin_dose:'6g pre-workout',supp_citrullin_note:'Pump & endurance',
+  why_base:'Base protocol',why_bulk:'Bulk optimisation',why_cut:'Cutting support',
+  why_perf:'Performance boost',why_long:'Longevity support',why_sleep:'Sleep optimisation',
+  why_stress:'Stress adaptation',why_immune:'Immune support',why_female:'Micronutrient balance',why_age:'Cell protection 30+',
+  w_cart:'🛒 SUPPLY CALCULATOR',cart_period:'PERIOD',cart_week:'Week',cart_month:'Month',
+  cart_budget:'BUDGET',cart_addr_ph:'Address (e.g. Main St 12, Vienna)',cart_calc:'◈ CALCULATE RUN',
+  cart_total:'TOTAL',cart_saved:'SAVED',cart_fit:'BUDGET USE',cart_nearest:'Cheapest market',
+  cart_deal:'DEAL',cart_hint:'// Simulated market data · deals rotate weekly',cart_none:'// Nothing fits the budget…',
+  scan_scanning:'SCANNING…',scan_detected:'detected',
+},
+ja:{
+  login_sub:'サプリメント・プロトコル',tab_login:'ログイン',tab_register:'登録',
+  field_email:'メール',field_pw:'パスワード',field_username:'ユーザー名',
+  btn_login:'ログイン',btn_register:'登録する',btn_next:'次へ',
+  btn_continue:'プロトコル開始',btn_briefing:'◈ ブリーフィング',btn_dismiss:'虚無へ',
+  ob_av_title:'アバター選択',ob_av_sub:'虚無での姿を選べ',
+  ob_upload:'写真',ob_prof_title:'プロフィール設定',ob_prof_sub:'プロトコルの身体パラメーター',
+  ob_first:'名前',ob_age:'年齢',ob_height:'身長 (cm)',ob_weight:'体重 (kg)',
+  ki_title:'シャドウAI 起動',ki_desc:'プロトコルが待っている。',
+  ki_init_btn:'シャドウAI 起動',ki_generating:'プロトコル初期化中…',ki_prefix:'シャドウAI が聞く',
+  ki_q1:'どのくらいの頻度でトレーニングを？',ki_q2:'栄養の取り方は？',ki_q3:'睡眠の深さは？',
+  ki_o1_1:'しない',ki_o1_2:'週1〜2回',ki_o1_3:'週3〜5回',ki_o1_4:'毎日',
+  ki_o2_1:'バランス良く',ki_o2_2:'高タンパク',ki_o2_3:'ファストフード',
+  ki_o3_1:'とても良い',ki_o3_2:'落ち着かない',ki_o3_3:'眠れない',
+  prog_done:'完了',
+  w_macro:'⚡ エネルギー共鳴',w_mana:'💧 マナ再生',w_mission:'▶ ミッションログ',
+  m_kcal:'kcal',m_prot:'タンパク',m_carb:'炭水化物',m_fat:'脂質',m_sug:'糖質',
+  mission_ph:'// 今日のシャドウノート…',mana_label:'杯飲んだ',
+  phase_alpha:'アルファ覚醒',phase_beta:'ベータ力',phase_gamma:'ガンマ休息',
+  phase_alpha_time:'07:00',phase_beta_time:'12:00–14:00',phase_gamma_time:'21:00',
+  modal_title:'▶ シャドウ・ブリーフィング',briefing_ph:'ブリーフィング未設定。',
+  po_title:'シャドウ エージェント',po_age:'年齢',po_height:'身長',po_weight:'体重',
+  po_macros:'基礎値',po_protocol:'プロトコル',
+  complete_title:'プロトコル完了',complete_streak:'連続{n}日！',
+  err_fields:'全項目を入力。',err_pw:'パスワードが短すぎ。',
+  err_exists:'登録済みメール。',err_notfound:'アカウントなし。',err_pw_wrong:'パスワード誤り。',
+  supp_omega:'オメガ3',supp_omega_dose:'1g×2/日',supp_omega_note:'食事と一緒に',
+  supp_multi:'マルチビタミン',supp_multi_dose:'1カプセル/日',
+  supp_kreatin:'クレアチン',supp_kreatin_dose:'5g/日',supp_kreatin_note:'水と一緒',
+  supp_bcaa:'BCAA',supp_bcaa_dose:'前後10g',supp_bcaa_note:'Pre/Post',
+  supp_protein:'プロテイン',supp_protein_dose:'後30〜40g',supp_protein_note:'ホエイ推奨',
+  supp_vitc:'ビタミンC',supp_vitc_dose:'1000mg/日',supp_vitc_note:'免疫',
+  supp_zinc:'亜鉛',supp_zinc_dose:'25mg/日',supp_zinc_note:'空腹時避ける',
+  supp_enzyme:'消化酵素',supp_enzyme_dose:'食事と1カプ',supp_enzyme_note:'タンパク消化',
+  supp_ashwa:'アシュワガンダ',supp_ashwa_dose:'600mg 夜',supp_ashwa_note:'適応原',
+  supp_mag:'マグネシウム',supp_mag_dose:'400mg 夜',
+  supp_melatonin:'メラトニン',supp_melatonin_dose:'就寝前1〜3mg',supp_melatonin_note:'必要時',
+  ki_greeting:'あなたの肉体の状態と睡眠サイクルを述べよ、{name}…',
+  ki_thinking:'共鳴を評価中…',ki_input_ph:'シャドウAIに返答…',ki_you:'あなた',
+  btn_logout:'ログアウト',
+  w_scanner:'🔬 マテリア・スキャナー',scan_btn:'◈ AI 解析',scan_loading:'AI がマテリアを解析中…',
+  ta_title:'▸ 日次記録',ta_empty:'// まだスキャンなし…',
+  edit_title:'◈ マテリア編集',edit_cancel:'キャンセル',edit_save:'保存',
+  verify_title:'確認保留中',verify_sub:'コードを送信先:',
+  verify_hint:'デモコード（シミュレーション）:',btn_verify:'身元確認',
+  err_code_wrong:'無効なコード。再試行。',err_code_short:'6桁のコードを入力。',
+  ob_gender:'エンティティ',gender_m:'♂ 男性',gender_f:'♀ 女性',gender_x:'◈ シャドウ体',
+  po_gender:'エンティティ',
+  ob_goal:'フォーカス目標',goal_bulk:'🏋️ バルク',goal_cut:'🔥 減量',goal_perf:'⚡ パフォーマンス',goal_long:'🌿 長寿',
+  po_goal:'目標',po_bmi:'BMI',
+  supp_lcarnitin:'L-カルニチン',supp_lcarnitin_dose:'トレ前2g',supp_lcarnitin_note:'脂肪代謝',
+  supp_greentea:'緑茶エキス',supp_greentea_dose:'朝500mg',supp_greentea_note:'EGCG',
+  supp_rhodiola:'ロディオラ',supp_rhodiola_dose:'朝300mg',supp_rhodiola_note:'抗ストレス',
+  supp_vitd:'ビタミンD3+K2',supp_vitd_dose:'朝4000IU',supp_vitd_note:'脂質と摂取',
+  supp_iron:'鉄分+ビタミンC',supp_iron_dose:'朝14mg',supp_iron_note:'空腹時に',
+  supp_citrullin:'L-シトルリン',supp_citrullin_dose:'トレ前6g',supp_citrullin_note:'パンプ&持久力',
+  why_base:'基本',why_bulk:'バルク最適化',why_cut:'減量サポート',why_perf:'性能ブースト',why_long:'長寿サポート',
+  why_sleep:'睡眠最適化',why_stress:'ストレス適応',why_immune:'免疫サポート',why_female:'微量栄養素',why_age:'細胞保護30+',
+  w_cart:'🛒 買い出し計算機',cart_period:'期間',cart_week:'週',cart_month:'月',
+  cart_budget:'予算',cart_addr_ph:'住所…',cart_calc:'◈ 計算する',
+  cart_total:'合計',cart_saved:'節約',cart_fit:'消化率',cart_nearest:'最安マーケット',
+  cart_deal:'セール',cart_hint:'// シミュレーション・週替わりセール',cart_none:'// 予算内の商品なし…',
+  scan_scanning:'スキャン中…',scan_detected:'検出',
+},
+ko:{
+  login_sub:'서플리먼트 프로토콜',tab_login:'로그인',tab_register:'회원가입',
+  field_email:'이메일',field_pw:'비밀번호',field_username:'사용자명',
+  btn_login:'로그인',btn_register:'회원가입',btn_next:'다음',
+  btn_continue:'프로토콜 시작',btn_briefing:'◈ 브리핑',btn_dismiss:'보이드로',
+  ob_av_title:'아바타 선택',ob_av_sub:'보이드의 모습을 선택하세요',
+  ob_upload:'사진',ob_prof_title:'프로필 설정',ob_prof_sub:'프로토콜 신체 파라미터',
+  ob_first:'이름',ob_age:'나이',ob_height:'키 (cm)',ob_weight:'몸무게 (kg)',
+  ki_title:'쉐도우 AI 개시',ki_desc:'프로토콜이 기다린다.',
+  ki_init_btn:'쉐도우 AI 개시',ki_generating:'프로토콜 초기화 중…',ki_prefix:'쉐도우 AI 질문',
+  ki_q1:'얼마나 자주 훈련하나요?',ki_q2:'영양 섭취는?',ki_q3:'수면의 깊이는?',
+  ki_o1_1:'안 함',ki_o1_2:'주 1~2회',ki_o1_3:'주 3~5회',ki_o1_4:'매일',
+  ki_o2_1:'균형',ki_o2_2:'고단백',ki_o2_3:'패스트푸드',
+  ki_o3_1:'매우 좋음',ki_o3_2:'불안',ki_o3_3:'불면',
+  prog_done:'완료',
+  w_macro:'⚡ 에너지 공명',w_mana:'💧 마나 재생',w_mission:'▶ 미션 로그',
+  m_kcal:'kcal',m_prot:'단백질',m_carb:'탄수화물',m_fat:'지방',m_sug:'당',
+  mission_ph:'// 오늘의 쉐도우 노트…',mana_label:'잔 마셨음',
+  phase_alpha:'알파 각성',phase_beta:'베타 파워',phase_gamma:'감마 휴식',
+  phase_alpha_time:'07:00',phase_beta_time:'12:00–14:00',phase_gamma_time:'21:00',
+  modal_title:'▶ 쉐도우 브리핑',briefing_ph:'브리핑 미설정.',
+  po_title:'쉐도우 에이전트',po_age:'나이',po_height:'키',po_weight:'몸무게',
+  po_macros:'신체 기초값',po_protocol:'활성 프로토콜',
+  complete_title:'프로토콜 완료',complete_streak:'연속 {n}일!',
+  err_fields:'모든 항목 입력.',err_pw:'비밀번호 짧음.',
+  err_exists:'이미 등록됨.',err_notfound:'계정 없음.',err_pw_wrong:'비밀번호 틀림.',
+  supp_omega:'오메가3',supp_omega_dose:'1g×2/일',supp_omega_note:'식사와 함께',
+  supp_multi:'멀티비타민',supp_multi_dose:'하루 1캡슐',
+  supp_kreatin:'크레아틴',supp_kreatin_dose:'하루 5g',supp_kreatin_note:'물과 함께',
+  supp_bcaa:'BCAA',supp_bcaa_dose:'전후 10g',supp_bcaa_note:'Pre/Post',
+  supp_protein:'프로테인',supp_protein_dose:'후 30~40g',supp_protein_note:'웨이 권장',
+  supp_vitc:'비타민C',supp_vitc_dose:'1000mg/일',supp_vitc_note:'면역',
+  supp_zinc:'아연',supp_zinc_dose:'25mg/일',supp_zinc_note:'공복 피하기',
+  supp_enzyme:'소화효소',supp_enzyme_dose:'식사와 1캡',supp_enzyme_note:'단백 소화',
+  supp_ashwa:'아슈와간다',supp_ashwa_dose:'저녁 600mg',supp_ashwa_note:'적응원',
+  supp_mag:'마그네슘',supp_mag_dose:'저녁 400mg',
+  supp_melatonin:'멜라토닌',supp_melatonin_dose:'취침 전 1~3mg',supp_melatonin_note:'필요시',
+  ki_greeting:'당신의 신체 상태와 수면 주기를 말하라, {name}…',
+  ki_thinking:'공명 평가 중…',ki_input_ph:'쉐도우 AI에게 답변…',ki_you:'나',
+  btn_logout:'로그아웃',
+  w_scanner:'🔬 마테리아 스캐너',scan_btn:'◈ AI 분석',scan_loading:'AI가 마테리아 분석 중…',
+  ta_title:'▸ 일일 기록',ta_empty:'// 아직 스캔 없음…',
+  edit_title:'◈ 마테리아 편집',edit_cancel:'취소',edit_save:'저장',
+  verify_title:'인증 대기 중',verify_sub:'코드 발송 주소:',
+  verify_hint:'데모 코드(시뮬레이션):',btn_verify:'신원 확인',
+  err_code_wrong:'잘못된 코드. 다시 시도.',err_code_short:'6자리 코드 입력.',
+  ob_gender:'신체 엔티티',gender_m:'♂ 남성',gender_f:'♀ 여성',gender_x:'◈ 쉐도우 엔티티',
+  po_gender:'엔티티',
+  ob_goal:'포커스 목표',goal_bulk:'🏋️ 벌크업',goal_cut:'🔥 커팅',goal_perf:'⚡ 퍼포먼스',goal_long:'🌿 롱제비티',
+  po_goal:'목표',po_bmi:'BMI',
+  supp_lcarnitin:'L-카르니틴',supp_lcarnitin_dose:'운동 전 2g',supp_lcarnitin_note:'지방 대사',
+  supp_greentea:'녹차 추출물',supp_greentea_dose:'아침 500mg',supp_greentea_note:'EGCG',
+  supp_rhodiola:'로디올라',supp_rhodiola_dose:'아침 300mg',supp_rhodiola_note:'항스트레스',
+  supp_vitd:'비타민 D3+K2',supp_vitd_dose:'아침 4000IU',supp_vitd_note:'지방과 함께',
+  supp_iron:'철분+비타민C',supp_iron_dose:'아침 14mg',supp_iron_note:'공복에',
+  supp_citrullin:'L-시트룰린',supp_citrullin_dose:'운동 전 6g',supp_citrullin_note:'펌프&지구력',
+  why_base:'기본',why_bulk:'벌크업 최적화',why_cut:'커팅 서포트',why_perf:'퍼포먼스',why_long:'롱제비티',
+  why_sleep:'수면 최적화',why_stress:'스트레스 적응',why_immune:'면역 서포트',why_female:'미량영양소',why_age:'세포 보호 30+',
+  w_cart:'🛒 장보기 계산기',cart_period:'기간',cart_week:'주',cart_month:'월',
+  cart_budget:'예산',cart_addr_ph:'주소…',cart_calc:'◈ 계산하기',
+  cart_total:'합계',cart_saved:'절약',cart_fit:'사용률',cart_nearest:'최저가 마켓',
+  cart_deal:'세일',cart_hint:'// 시뮬레이션 · 주간 세일 로테이션',cart_none:'// 예산 내 상품 없음…',
+  scan_scanning:'스캔 중…',scan_detected:'감지됨',
+},
+es:{
+  login_sub:'PROTOCOLO DE SUPLEMENTOS',tab_login:'Iniciar Sesión',tab_register:'Registrarse',
+  field_email:'Correo',field_pw:'Contraseña',field_username:'Usuario',
+  btn_login:'Entrar',btn_register:'Registrarse',btn_next:'Siguiente',
+  btn_continue:'Iniciar Protocolo',btn_briefing:'◈ BRIEFING SHADOW',btn_dismiss:'Al Vacío',
+  ob_av_title:'ELEGIR AVATAR',ob_av_sub:'Elige tu apariencia en el Vacío',
+  ob_upload:'Foto',ob_prof_title:'CONFIGURAR PERFIL',ob_prof_sub:'Parámetros físicos para el protocolo',
+  ob_first:'Nombre',ob_age:'Edad',ob_height:'Altura (cm)',ob_weight:'Peso (kg)',
+  ki_title:'INICIACIÓN IA SHADOW',ki_desc:'El protocolo te espera.',
+  ki_init_btn:'INICIAR IA SHADOW',ki_generating:'Inicializando protocolo…',ki_prefix:'IA SHADOW PREGUNTA',
+  ki_q1:'¿Con qué frecuencia entrenas?',ki_q2:'¿Cómo es tu alimentación?',ki_q3:'¿Qué tan profundo es tu sueño?',
+  ki_o1_1:'Nunca',ki_o1_2:'1–2× por semana',ki_o1_3:'3–5× por semana',ki_o1_4:'Diariamente',
+  ki_o2_1:'Equilibrada',ki_o2_2:'Alta en proteína',ki_o2_3:'Comida rápida',
+  ki_o3_1:'Muy bien',ki_o3_2:'Inquieto',ki_o3_3:'Sin dormir',
+  prog_done:'COMPLETADO',
+  w_macro:'⚡ RESONANCIA ENERGÉTICA',w_mana:'💧 REGENERACIÓN DE MANÁ',w_mission:'▶ DIARIO DE MISIÓN',
+  m_kcal:'kcal',m_prot:'Proteína',m_carb:'Carbos',m_fat:'Grasa',m_sug:'Azúcar',
+  mission_ph:'// Notas de sombra de hoy…',mana_label:'vasos bebidos',
+  phase_alpha:'ALFA DESPERTAR',phase_beta:'BETA PODER',phase_gamma:'GAMMA REPOSO',
+  phase_alpha_time:'07:00',phase_beta_time:'12:00–14:00',phase_gamma_time:'21:00',
+  modal_title:'▶ BRIEFING SHADOW',briefing_ph:'Sin briefing configurado.',
+  po_title:'ARCHIVO AGENTE SHADOW',po_age:'EDAD',po_height:'ALTURA',po_weight:'PESO',
+  po_macros:'VALORES FÍSICOS BASE',po_protocol:'PROTOCOLO ACTIVO',
+  complete_title:'PROTOCOLO COMPLETADO',complete_streak:'¡Racha: {n} día(s)!',
+  err_fields:'Rellena todos los campos.',err_pw:'Contraseña muy corta.',
+  err_exists:'Correo ya registrado.',err_notfound:'Cuenta no encontrada.',err_pw_wrong:'Contraseña incorrecta.',
+  supp_omega:'Omega-3',supp_omega_dose:'2×1g diario',supp_omega_note:'Con comida',
+  supp_multi:'Multivitamínico',supp_multi_dose:'1 cápsula diaria',
+  supp_kreatin:'Creatina',supp_kreatin_dose:'5g diario',supp_kreatin_note:'Con agua',
+  supp_bcaa:'BCAA',supp_bcaa_dose:'10g entrenamiento',supp_bcaa_note:'Pre/Post',
+  supp_protein:'Proteína',supp_protein_dose:'30–40g post',supp_protein_note:'Whey preferido',
+  supp_vitc:'Vitamina C',supp_vitc_dose:'1000mg diario',supp_vitc_note:'Inmune',
+  supp_zinc:'Zinc',supp_zinc_dose:'25mg diario',supp_zinc_note:'No ayuno',
+  supp_enzyme:'Enzimas digestivas',supp_enzyme_dose:'1 cap con comida',supp_enzyme_note:'Digestión proteínas',
+  supp_ashwa:'Ashwagandha',supp_ashwa_dose:'600mg tarde',supp_ashwa_note:'Adaptógeno',
+  supp_mag:'Magnesio',supp_mag_dose:'400mg tarde',
+  supp_melatonin:'Melatonina',supp_melatonin_dose:'1–3mg dormir',supp_melatonin_note:'Según necesidad',
+  ki_greeting:'Describe el estado de tu recipiente físico y tu ciclo de sueño, {name}…',
+  ki_thinking:'Evaluando resonancia…',ki_input_ph:'Responder a Shadow AI…',ki_you:'Tú',
+  btn_logout:'Cerrar Sesión',
+  w_scanner:'🔬 ESCÁNER DE MATERIA',scan_btn:'◈ ANALIZAR IA',scan_loading:'IA analizando materia…',
+  ta_title:'▸ DIARIO DIARIO',ta_empty:'// Ninguna materia escaneada…',
+  edit_title:'◈ EDITAR MATERIA',edit_cancel:'Cancelar',edit_save:'Guardar',
+  verify_title:'VERIFICACIÓN PENDIENTE',verify_sub:'Se envió un código a:',
+  verify_hint:'Código demo (simulado):',btn_verify:'CONFIRMAR IDENTIDAD',
+  err_code_wrong:'Código inválido. Inténtalo de nuevo.',err_code_short:'Ingresa el código de 6 dígitos.',
+  ob_gender:'ENTIDAD FÍSICA',gender_m:'♂ Masculino',gender_f:'♀ Femenino',gender_x:'◈ Entidad Sombra',
+  po_gender:'ENTIDAD',
+  ob_goal:'OBJETIVO',goal_bulk:'🏋️ Volumen',goal_cut:'🔥 Definición',goal_perf:'⚡ Rendimiento',goal_long:'🌿 Longevidad',
+  po_goal:'OBJETIVO',po_bmi:'IMC',
+  supp_lcarnitin:'L-Carnitina',supp_lcarnitin_dose:'2g pre-entreno',supp_lcarnitin_note:'Metabolismo de grasas',
+  supp_greentea:'Extracto de té verde',supp_greentea_dose:'500mg mañana',supp_greentea_note:'EGCG · Termogénesis',
+  supp_rhodiola:'Rhodiola Rosea',supp_rhodiola_dose:'300mg mañana',supp_rhodiola_note:'Adaptógeno antiestrés',
+  supp_vitd:'Vitamina D3 + K2',supp_vitd_dose:'4000 UI mañana',supp_vitd_note:'Tomar con grasa',
+  supp_iron:'Hierro + Vitamina C',supp_iron_dose:'14mg mañana',supp_iron_note:'En ayunas',
+  supp_citrullin:'L-Citrulina',supp_citrullin_dose:'6g pre-entreno',supp_citrullin_note:'Pump y resistencia',
+  why_base:'Protocolo base',why_bulk:'Optimización de volumen',why_cut:'Soporte de definición',
+  why_perf:'Impulso de rendimiento',why_long:'Soporte longevidad',why_sleep:'Optimización del sueño',
+  why_stress:'Adaptación al estrés',why_immune:'Soporte inmune',why_female:'Balance de micronutrientes',why_age:'Protección celular 30+',
+  w_cart:'🛒 CALCULADORA DE COMPRAS',cart_period:'PERIODO',cart_week:'Semana',cart_month:'Mes',
+  cart_budget:'PRESUPUESTO',cart_addr_ph:'Dirección…',cart_calc:'◈ CALCULAR COMPRA',
+  cart_total:'TOTAL',cart_saved:'AHORRADO',cart_fit:'USO',cart_nearest:'Mercado más barato',
+  cart_deal:'OFERTA',cart_hint:'// Datos simulados · ofertas rotan semanalmente',cart_none:'// Nada entra en el presupuesto…',
+  scan_scanning:'ESCANEANDO…',scan_detected:'detectado',
+}};
+
+let lang = S.get('lang') || 'de';
+function t(k){ return (I18N[lang]||I18N.de)[k] || I18N.de[k] || k; }
+function setLang(l){ lang=l; S.set('lang',l); applyLang(); }
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const k=el.getAttribute('data-i18n');
+    if(el.tagName==='INPUT') el.placeholder=t(k); else el.innerHTML=t(k);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{
+    el.placeholder=t(el.getAttribute('data-i18n-ph'));
+  });
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.textContent.toLowerCase()===lang));
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+//  SUPPLEMENT DEFS
+// ═══════════════════════════════════════════════════════
+const SDEFS = {
+  omega:      {nk:'supp_omega',dk:'supp_omega_dose',ok:'supp_omega_note'},
+  multi:      {nk:'supp_multi',dk:'supp_multi_dose',ok:null},
+  kreatin:    {nk:'supp_kreatin',dk:'supp_kreatin_dose',ok:'supp_kreatin_note'},
+  bcaa:       {nk:'supp_bcaa',dk:'supp_bcaa_dose',ok:'supp_bcaa_note'},
+  protein:    {nk:'supp_protein',dk:'supp_protein_dose',ok:'supp_protein_note'},
+  vitc:       {nk:'supp_vitc',dk:'supp_vitc_dose',ok:'supp_vitc_note'},
+  zinc:       {nk:'supp_zinc',dk:'supp_zinc_dose',ok:'supp_zinc_note'},
+  enzyme:     {nk:'supp_enzyme',dk:'supp_enzyme_dose',ok:'supp_enzyme_note'},
+  ashwagandha:{nk:'supp_ashwa',dk:'supp_ashwa_dose',ok:'supp_ashwa_note'},
+  magnesium:  {nk:'supp_mag',dk:'supp_mag_dose',ok:null},
+  melatonin:  {nk:'supp_melatonin',dk:'supp_melatonin_dose',ok:'supp_melatonin_note'},
+  // ── ULTRACODE: erweiterte Supplement-Datenbank für die Smart-Engine ──
+  lcarnitin:  {nk:'supp_lcarnitin',dk:'supp_lcarnitin_dose',ok:'supp_lcarnitin_note'},
+  greentea:   {nk:'supp_greentea', dk:'supp_greentea_dose', ok:'supp_greentea_note'},
+  rhodiola:   {nk:'supp_rhodiola', dk:'supp_rhodiola_dose', ok:'supp_rhodiola_note'},
+  vitd:       {nk:'supp_vitd',     dk:'supp_vitd_dose',     ok:'supp_vitd_note'},
+  iron:       {nk:'supp_iron',     dk:'supp_iron_dose',     ok:'supp_iron_note'},
+  citrullin:  {nk:'supp_citrullin',dk:'supp_citrullin_dose',ok:'supp_citrullin_note'},
+};
+
+// ═══════════════════════════════════════════════════════
+//  MACRO CALCULATION
+// ═══════════════════════════════════════════════════════
+function calcMacros(age, heightCm, weightKg, training, nutrition, sleep, gender, goal){
+  // BMR (Mifflin-St. Jeor) — ULTRACODE: geschlechtsspezifische Konstante statt pauschal männlich
+  const gConst = gender==='f' ? -161 : 5;
+  const bmr = 10*weightKg + 6.25*heightCm - 5*age + gConst;
+  const actMult = {none:1.2,'1-2x':1.375,'3-5x':1.55,daily:1.725}[training] || 1.375;
+  const tdee = Math.round(bmr * actMult);
+  // Adjust for sleep (recovery calories)
+  let kcal = tdee + (sleep==='sleepless' ? 150 : sleep==='restless' ? 75 : 0);
+  // ULTRACODE: Fokus-Ziel moduliert das Kalorienziel (Bulk-Surplus / Cut-Defizit)
+  kcal = Math.round(kcal * ({bulk:1.12, cut:0.85, perf:1.05, long:1.0}[goal] || 1.0));
+  // Protein: Cut → 2.4g/kg (Muskelschutz im Defizit), High-Protein → 2.2, sonst 1.8
+  const protG = Math.round(weightKg * (goal==='cut' ? 2.4 : nutrition==='highprot' ? 2.2 : 1.8));
+  const fatG   = Math.round((kcal * 0.25) / 9);
+  const carbG  = Math.round((kcal - protG*4 - fatG*9) / 4);
+  const sugG   = Math.round(carbG * (nutrition==='fastfood' ? 0.35 : 0.18));
+  return { kcal, prot:protG, carb:Math.max(0,carbG), fat:fatG, sug:sugG };
+}
+
+// ═══════════════════════════════════════════════════════
+//  PROTOCOL GENERATION (local fallback)
+// ═══════════════════════════════════════════════════════
+function generateProtocolLocal(answers){
+  const {training,nutrition,sleep} = answers;
+  const s=[];
+  s.push({id:'omega',phase:'alpha'});
+  s.push({id:'multi',phase:'alpha'});
+  if(training==='3-5x'||training==='daily') s.push({id:'kreatin',phase:'beta'});
+  if(training==='daily') s.push({id:'bcaa',phase:'beta'});
+  if(training!=='none') s.push({id:'protein',phase:'beta'});
+  if(nutrition==='fastfood'){ s.push({id:'vitc',phase:'alpha'}); s.push({id:'zinc',phase:'alpha'}); }
+  if(nutrition==='highprot') s.push({id:'enzyme',phase:'beta'});
+  if(sleep==='restless'||sleep==='sleepless') s.push({id:'ashwagandha',phase:'gamma'});
+  s.push({id:'magnesium',phase:'gamma'});
+  if(sleep==='sleepless') s.push({id:'melatonin',phase:'gamma'});
+  return s;
+}
+
+// ═══════════════════════════════════════════════════════
+//  ◈ ULTRACODE ENGINE 1/3 — SMART SUPPLEMENT ENGINE
+//  Dynamische Protokoll-Generierung aus dem VOLLSTÄNDIGEN
+//  Profil (Größe, Gewicht, Alter, Geschlecht, Fokus-Ziel)
+//  plus KI-Antworten (Training, Ernährung, Schlaf).
+//
+//  Verfahren: Score-basiertes Ranking. Jedes Supplement
+//  sammelt Punkte aus 5 Signalquellen; nur Kandidaten
+//  über dem Schwellwert landen im Protokoll (max. 4 pro
+//  Phase). Ergebnis: kein starres Set — eine 60-kg-Frau
+//  im Cut bekommt ein völlig anderes Protokoll als ein
+//  110-kg-Mann in der Massephase. Und nicht jeder
+//  bekommt Omega-3.
+// ═══════════════════════════════════════════════════════
+function generateSmartProtocol(profile, answers){
+  const {training='3-5x', nutrition='balanced', sleep='restless'} = answers || {};
+  const goal   = profile?.goal   || 'bulk';
+  const age    = profile?.age    || 25;
+  const wt     = profile?.weight || 80;
+  const ht     = profile?.height || 180;
+  const gender = profile?.gender || 'm';
+  const bmi    = wt / Math.pow(ht/100, 2);
+  const heavyBulk = goal==='bulk' && (bmi >= 27 || wt >= 100); // schwere Massephase
+
+  // Kandidatenliste: { id, phase, score, wk (Begründungs-Key für die UI) }
+  const C = [];
+  const add = (id, phase, score, wk) => {
+    const ex = C.find(c => c.id === id);
+    if(ex) ex.score += score;             // Mehrfach-Signale addieren sich
+    else C.push({id, phase, score, wk});
+  };
+
+  // ── Signal 1: Fokus-Ziel (stärkstes Gewicht) ──────────────────────────────
+  if(goal === 'bulk'){
+    add('kreatin','beta',5,'why_bulk');  add('protein','beta',4,'why_bulk');
+    add('zinc','alpha',3,'why_bulk');    add('enzyme','beta',2,'why_bulk');
+    // Schwere Massephase → Ashwagandha (Cortisol) + Zink (Testosteron-Basis)
+    if(heavyBulk){ add('ashwagandha','gamma',4,'why_bulk'); add('zinc','alpha',2,'why_bulk'); }
+  }
+  if(goal === 'cut'){
+    add('lcarnitin','beta',5,'why_cut'); add('greentea','alpha',5,'why_cut');
+    add('protein','beta',4,'why_cut');   add('multi','alpha',2,'why_cut');
+  }
+  if(goal === 'perf'){
+    add('citrullin','beta',5,'why_perf'); add('kreatin','beta',4,'why_perf');
+    add('bcaa','beta',2,'why_perf');
+  }
+  if(goal === 'long'){
+    add('omega','alpha',5,'why_long'); add('vitd','alpha',4,'why_long');
+    add('multi','alpha',3,'why_long');
+  }
+
+  // ── Signal 2: Trainingsvolumen ────────────────────────────────────────────
+  if(training === 'daily'){ add('kreatin','beta',3,'why_perf'); add('bcaa','beta',3,'why_perf'); add('citrullin','beta',2,'why_perf'); }
+  if(training === '3-5x'){ add('kreatin','beta',2,'why_perf'); add('protein','beta',2,'why_perf'); }
+  if(training === 'none'){ add('vitd','alpha',2,'why_base'); add('multi','alpha',2,'why_base'); }
+
+  // ── Signal 3: Ernährungsprofil ────────────────────────────────────────────
+  if(nutrition === 'fastfood'){ add('vitc','alpha',4,'why_immune'); add('zinc','alpha',3,'why_immune'); add('omega','alpha',3,'why_immune'); add('multi','alpha',3,'why_immune'); }
+  if(nutrition === 'highprot'){ add('enzyme','beta',4,'why_base'); } // Omega-3 bewusst NICHT: Fisch/Fleisch-lastige Kost deckt EPA/DHA bereits ab
+  if(nutrition === 'balanced'){ add('omega','alpha',2,'why_base'); add('multi','alpha',2,'why_base'); }
+
+  // ── Signal 4: Schlafqualität ──────────────────────────────────────────────
+  if(sleep === 'sleepless'){ add('melatonin','gamma',5,'why_sleep'); add('magnesium','gamma',4,'why_sleep'); add('ashwagandha','gamma',3,'why_sleep'); }
+  if(sleep === 'restless'){ add('magnesium','gamma',3,'why_sleep'); add('ashwagandha','gamma',2,'why_sleep'); }
+  if(sleep === 'good'){ add('magnesium','gamma',1,'why_sleep'); }
+
+  // ── Signal 5: Biometrie (Alter / Geschlecht / BMI) ────────────────────────
+  if(age >= 30){ add('vitd','alpha',2,'why_age'); add('omega','alpha',2,'why_age'); }
+  if(age >= 40){ add('multi','alpha',2,'why_age'); }
+  if(gender === 'f'){ add('iron','alpha',4,'why_female'); add('vitd','alpha',1,'why_female'); }
+  if(bmi < 20 && goal !== 'cut'){ add('protein','beta',3,'why_bulk'); add('enzyme','beta',2,'why_bulk'); }
+  if(bmi >= 30 && goal !== 'bulk'){ add('greentea','alpha',3,'why_cut'); add('lcarnitin','beta',2,'why_cut'); }
+
+  // ── Auswahl: Schwellwert + Phasen-Limit (max. 4 pro Phase) ────────────────
+  const THRESHOLD = 3;
+  const picked = C.filter(c => c.score >= THRESHOLD && SDEFS[c.id])
+                  .sort((a,b) => b.score - a.score);
+  const perPhase = {alpha:0, beta:0, gamma:0};
+  const out = [];
+  for(const c of picked){
+    if(perPhase[c.phase] >= 4) continue;
+    perPhase[c.phase]++;
+    out.push({id:c.id, phase:c.phase, wk:c.wk});
+  }
+  // Sicherheitsnetz: nie ein leeres Protokoll ausliefern
+  if(!out.length) out.push({id:'multi',phase:'alpha',wk:'why_base'},{id:'magnesium',phase:'gamma',wk:'why_base'});
+  // Phasen-Reihenfolge stabilisieren (Alpha → Beta → Gamma)
+  const ord = {alpha:0, beta:1, gamma:2};
+  return out.sort((a,b) => ord[a.phase] - ord[b.phase]);
+}
+
+// ── Async AI Protocol (with backend-ready fetch + local fallback) ──
+async function fetchAIProtocol(userData, answers){
+  try {
+    const res = await fetch('/api/generate-protocol', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({userData, answers}),
+      signal: AbortSignal.timeout(5000),
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    if(Array.isArray(data.protocol)) return data.protocol;
+    throw new Error('Invalid response shape');
+  } catch(e) {
+    console.info('[SHADOW~1] Backend offline — using local protocol fallback:', e.message);
+    return generateProtocolLocal(answers);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  STREAK & RANK
+// ═══════════════════════════════════════════════════════
+function dateKey(){ return new Date().toISOString().slice(0,10); }
+function prevKey(){ const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10); }
+function getStreak(){ return S.get('streak')||{count:0,lastDate:null}; }
+function completedToday(){ return getStreak().lastDate===dateKey(); }
+function finaliseStreak(){
+  if(completedToday()) return getStreak().count;
+  const s=getStreak();
+  const base=s.lastDate===prevKey()?s.count:0;
+  const next=base+1;
+  S.set('streak',{count:next,lastDate:dateKey()});
+  return next;
+}
+function getRank(n){
+  if(n>=365)return'Shadow Sovereign';if(n>=180)return'Shadow Monarch';
+  if(n>=90)return'Cid Kagenou';if(n>=30)return'Shadow Elite';
+  if(n>=14)return'Shadow Agent';if(n>=7)return'Shadow Initiate';
+  return'Shadow Novice';
+}
+
+// ═══════════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════════
+function handleLogin(){
+  const email=document.getElementById('l-email').value.trim();
+  const pw=document.getElementById('l-pw').value;
+  const err=document.getElementById('l-err');
+  err.textContent='';
+  if(!email||!pw){err.textContent=t('err_fields');return;}
+  const auth=S.get('auth');
+  if(!auth||auth.email!==email){err.textContent=t('err_notfound');return;}
+  if(auth.pw!==btoa(unescape(encodeURIComponent(pw)))){err.textContent=t('err_pw_wrong');return;}
+  S.set('session',{email,ts:Date.now()});
+  afterLogin();
+}
+function handleRegister(){
+  const email=document.getElementById('r-email').value.trim();
+  const user=document.getElementById('r-user').value.trim();
+  const pw=document.getElementById('r-pw').value;
+  const err=document.getElementById('r-err');
+  err.textContent='';
+  if(!email||!user||!pw){err.textContent=t('err_fields');return;}
+  if(pw.length<6){err.textContent=t('err_pw');return;}
+  if(S.get('auth')?.email===email){err.textContent=t('err_exists');return;}
+  // Generate 6-digit verification code
+  const code=String(Math.floor(100000+Math.random()*900000));
+  S.set('_pending',{email,username:user,pw:btoa(unescape(encodeURIComponent(pw))),code});
+  // Prep verify screen
+  document.getElementById('verify-email-display').textContent=email;
+  document.getElementById('verify-code-display').textContent=code;
+  document.querySelectorAll('.code-digit').forEach(d=>{d.value='';});
+  document.getElementById('verify-err').textContent='';
+  setTimeout(()=>document.getElementById('cd0')?.focus(),200);
+  showScreen('verify');
+}
+function handleVerify(){
+  const digits=[...document.querySelectorAll('.code-digit')].map(d=>d.value).join('');
+  const pending=S.get('_pending');
+  const err=document.getElementById('verify-err');
+  err.textContent='';
+  if(!pending){showScreen('login');return;}
+  if(digits.length<6){err.textContent=t('err_code_short');return;}
+  if(digits!==pending.code){err.textContent=t('err_code_wrong');return;}
+  // Bulletproof global UID counter — never decrements, never tied to auth
+  const uid=(S.get('_uidctr')||0)+1;
+  S.set('_uidctr',uid);
+  const userId='#'+String(uid).padStart(3,'0');
+  S.set('auth',{email:pending.email,username:pending.username,pw:pending.pw,userId});
+  S.del('_pending');
+  S.set('session',{email:pending.email,ts:Date.now()});
+  showScreen('onboard');
+}
+function afterLogin(){
+  const profile=S.get('profile');
+  const protocol=S.get('protocol');
+  if(!profile){showScreen('onboard');return;}
+  if(!protocol){showScreen('ki');return;}
+  load();showScreen('dashboard');render();
+}
+function handleLogout(){
+  S.del('session');
+  document.getElementById('tb-chip').classList.add('hidden');
+  document.getElementById('tb-logout').classList.add('hidden');
+  showScreen('login');
+}
+function switchTab(tab){
+  document.getElementById('tab-l').classList.toggle('active',tab==='login');
+  document.getElementById('tab-r').classList.toggle('active',tab==='register');
+  document.getElementById('fl').style.display=tab==='login'?'block':'none';
+  document.getElementById('fr').style.display=tab==='register'?'block':'none';
+}
+
+// ═══════════════════════════════════════════════════════
+//  ONBOARDING
+// ═══════════════════════════════════════════════════════
+let selAvIdx=0, avB64=null, selGender='m', selGoal='bulk';
+function selectGender(g){
+  selGender=g;
+  document.querySelectorAll('.gender-btn').forEach(b=>b.classList.toggle('sel',b.dataset.g===g));
+}
+// ULTRACODE: Fokus-Ziel — Kernsignal für die Smart-Supplement-Engine
+function selectGoal(g){
+  selGoal=g;
+  document.querySelectorAll('.goal-btn').forEach(b=>b.classList.toggle('sel',b.dataset.goal===g));
+}
+function selAv(idx){
+  selAvIdx=idx;
+  document.querySelectorAll('.av-opt').forEach((el,i)=>{
+    el.classList.toggle('sel',i===idx||(idx===99&&el.id==='av-prev'));
+  });
+}
+function handleAvUpload(ev){
+  const f=ev.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    avB64=e.target.result;
+    const p=document.getElementById('av-prev');
+    p.style.display='flex';p.innerHTML=`<img src="${avB64}"/>`;
+    p.classList.add('sel');selAvIdx=99;
+    document.querySelectorAll('.av-opt:not(#av-prev)').forEach(el=>el.classList.remove('sel'));
+  };
+  r.readAsDataURL(f);
+}
+function goOb2(){
+  document.getElementById('ob1').classList.remove('active');
+  document.getElementById('ob2').classList.add('active');
+}
+function finishOb(){
+  const fn=document.getElementById('ob-fn').value.trim()||'Shadow';
+  const age=parseFloat(document.getElementById('ob-age').value)||20;
+  const ht=parseFloat(document.getElementById('ob-ht').value)||195;
+  const wt=parseFloat(document.getElementById('ob-wt').value)||140;
+  S.set('profile',{firstName:fn,age,height:ht,weight:wt,gender:selGender,goal:selGoal,avatarIdx:selAvIdx,avatarPhoto:avB64||null});
+  showScreen('ki');
+  // Onboarding-Flow: KI-Befragung startet automatisch — kein manueller Button nötig
+  setTimeout(startKI, 900);
+}
+
+// ═══════════════════════════════════════════════════════
+//  KI CHAT ONBOARDING
+// ═══════════════════════════════════════════════════════
+let kiHistory = [];   // [{role:'ai'|'user', content:'...'}]
+let kiAns     = {};   // kept for local fallback compatibility
+let kiDone    = false;
+
+function startKI(){
+  kiHistory = []; kiAns = {}; kiDone = false;
+  const chat = document.getElementById('ki-chat');
+  if(chat){ chat.innerHTML=''; chat.style.display='flex'; }
+  document.getElementById('ki-input-row').style.display = 'flex';
+  document.getElementById('ki-gen').style.display      = 'none';
+  showKIThinking(false);
+  setChatStatus('// Verbunden — Initialisierung läuft…');
+
+  const profile = S.get('profile');
+  const name    = profile?.firstName || 'Chosen One';
+  const greeting = t('ki_greeting').replace('{name}', name);
+  setTimeout(()=>{
+    appendKIMsg('ai', greeting);
+    kiHistory.push({role:'ai', content: greeting});
+    setChatStatus('// Online · Freier Antwort-Modus aktiv');
+    setTimeout(()=>document.getElementById('ki-input')?.focus(), 80);
+  }, 420);
+}
+
+function setChatStatus(txt){
+  const el = document.getElementById('ki-chat-status');
+  if(el) el.textContent = txt;
+}
+
+function appendKIMsg(role, content, extraCls=''){
+  const chat = document.getElementById('ki-chat');
+  if(!chat) return;
+  const div = document.createElement('div');
+  div.className = `ki-msg ${role}${extraCls?' '+extraCls:''}`;
+  const now = new Date();
+  const ts  = now.toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
+  div.innerHTML=`<div class="ki-msg-bubble">${content.replace(/\n/g,'<br>')}</div>`
+               +`<div class="ki-msg-ts">${role==='ai'?'◈ SHADOW AI':t('ki_you')} · ${ts}</div>`;
+  chat.appendChild(div);
+  requestAnimationFrame(()=>{ chat.scrollTop = chat.scrollHeight; });
+}
+
+function showKIThinking(show){
+  const el  = document.getElementById('ki-thinking');
+  const chat = document.getElementById('ki-chat');
+  if(el) el.style.display = show ? 'flex' : 'none';
+  if(chat) requestAnimationFrame(()=>{ chat.scrollTop = chat.scrollHeight; });
+}
+
+async function sendKIMessage(){
+  const inp = document.getElementById('ki-input');
+  const btn = document.getElementById('ki-send-btn');
+  if(!inp || kiDone) return;
+  const txt = inp.value.trim();
+  if(!txt) return;
+
+  inp.value = '';
+  inp.disabled = true;
+  if(btn) btn.disabled = true;
+
+  appendKIMsg('user', txt);
+  kiHistory.push({role:'user', content: txt});
+
+  showKIThinking(true);
+
+  const resp = await callOnboardingAPI(kiHistory);
+
+  showKIThinking(false);
+  appendKIMsg('ai', resp.message, resp.error ? 'err' : '');
+  if(!resp.error) kiHistory.push({role:'ai', content: resp.message});
+
+  if(resp.finalEvaluation){
+    kiDone = true;
+    S.set('ki_chat', kiHistory);
+    S.set('ki_ans',  kiAns);              // persist for buff/debuff detection
+    if(resp.macros)   S.set('macros',   resp.macros);
+    if(resp.protocol) S.set('protocol', resp.protocol);
+
+    // Transition: fade chat → gen screen
+    setTimeout(()=>{
+      document.getElementById('ki-input-row').style.display = 'none';
+      document.getElementById('ki-thinking').style.display  = 'none';
+      const chat = document.getElementById('ki-chat');
+      if(chat) chat.style.display = 'none';
+      setKIStatus('// ◈ Protokoll gespeichert — Zugang wird gewährt…', 'ok');
+      document.getElementById('ki-gen').style.display = 'flex';
+    }, 1400);
+    setTimeout(()=>{ load(); showScreen('dashboard'); render(); }, 3600);
+    return;
+  }
+
+  inp.disabled = false;
+  if(btn) btn.disabled = false;
+  inp.focus();
+}
+
+// ── OpenAI — Direct Client-Side Call ─────────────────────────────────────────
+// Response schema: { message, finalEvaluation, macros?, protocol? }
+async function callOnboardingAPI(history){
+  const profile = S.get('profile') || {};
+
+  // No key or provider disabled → skip straight to local fallback
+  if(!OPENAI_API_KEY || OPENAI_API_KEY === 'HIER_KEY_EINTRAGEN' || USE_PROVIDER === 'off'){
+    console.info('[SHADOW~1] Kein API-Key — lokaler Fallback aktiv');
+    return buildFallbackResponse(history, profile, 'Kein API-Key konfiguriert');
+  }
+
+  try {
+    // Build profile context string (appended to system prompt)
+    const profileCtx = buildProfileContext(profile);
+
+    // Map kiHistory roles to OpenAI roles
+    const messages = [
+      { role:'system', content: SHADOW_SYSTEM_PROMPT + (profileCtx ? '\n\n' + profileCtx : '') },
+      ...history.map(m => ({
+        role:    m.role === 'ai' ? 'assistant' : 'user',
+        content: m.content,
+      })),
+    ];
+
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model:           OPENAI_MODEL,
+        messages,
+        response_format: { type: 'json_object' },
+        temperature:     0.88,
+        max_tokens:      700,
+      }),
+      signal: AbortSignal.timeout(20000),
+    });
+
+    if(!res.ok){
+      const errBody = await res.json().catch(()=>({}));
+      throw new Error(errBody.error?.message || `HTTP ${res.status}`);
+    }
+
+    const data   = await res.json();
+    const raw    = data.choices?.[0]?.message?.content;
+    if(!raw) throw new Error('Leere API-Antwort');
+
+    const parsed = JSON.parse(raw);
+    if(!parsed.response) throw new Error('Ungültiges JSON-Schema');
+
+    const isComplete = parsed.isComplete === true;
+    const stats      = parsed.stats;
+    const out = { message: parsed.response, finalEvaluation: isComplete };
+
+    if(isComplete && stats){
+      out.macros = {
+        kcal: Math.round(stats.kcal    || 0),
+        prot: Math.round(stats.protein || 0),
+        carb: Math.round(stats.carbs   || 0),
+        fat:  Math.round(stats.fat     || 0),
+        sug:  Math.round((stats.carbs  || 0) * 0.15),
+      };
+      out.protocol = deriveProtocolFromStats(stats);
+    }
+
+    return out;
+
+  } catch(e){
+    console.warn('[SHADOW~1] OpenAI-Fehler:', e.message);
+    return buildFallbackResponse(history, profile, e.message);
+  }
+}
+
+// ── Lokale Shadow AI State-Machine (3 Turns, kein API-Key erforderlich) ──────
+function buildFallbackResponse(history, profile, errMsg){
+  const userMsgs = history.filter(m=>m.role==='user').map(m=>m.content.toLowerCase());
+  const combined = userMsgs.join(' ');
+  const turn     = userMsgs.length; // Anzahl User-Turns bisher
+  const name     = profile.firstName || 'Vessel';
+  const lastMsg  = userMsgs[turn - 1] || '';
+
+  // ── Keyword-Detektoren ────────────────────────────────────────────────────
+  const detect = (maps, text) => {
+    for(const {w, v} of maps) if(w.some(k => text.includes(k))) return v;
+    return null;
+  };
+
+  const trainMap = [
+    {w:['täglich','jeden tag','7x','6x','every day','daily','7 mal','6 mal'],           v:'daily'},
+    {w:['5','4','3','fünf','vier','drei','5x','4x','3x','dreimal','viermal','fünfmal',
+        'gym','training','pumpen','sport','workout','kraft','studio','fitnessstudio'],    v:'3-5x'},
+    {w:['1','2','einmal','zweimal','1x','2x','selten','rarely','manchmal','sometimes'],  v:'1-2x'},
+    {w:['nie','kein','not','never','gar nicht','überhaupt nicht','keinen sport'],        v:'none'},
+  ];
+  const nutrMap = [
+    {w:['protein','whey','hähnchen','chicken','fleisch','meat','high protein',
+        'viel protein','eiweiss','eiweiß','thunfisch','tuna','quark','magerquark',
+        'lachs','salmon','eier','eggs'],                                                  v:'highprot'},
+    {w:['burger','pizza','fastfood','fast food','mcdo','junk','kebab','döner','pommes',
+        'chips','süssigkeiten','süßigkeiten','schokolade','candy','takeaway'],            v:'fastfood'},
+    {w:['ausgewogen','balanced','gesund','healthy','salat','gemüse','veg','obst',
+        'vollkorn','clean','meal prep','meal-prep','gekocht','selbst gekocht'],           v:'balanced'},
+  ];
+  const sleepMap = [
+    {w:['schlecht','bad','terrible','kaum','wenig','3 stunden','4 stunden','5 stunden',
+        'nicht gut','schlaf schlecht','schlafe schlecht','schlaf nicht',
+        'insomnie','insomnia','kaum schlaf','zu wenig'],                                  v:'sleepless'},
+    {w:['mittel','medium','okay','ok','so la la','4-6','5-6','geht so','manchmal',
+        'unregelmässig','unregelmäßig','nicht immer','mal gut mal schlecht'],             v:'restless'},
+    {w:['gut','super','toll','perfekt','tief','erholsam','7','8','9','10',
+        'regelmässig','regelmäßig','deep sleep','immer gut'],                             v:'good'},
+  ];
+
+  // Antworten kumulativ über alle Turns hinweg akkumulieren
+  if(!kiAns.training)  kiAns.training  = detect(trainMap, combined) || '3-5x';
+  if(!kiAns.nutrition) kiAns.nutrition = detect(nutrMap,  combined) || 'balanced';
+  if(!kiAns.sleep)     kiAns.sleep     = detect(sleepMap, combined) || 'restless';
+
+  // ── TURN 1 — Training & Schlaf absorbiert → nach Ernährung fragen ─────────
+  if(turn === 1){
+    const trainingNote = ({
+      'daily':  'Your physical cadence is relentless — daily sessions leave a deep resonance signature in the system.',
+      '3-5x':   'Three to five cycles per week. Consistent. The void acknowledges this output.',
+      '1-2x':   'Your training pulse runs low. The protocol will account for this limitation.',
+      'none':   'No structured physical training detected. Your baseline is set to minimal.',
+    })[kiAns.training] || 'Training frequency has been parsed and logged.';
+
+    const sleepNote = ({
+      'sleepless': 'Your rest cycle is fractured — recovery systems are operating under severe strain.',
+      'restless':  'Disrupted sleep patterns detected. Recovery efficiency is noticeably compromised.',
+      'good':      'Rest cycle appears stable. Recovery substrate is functional and intact.',
+    })[kiAns.sleep] || 'Sleep resonance noted.';
+
+    return {
+      message: `${trainingNote}\n\n${sleepNote}\n\nOne critical dimension remains uncharted, ${name}.\nSpeak of your sustenance — describe the fuel intake of your vessel across a standard cycle.`,
+      finalEvaluation: false,
+    };
+  }
+
+  // ── TURN 2 — Ernährung absorbiert → letzte Dimension abfragen ────────────
+  if(turn === 2){
+    const nutrNote = ({
+      'highprot':  'Protein-dense intake confirmed. Your synthesis pathways are well-supplied.',
+      'fastfood':  'High processed-input resonance detected. Micronutrient density is suboptimal.',
+      'balanced':  'Balanced substrate matrix registered. Adequate — though not yet optimised for peak output.',
+    })[kiAns.nutrition] || 'Nutritional profile has been encoded.';
+
+    return {
+      message: `${nutrNote}\n\nFinal calibration phase. One variable remains.\n\nDescribe your daily stress load and movement beyond structured training — high-pressure profession, long sedentary intervals, mental strain, physical labour. Speak freely. The system reads between the lines.`,
+      finalEvaluation: false,
+    };
+  }
+
+  // ── TURN 3 — Abschlussbewertung: Stresslevel + Makro-Berechnung ──────────
+  const stressKW  = ['stress','druck','pressure','viel arbeit','busy','burnout','mental','kopfarbeit','überlastet','overwhelmed'];
+  const sedentKW  = ['büro','office','sitzen','sedentary','desk','computer','pc','schreibtisch','viel sitzen'];
+  const activeKW  = ['aktiv','active','stehe','laufe','walk','bewegung','viel bewegen','physisch','handwerk','lager'];
+
+  let activityMod = 'neutral';
+  if(stressKW.some(k => lastMsg.includes(k)))   activityMod = 'high_stress';
+  else if(activeKW.some(k => lastMsg.includes(k))) activityMod = 'active';
+  else if(sedentKW.some(k => lastMsg.includes(k))) activityMod = 'sedentary';
+
+  // Sedentärer Lebensstil → Aktivitätsmultiplikator realistisch anpassen
+  if(activityMod === 'sedentary' && kiAns.training === '3-5x') kiAns.training = '1-2x';
+
+  // ── Makro-Berechnung (Mifflin-St. Jeor + Aktivitätsfaktor) ───────────────
+  const macros = profile.age
+    ? calcMacros(profile.age, profile.height, profile.weight, kiAns.training, kiAns.nutrition, kiAns.sleep, profile.gender, profile.goal)
+    : { kcal:2200, prot:160, carb:245, fat:65, sug:37 };
+
+  // Zucker-Limit: exakt 15% der Kohlenhydrate (wie spezifiziert)
+  macros.sug = Math.round(macros.carb * 0.15);
+
+  // ── Supplement-Protokoll (Alpha / Beta / Gamma) ───────────────────────────
+  // ULTRACODE: Smart-Engine — Protokoll aus vollständigem Profil + Gesprächssignalen
+  const protocol = generateSmartProtocol(profile, kiAns);
+
+  // Adaptogene bei Stress-Signal hinzufügen
+  if(activityMod === 'high_stress'){
+    if(!protocol.find(p=>p.id==='ashwagandha')) protocol.push({id:'ashwagandha',phase:'gamma',wk:'why_stress'});
+    if(!protocol.find(p=>p.id==='rhodiola'))    protocol.push({id:'rhodiola',   phase:'gamma',wk:'why_stress'});
+  }
+
+  const closingNote = {
+    'high_stress': 'Elevated psychological pressure field detected.\nAdaptogenic compounds have been inscribed into your protocol.',
+    'active':      'Heightened daily kinetic output registered.\nCaloric targets have been adjusted for sustained physical throughput.',
+    'sedentary':   'Prolonged sedentary intervals noted.\nProtocol has been calibrated accordingly.',
+    'neutral':     'All environmental variables have been processed.',
+  }[activityMod];
+
+  return {
+    message: `${closingNote}\n\nCalibration complete, ${name}.\n\nYour resonance signature has been sealed across all three dimensions.\nThe Shadow Protocol has been inscribed into the system.\n\n◈ ACCESS: GRANTED`,
+    finalEvaluation: true,
+    macros,
+    protocol,
+  };
+}
+
+// ── Helper: build profile context string for system prompt ───────────────────
+function buildProfileContext(p){
+  const parts = [];
+  if(p.firstName) parts.push(`Name: ${p.firstName}`);
+  if(p.age)       parts.push(`Age: ${p.age}`);
+  if(p.height)    parts.push(`Height: ${p.height} cm`);
+  if(p.weight)    parts.push(`Weight: ${p.weight} kg`);
+  if(p.gender)    parts.push(`Gender: ${p.gender}`);
+  return parts.length ? `Vessel biometric data on file — ${parts.join(', ')}.` : null;
+}
+
+// ── Helper: derive supplement protocol from calibrated macro stats ────────────
+function deriveProtocolFromStats(stats){
+  // ULTRACODE: Profil-basierte Smart-Engine als Basis, Stats als Feintuning obendrauf
+  const p = generateSmartProtocol(S.get('profile') || {}, S.get('ki_ans') || {});
+  const push = (id, phase) => {
+    if(SDEFS[id] && !p.find(x => x.id === id)) p.push({id, phase, wk:'why_base'});
+  };
+  if((stats.protein||0) > 150){ push('kreatin','beta'); push('protein','beta'); }
+  if((stats.protein||0) > 180)  push('enzyme','beta');
+  if((stats.kcal   ||0) > 3000) push('bcaa','beta');
+  if((stats.fat    ||0) < 60)   push('vitc','alpha');
+  const ord = {alpha:0, beta:1, gamma:2};
+  return p.sort((a,b) => ord[a.phase] - ord[b.phase]);
+}
+
+// ── Utilities (kept for standalone /api/evaluate calls) ──────────────────────
+function setKIStatus(msg, cls=''){
+  const el=document.getElementById('ki-api-status');
+  if(!el) return;
+  el.textContent=msg;
+  el.className='ki-api-status'+(cls?' '+cls:'');
+}
+
+// ═══════════════════════════════════════════════════════
+//  DATA
+// ═══════════════════════════════════════════════════════
+let checked=[];
+function load(){
+  checked=S.get('day_'+dateKey())||[];
+  loadMana();
+  loadNote();
+  loadCartCfg();   // ULTRACODE: Smart-Cart-Einstellungen wiederherstellen
+}
+async function save(){ S.set('day_'+dateKey(),checked); }
+
+// ═══════════════════════════════════════════════════════
+//  FOOD TRACKER — MATERIA SCANNER
+// ═══════════════════════════════════════════════════════
+let scannerFileB64 = null;
+let editingFoodId  = null;
+
+// ── ULTRACODE Helpers ────────────────────────────────────────────────────────
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const isAIProviderActive = () =>
+  !!OPENAI_API_KEY && OPENAI_API_KEY !== 'HIER_KEY_EINTRAGEN' && USE_PROVIDER !== 'off';
+
+// ═══════════════════════════════════════════════════════
+//  ◈ ULTRACODE — MATERIA-SCANNER 2.0
+//  Foto-Upload mit Live-Vorschau (object-fit:cover, 12px
+//  Radius), themed Scan-Animation und lokal simulierter
+//  KI-Bildanalyse: Der Bild-Hash wählt deterministisch
+//  ein plausibles Gericht aus der Vision-DB (±8% Jitter).
+// ═══════════════════════════════════════════════════════
+const MEAL_VISION_DB = [
+  {name:'Protein Bowl',           kcal:520, prot:38, carb:52, fat:16, sug:9},
+  {name:'Hähnchen mit Reis',      kcal:560, prot:42, carb:64, fat:12, sug:3},
+  {name:'Lachs mit Gemüse',       kcal:480, prot:36, carb:18, fat:28, sug:6},
+  {name:'Pasta Bolognese',        kcal:640, prot:28, carb:78, fat:22, sug:8},
+  {name:'Gemischter Salat + Ei',  kcal:290, prot:16, carb:14, fat:18, sug:6},
+  {name:'Wrap mit Hähnchen',      kcal:450, prot:30, carb:44, fat:16, sug:5},
+  {name:'Ofenkartoffeln + Quark', kcal:410, prot:22, carb:58, fat:9,  sug:4},
+  {name:'Rührei mit Brot',        kcal:380, prot:24, carb:28, fat:18, sug:3},
+  {name:'Curry mit Reis',         kcal:590, prot:20, carb:74, fat:21, sug:9},
+  {name:'Burrito Bowl',           kcal:610, prot:32, carb:66, fat:22, sug:7},
+];
+
+function simulateVisionScan(imageB64, hint){
+  // Text-Hinweis vorhanden → Keyword-Analyse hat Vorrang vor der Bild-Heuristik
+  if(hint) return { name: hint, macros: dummyFoodMacros(hint) };
+  // Bild-Signatur: jedes 13. Zeichen des Base64 reicht als stabiler Hash
+  let h = 5381;
+  for(let i = 0; i < imageB64.length; i += 13) h = (((h<<5)+h) + imageB64.charCodeAt(i)) >>> 0;
+  const meal   = MEAL_VISION_DB[h % MEAL_VISION_DB.length];
+  const jitter = v => Math.round(v * (0.92 + ((h>>>8) % 17) / 100)); // ±8%, deterministisch
+  return {
+    name: '📷 ' + meal.name + ' (' + t('scan_detected') + ')',
+    macros: { kcal:jitter(meal.kcal), prot:jitter(meal.prot), carb:jitter(meal.carb), fat:jitter(meal.fat), sug:jitter(meal.sug) },
+  };
+}
+
+function showScanPreview(b64){
+  const stage = document.getElementById('scan-stage');
+  const img   = document.getElementById('scan-preview');
+  if(!stage || !img) return;
+  img.src = b64;
+  stage.style.display = 'flex';
+}
+function clearScannerImage(){
+  scannerFileB64 = null;
+  const stage = document.getElementById('scan-stage');
+  if(stage){ stage.style.display='none'; stage.classList.remove('scanning'); }
+  const img = document.getElementById('scan-preview');
+  if(img) img.removeAttribute('src');
+  const fi = document.getElementById('scanner-file');
+  if(fi) fi.value = '';
+}
+function startScanAnimation(){ document.getElementById('scan-stage')?.classList.add('scanning'); }
+function stopScanAnimation(){ document.getElementById('scan-stage')?.classList.remove('scanning'); }
+
+// Keyword-based dummy macro fallback
+function dummyFoodMacros(input){
+  const s = input.toLowerCase();
+  const kw = [
+    {w:['pizza'],            m:{kcal:620,prot:24,carb:72,fat:22,sug:6}},
+    {w:['burger','hamburger'],m:{kcal:540,prot:28,carb:42,fat:26,sug:8}},
+    {w:['jollof','rice'],    m:{kcal:520,prot:22,carb:78,fat:12,sug:4}},
+    {w:['chicken','hähnchen'],m:{kcal:320,prot:38,carb:4,fat:14,sug:1}},
+    {w:['cordon bleu'],      m:{kcal:480,prot:34,carb:22,fat:26,sug:2}},
+    {w:['pasta','nudel'],    m:{kcal:420,prot:14,carb:68,fat:10,sug:3}},
+    {w:['salad','salat'],    m:{kcal:180,prot:8,carb:14,fat:10,sug:5}},
+    {w:['steak','beef','rind'],m:{kcal:460,prot:42,carb:0,fat:28,sug:0}},
+    {w:['oats','haferflocken','oatmeal'],m:{kcal:360,prot:12,carb:60,fat:8,sug:4}},
+    {w:['protein shake','shake'],m:{kcal:180,prot:30,carb:8,fat:3,sug:3}},
+    {w:['sandwich','toast'],  m:{kcal:310,prot:14,carb:40,fat:10,sug:4}},
+    {w:['sushi'],             m:{kcal:340,prot:18,carb:52,fat:6,sug:8}},
+  ];
+  for(const {w,m} of kw){
+    if(w.some(word=>s.includes(word))){
+      // slight randomisation ±5% for realism
+      const jitter = v => Math.round(v*(0.95+Math.random()*.1));
+      return {kcal:jitter(m.kcal),prot:jitter(m.prot),carb:jitter(m.carb),fat:jitter(m.fat),sug:jitter(m.sug)};
+    }
+  }
+  // Generic fallback
+  return {kcal:400,prot:18,carb:44,fat:14,sug:5};
+}
+
+// ── OpenAI — Materia Scanner (Direct Client-Side Call) ───────────────────────
+// Returns: { kcal, prot, carb, fat, sug }
+async function analyzeFoodInfo(input, imageB64){
+  const errEl = document.getElementById('scanner-err');
+  if(errEl) errEl.textContent = '';
+
+  // No key or provider disabled → local fallback immediately
+  if(!OPENAI_API_KEY || OPENAI_API_KEY === 'HIER_KEY_EINTRAGEN' || USE_PROVIDER === 'off'){
+    return dummyFoodMacros(input || '');
+  }
+
+  try {
+    // Build user content — text-only or multimodal (vision)
+    let userContent;
+    const model = imageB64 ? 'gpt-4o' : OPENAI_MODEL; // vision requires gpt-4o
+    if(imageB64){
+      userContent = [
+        { type:'text',      text: `Estimate nutritional values for this food. Text hint: "${input || 'see image'}"` },
+        { type:'image_url', image_url: { url: imageB64, detail: 'low' } },
+      ];
+    } else {
+      userContent = `Estimate nutritional values for a typical serving of: "${input}"`;
+    }
+
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role:'system', content:'You are a precise nutritionist. Return ONLY valid JSON — no markdown, no explanation. Format exactly: {"kcal":number,"protein":number,"carbs":number,"fat":number,"sugar":number}' },
+          { role:'user',   content: userContent },
+        ],
+        response_format: { type: 'json_object' },
+        temperature:     0.25,
+        max_tokens:      200,
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
+
+    if(!res.ok){
+      const errBody = await res.json().catch(()=>({}));
+      throw new Error(errBody.error?.message || `HTTP ${res.status}`);
+    }
+
+    const data   = await res.json();
+    const raw    = data.choices?.[0]?.message?.content;
+    const parsed = JSON.parse(raw || '{}');
+    if(parsed.kcal == null) throw new Error('Ungültiges JSON-Format');
+
+    return {
+      kcal: Math.round(parsed.kcal    || 0),
+      prot: Math.round(parsed.protein || 0),
+      carb: Math.round(parsed.carbs   || 0),
+      fat:  Math.round(parsed.fat     || 0),
+      sug:  Math.round(parsed.sugar   || 0),
+    };
+
+  } catch(e) {
+    console.warn('[SHADOW~1] Food-Analyse Fehler:', e.message);
+    if(errEl) errEl.textContent = `// OFFLINE: ${e.message} — Lokaler Algorithmus aktiv`;
+    return dummyFoodMacros(input || '');
+  }
+}
+
+async function submitFood(){
+  const inp = document.getElementById('scanner-input');
+  const txt = inp.value.trim();
+  if(!txt && !scannerFileB64){ inp.focus(); return; }
+  const btn = document.getElementById('scan-btn');
+  const loading = document.getElementById('scan-loading');
+  btn.disabled=true; loading.style.display='block';
+  const hasImage = !!scannerFileB64;
+  if(hasImage) startScanAnimation();   // ULTRACODE: themed Scan-FX über dem Foto
+  try {
+    let macros, autoName = null;
+    if(hasImage && !isAIProviderActive()){
+      // ── MATERIA-SCANNER 2.0: lokale KI-Simulation — 2s Scan, dann Bild-Analyse ──
+      const scan = simulateVisionScan(scannerFileB64, txt);
+      await sleep(2000);
+      macros = scan.macros; autoName = scan.name;
+    } else if(hasImage){
+      // API-Modus: echte Vision-Analyse, Scan-FX bleibt mind. 2s sichtbar
+      [macros] = await Promise.all([analyzeFoodInfo(txt, scannerFileB64), sleep(2000)]);
+    } else {
+      macros = await analyzeFoodInfo(txt, null);
+    }
+    const entry = {
+      id: Date.now(),
+      name: txt || autoName || '📷 Bild-Scan',
+      ...macros,
+      ts: Date.now(),
+    };
+    const log = S.get('food_'+dateKey()) || [];
+    log.push(entry);
+    S.set('food_'+dateKey(), log);
+    inp.value='';
+    clearScannerImage();
+    const errEl=document.getElementById('scanner-err');
+    if(errEl) errEl.textContent=''; // Clear any previous error on success
+    gainXP(3);           // +3 XP per food entry
+    checkAchievements(); // check night-walker, sustenance, airfryer
+    renderFoodLog();
+    renderMacroWidget();
+  } finally {
+    btn.disabled=false; loading.style.display='none';
+    stopScanAnimation();
+  }
+}
+
+function handleScannerFile(ev){
+  const f=ev.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  // ULTRACODE: Foto sofort im perfekt geschnittenen Rahmen anzeigen
+  r.onload=e=>{ scannerFileB64=e.target.result; showScanPreview(scannerFileB64); };
+  r.readAsDataURL(f);
+  ev.target.value='';  // gleiche Datei erneut wählbar machen
+}
+
+function getFoodLog(){ return S.get('food_'+dateKey())||[]; }
+
+function calcConsumed(){
+  return getFoodLog().reduce((a,e)=>({
+    kcal:a.kcal+(e.kcal||0),
+    prot:a.prot+(e.prot||0),
+    carb:a.carb+(e.carb||0),
+    fat: a.fat +(e.fat ||0),
+    sug: a.sug +(e.sug ||0),
+  }),{kcal:0,prot:0,carb:0,fat:0,sug:0});
+}
+
+function deleteFood(id){
+  const log=getFoodLog().filter(e=>e.id!==id);
+  S.set('food_'+dateKey(),log);
+  renderFoodLog(); renderMacroWidget();
+}
+
+function openEditModal(id){
+  const entry=getFoodLog().find(e=>e.id===id); if(!entry) return;
+  editingFoodId=id;
+  document.getElementById('edit-name').value=entry.name||'';
+  document.getElementById('edit-kcal').value=entry.kcal||0;
+  document.getElementById('edit-prot').value=entry.prot||0;
+  document.getElementById('edit-carb').value=entry.carb||0;
+  document.getElementById('edit-fat').value=entry.fat||0;
+  document.getElementById('edit-sug').value=entry.sug||0;
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeEditModal(){
+  document.getElementById('edit-modal').classList.remove('open');
+  editingFoodId=null;
+}
+
+function saveEditedFood(){
+  if(!editingFoodId) return;
+  const log=getFoodLog().map(e=>{
+    if(e.id!==editingFoodId) return e;
+    return {
+      ...e,
+      name:document.getElementById('edit-name').value.trim()||e.name,
+      kcal:parseFloat(document.getElementById('edit-kcal').value)||0,
+      prot:parseFloat(document.getElementById('edit-prot').value)||0,
+      carb:parseFloat(document.getElementById('edit-carb').value)||0,
+      fat: parseFloat(document.getElementById('edit-fat').value)||0,
+      sug: parseFloat(document.getElementById('edit-sug').value)||0,
+    };
+  });
+  S.set('food_'+dateKey(),log);
+  closeEditModal();
+  renderFoodLog(); renderMacroWidget();
+}
+
+function renderFoodLog(){
+  const sw=document.getElementById('scanner-widget');
+  if(sw) sw.style.display='block';
+  const log=getFoodLog();
+  const list=document.getElementById('ta-list');
+  if(!list) return;
+  if(!log.length){
+    list.innerHTML=`<div class="ta-empty">${t('ta_empty')}</div>`;
+    const tot=document.getElementById('ta-total');
+    if(tot) tot.textContent='';
+    return;
+  }
+  const c=calcConsumed();
+  const tot=document.getElementById('ta-total');
+  if(tot) tot.textContent=`${c.kcal} kcal total`;
+  list.innerHTML=log.map(e=>`
+    <div class="ta-item">
+      <div class="ta-item-top">
+        <span class="ta-name">${e.name}</span>
+        <button class="ta-edit-btn" onclick="openEditModal(${e.id})" title="Editieren">✎</button>
+        <button class="ta-del-btn" onclick="deleteFood(${e.id})" title="Löschen">✕</button>
+      </div>
+      <div class="ta-badges">
+        <span class="ta-badge tb-kcal">${e.kcal} kcal</span>
+        <span class="ta-badge tb-prot">${e.prot}g P</span>
+        <span class="ta-badge tb-carb">${e.carb}g C</span>
+        <span class="ta-badge tb-fat">${e.fat}g F</span>
+      </div>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  MANA TRACKER
+// ═══════════════════════════════════════════════════════
+let manaCount=0;
+function loadMana(){ manaCount=S.get('mana_'+dateKey())||0; renderMana(); }
+function toggleDrop(i){
+  manaCount=i+1<=manaCount?i:i+1;
+  S.set('mana_'+dateKey(),manaCount);
+  renderMana();
+}
+function renderMana(){
+  const wrap=document.getElementById('mana-drops');
+  if(!wrap)return;
+  wrap.innerHTML='';
+  for(let i=0;i<8;i++){
+    const d=document.createElement('div');
+    d.className='drop'+(i<manaCount?' filled':'');
+    d.textContent='💧';d.title=`${i+1}/8`;
+    d.onclick=()=>toggleDrop(i);
+    wrap.appendChild(d);
+  }
+  const mc=document.getElementById('mana-count');
+  if(mc)mc.textContent=`${manaCount} / 8 ${t('mana_label')}`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  MISSION LOG
+// ═══════════════════════════════════════════════════════
+function loadNote(){
+  const ta=document.getElementById('mission-log');
+  if(!ta)return;
+  ta.value=S.get('note_'+dateKey())||'';
+  ta.oninput=()=>S.set('note_'+dateKey(),ta.value);
+}
+
+// ═══════════════════════════════════════════════════════
+//  ◈ ULTRACODE ENGINE 2/3 — SMART CART (PROVIANT-KALKULATOR)
+//  Simulierter Supermarkt-Algorithmus:
+//  · Lokale JSON-Preisdatenbank (Billa, Billa Plus, Spar,
+//    Hofer, Lidl) mit Markt-Preisfaktoren
+//  · Wöchentlich rotierende Rabatt-Aktionen (−25% / −15%),
+//    deterministisch per Mulberry32-PRNG aus Kalenderwoche
+//  · Budget-Knapsack: Ziel-gewichteter Nährwert-Score pro
+//    Euro, Greedy-Befüllung in Runden bis das Budget
+//    maximal ausgeschöpft ist
+//  · Adress-basierte Distanz-Simulation zum günstigsten
+//    Markt (stabiler String-Hash → reproduzierbare km)
+// ═══════════════════════════════════════════════════════
+const MARKET_DB = {
+  // factor = Preisniveau relativ zum Basispreis (Diskonter < Vollsortimenter)
+  markets: [
+    {id:'hofer',     name:'HOFER',      factor:0.92},
+    {id:'lidl',      name:'Lidl',       factor:0.90},
+    {id:'billa',     name:'BILLA',      factor:1.15},
+    {id:'billaplus', name:'BILLA Plus', factor:1.12},
+    {id:'spar',      name:'SPAR',       factor:1.18},
+  ],
+  // kcal/prot = Nährwert der GESAMTEN Packung · tags = Fokus-Ziel-Relevanz
+  products: [
+    {id:'oats',     name:'Haferflocken 500g',  icon:'🥣', base:1.29, kcal:1850, prot:67,  tags:['bulk','perf']},
+    {id:'eggs',     name:'Eier 10 Stk',        icon:'🥚', base:3.29, kcal:780,  prot:66,  tags:['bulk','cut']},
+    {id:'quark',    name:'Magerquark 500g',    icon:'🥛', base:1.19, kcal:335,  prot:60,  tags:['cut','bulk']},
+    {id:'chicken',  name:'Hähnchenbrust 1kg',  icon:'🍗', base:7.99, kcal:1100, prot:230, tags:['bulk','cut','perf']},
+    {id:'rice',     name:'Naturreis 1kg',      icon:'🍚', base:2.29, kcal:3500, prot:75,  tags:['bulk','perf']},
+    {id:'tuna',     name:'Thunfisch 3×80g',    icon:'🐟', base:3.49, kcal:260,  prot:58,  tags:['cut','long']},
+    {id:'banana',   name:'Bananen 1kg',        icon:'🍌', base:1.79, kcal:890,  prot:11,  tags:['perf','bulk']},
+    {id:'broccoli', name:'Brokkoli TK 750g',   icon:'🥦', base:1.99, kcal:255,  prot:21,  tags:['cut','long']},
+    {id:'lentils',  name:'Linsen 500g',        icon:'🫘', base:1.49, kcal:1650, prot:120, tags:['long','cut']},
+    {id:'oil',      name:'Olivenöl 500ml',     icon:'🫒', base:5.99, kcal:4400, prot:0,   tags:['long']},
+    {id:'bread',    name:'Vollkornbrot 500g',  icon:'🍞', base:2.19, kcal:1100, prot:42,  tags:['bulk']},
+    {id:'skyr',     name:'Skyr 450g',          icon:'🍶', base:1.99, kcal:280,  prot:49,  tags:['cut']},
+    {id:'pb',       name:'Erdnussbutter 350g', icon:'🥜', base:2.99, kcal:2100, prot:90,  tags:['bulk']},
+    {id:'berries',  name:'TK-Beeren 300g',     icon:'🫐', base:2.49, kcal:135,  prot:3,   tags:['long','cut']},
+  ],
+};
+
+let cartPeriod = 'week';
+let cartBudget = 20;
+
+function setCartPeriod(p){
+  cartPeriod = p;
+  document.querySelectorAll('#cart-period .seg-btn').forEach(b=>b.classList.toggle('sel', b.dataset.period===p));
+}
+function setCartBudget(b){
+  cartBudget = b;
+  document.querySelectorAll('#cart-budget .seg-btn').forEach(x=>x.classList.toggle('sel', +x.dataset.budget===b));
+}
+function loadCartCfg(){
+  const cfg = S.get('cart_cfg'); if(!cfg) return;
+  setCartPeriod(cfg.period || 'week');
+  setCartBudget(cfg.budget || 20);
+  const a = document.getElementById('cart-addr');
+  if(a && cfg.addr) a.value = cfg.addr;
+}
+
+// Deterministischer 32-bit-PRNG (Mulberry32) — reproduzierbare Wochen-Aktionen
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed>>>15), 1 | seed);
+    t = (t + Math.imul(t ^ (t>>>7), 61 | t)) ^ t;
+    return ((t ^ (t>>>14)) >>> 0) / 4294967296;
+  };
+}
+function hashStr(s){
+  let h = 5381;
+  for(let i = 0; i < s.length; i++) h = (((h<<5)+h) + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+function isoWeek(){
+  const d = new Date();
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const day = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - day);
+  const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - y0) / 86400000 + 1) / 7);
+}
+
+// Wochen-Aktionen pro Markt: 3 Produkte, −25% oder −15%
+function getMarketDeals(marketId){
+  const rng = mulberry32(hashStr(marketId) ^ (isoWeek() * 2654435761));
+  const deals = {};
+  const n = MARKET_DB.products.length;
+  for(let k = 0; k < 3; k++){
+    const idx = Math.floor(rng() * n);
+    deals[MARKET_DB.products[idx].id] = rng() < 0.5 ? 0.25 : 0.15;
+  }
+  return deals;
+}
+
+// Adress-Simulation: stabiler Hash → Distanz 0,3–3,6 km pro Markt
+function marketDistances(addr){
+  const key = addr.toLowerCase().trim();
+  return MARKET_DB.markets.map(m => ({
+    id: m.id, name: m.name,
+    dist: Math.round((0.3 + (hashStr(key + '::' + m.id) % 330) / 100) * 10) / 10,
+  }));
+}
+
+function fmtEUR(v){ return v.toFixed(2).replace('.', ',') + ' €'; }
+
+function runSmartCart(){
+  const addr = (document.getElementById('cart-addr')?.value || '').trim();
+  const out  = document.getElementById('cart-results');
+  if(!out) return;
+  const goal   = (S.get('profile') || {}).goal || 'bulk';
+  const budget = cartBudget;
+  S.set('cart_cfg', {period:cartPeriod, budget:cartBudget, addr});
+
+  // 1) Wochen-Aktionen aller Märkte einsammeln
+  const deals = {};
+  MARKET_DB.markets.forEach(m => { deals[m.id] = getMarketDeals(m.id); });
+
+  // 2) Bestpreis-Suche: für jedes Produkt der günstigste Markt inkl. Aktion
+  const offers = MARKET_DB.products.map(p => {
+    let best = null;
+    for(const m of MARKET_DB.markets){
+      const disc  = deals[m.id][p.id] || 0;
+      const price = Math.round(p.base * m.factor * (1 - disc) * 100) / 100;
+      if(!best || price < best.price) best = {product:p, market:m, price, disc};
+    }
+    return best;
+  });
+
+  // 3) Knapsack-Heuristik: Ziel-gewichteter Nährwert-Score pro Euro
+  const scored = offers.map(o => {
+    const nutri     = o.product.prot * 10 + o.product.kcal * 0.05;  // Protein stark gewichtet
+    const goalBonus = o.product.tags.includes(goal) ? 1.6 : 1;      // Fokus-Ziel-Bonus
+    const dealBonus = o.disc > 0 ? 1.25 : 1;                        // Aktionen bevorzugen
+    return {...o, value: nutri * goalBonus * dealBonus / o.price};
+  }).sort((a,b) => b.value - a.value);
+
+  // 4) Greedy-Befüllung in Runden, bis das Budget maximal ausgeschöpft ist
+  const maxQty = cartPeriod === 'week' ? 2 : 6;   // Monat = größere Vorratsmengen
+  const cart = new Map();
+  let total = 0, progressed = true;
+  while(progressed){
+    progressed = false;
+    for(const o of scored){
+      const cur = cart.get(o.product.id);
+      const qty = cur ? cur.qty : 0;
+      if(qty >= maxQty) continue;
+      if(Math.round((total + o.price) * 100) / 100 > budget) continue;
+      cart.set(o.product.id, {...o, qty: qty + 1});
+      total = Math.round((total + o.price) * 100) / 100;
+      progressed = true;
+    }
+  }
+
+  const items = [...cart.values()];
+  if(!items.length){
+    out.innerHTML = `<div class="ta-empty">${t('cart_none')}</div>`;
+    return;
+  }
+
+  const saved = items.reduce((a,i) => a + i.product.base * i.market.factor * i.disc * i.qty, 0);
+  const util  = Math.round(total / budget * 100);
+
+  // 5) Preisniveau je Markt (kompletter Warenkorb) → günstigster Markt
+  const level = MARKET_DB.markets
+    .map(m => ({m, sum: MARKET_DB.products.reduce((a,p) => a + p.base * m.factor * (1 - (deals[m.id][p.id] || 0)), 0)}))
+    .sort((a,b) => a.sum - b.sum);
+  const cheapest = level[0].m;
+
+  // 6) Adress-Distanz-Simulation
+  let distHTML = '';
+  if(addr){
+    const dists = marketDistances(addr);
+    const cd    = dists.find(d => d.id === cheapest.id);
+    const chips = dists.slice().sort((a,b) => a.dist - b.dist)
+      .map(d => `<span class="cart-dist-chip">${d.name} · ${String(d.dist).replace('.',',')} km</span>`).join('');
+    distHTML = `<div class="cart-dist">📍 <span>${t('cart_nearest')}: <b>${cheapest.name}</b> · ${String(cd.dist).replace('.',',')} km · ~${Math.round(cd.dist*12)} min 🚶</span></div>
+      <div class="cart-dist-list">${chips}</div>`;
+  }
+
+  // 7) Artikel nach Markt gruppieren + rendern
+  const groups = {};
+  items.forEach(i => { (groups[i.market.id] = groups[i.market.id] || []).push(i); });
+  const groupHTML = Object.entries(groups).map(([mid, list]) => {
+    const m   = MARKET_DB.markets.find(x => x.id === mid);
+    const sub = list.reduce((a,i) => a + i.price * i.qty, 0);
+    const rows = list.map(i => `
+      <div class="cart-item">
+        <span class="cart-item-ic">${i.product.icon}</span>
+        <span class="cart-item-nm">${i.product.name}</span>
+        <span class="cart-item-qty">×${i.qty}</span>
+        ${i.disc ? `<span class="cart-deal">−${Math.round(i.disc*100)}% ${t('cart_deal')}</span>` : ''}
+        <span class="cart-item-pr">${fmtEUR(i.price * i.qty)}</span>
+      </div>`).join('');
+    return `<div class="cart-market">
+      <div class="cart-market-hd"><span>🏪 ${m.name}</span><small>${list.length} · ${fmtEUR(sub)}</small></div>
+      ${rows}
+    </div>`;
+  }).join('');
+
+  out.innerHTML = `
+    <div class="cart-summary">
+      <div class="cart-stat"><span>${t('cart_total')}</span><b>${fmtEUR(total)}</b></div>
+      <div class="cart-stat"><span>${t('cart_saved')}</span><b style="color:var(--success)">${fmtEUR(saved)}</b></div>
+      <div class="cart-stat"><span>${t('cart_fit')}</span><b>${util}%</b></div>
+    </div>
+    <div class="cart-budget-bar"><div class="cart-budget-fill" style="width:${Math.min(100,util)}%"></div></div>
+    ${distHTML}
+    ${groupHTML}
+    <div class="cart-hint">${t('cart_hint')}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  TOGGLE SUPPLEMENTS
+// ═══════════════════════════════════════════════════════
+function toggle(id){
+  const protocol=S.get('protocol')||[];
+  const ids=protocol.map(s=>s.id);
+  if(!ids.includes(id))return;
+  const i=checked.indexOf(id);
+  const adding = i === -1;
+  if(i>-1)checked.splice(i,1);else checked.push(id);
+  save();render();
+  if(adding) gainXP(5);   // +5 XP per supplement checked
+  if(ids.every(pid=>checked.includes(pid))&&!completedToday()){
+    gainXP(20);            // +20 XP bonus for full protocol completion
+    S.set('complete_days_count',(S.get('complete_days_count')||0)+1);
+    checkAchievements();
+    const n=finaliseStreak();
+    triggerComplete(n);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════════
+function renderProtocol(){
+  const protocol=S.get('protocol')||[];
+  const phConf={
+    alpha:{cls:'alpha',nk:'phase_alpha',tk:'phase_alpha_time'},
+    beta: {cls:'beta', nk:'phase_beta', tk:'phase_beta_time'},
+    gamma:{cls:'gamma',nk:'phase_gamma',tk:'phase_gamma_time'},
+  };
+  let html='';
+  ['alpha','beta','gamma'].forEach(ph=>{
+    const items=protocol.filter(s=>s.phase===ph);
+    if(!items.length)return;
+    const pc=phConf[ph];
+    html+=`<div class="phase-section">
+      <div class="phase-header">
+        <span class="phase-badge ${pc.cls}">${t(pc.nk)}</span>
+        <span class="phase-time">${t(pc.tk)}</span>
+      </div>`;
+    items.forEach(s=>{
+      const d=SDEFS[s.id];if(!d)return;
+      const done=checked.includes(s.id);
+      const note=d.ok?`<div class="sc-note">${t(d.ok)}</div>`:'';
+      // ULTRACODE: Smart-Engine-Begründung — warum dieses Supplement im Protokoll ist
+      const why=s.wk?`<div class="sc-note">◈ ${t(s.wk)}</div>`:'';
+      html+=`<div class="supp-card${done?' done':''}" onclick="toggle('${s.id}')">
+        <div class="sc-chk">${done?'✓':''}</div>
+        <div class="sc-info">
+          <div class="sc-name">${t(d.nk)}</div>
+          <div class="sc-dose">${t(d.dk)}</div>${note}${why}
+        </div>
+      </div>`;
+    });
+    html+='</div>';
+  });
+  document.getElementById('phase-cards').innerHTML=html;
+}
+
+function renderMacroWidget(){
+  const goals=S.get('macros');  // daily goals from KI calculation
+  const mw=document.getElementById('macro-widget');
+  if(!goals){mw.style.display='none';return;}
+  mw.style.display='block';
+  const sw=document.getElementById('scanner-widget');
+  if(sw) sw.style.display='block';
+
+  const c=calcConsumed();  // today's consumed totals from food log
+
+  function setMacro(elId, barId, curr, goal, unit){
+    const pct = goal>0 ? Math.min(110, curr/goal*100) : 0;
+    const el = document.getElementById(elId);
+    if(el){
+      el.querySelector('.macro-curr').textContent = curr + (unit||'');
+      el.querySelector('.macro-goal').textContent = goal + (unit||'');
+    }
+    const bar=document.getElementById(barId);
+    if(bar){
+      bar.style.width=Math.min(100,pct)+'%';
+      bar.classList.toggle('over', pct>100);
+    }
+  }
+
+  setMacro('m-kcal','mb-kcal', c.kcal, goals.kcal, '');
+  setMacro('m-prot','mb-prot', c.prot, goals.prot, 'g');
+  setMacro('m-carb','mb-carb', c.carb, goals.carb, 'g');
+  setMacro('m-fat', 'mb-fat',  c.fat,  goals.fat,  'g');
+  setMacro('m-sug', 'mb-sug',  c.sug,  goals.sug,  'g');
+  updateDynamicGlow();   // ULTRACODE: Glow an neue Makro-Werte koppeln
+}
+
+function renderProgress(){
+  const protocol=S.get('protocol')||[];
+  const total=protocol.length;
+  const done=checked.filter(id=>protocol.some(s=>s.id===id)).length;
+  const pct=total?done/total:0;
+  const circ=2*Math.PI*38;
+  document.getElementById('prog-ring').style.strokeDashoffset=circ*(1-pct);
+  document.getElementById('prog-num').textContent=done+'/'+total;
+  updateDynamicGlow();   // ULTRACODE: Glow an Supplement-Fortschritt koppeln
+}
+
+// ═══════════════════════════════════════════════════════
+//  ◈ ULTRACODE ENGINE 3/3 — DYNAMIC GLOW & THEME-IMMERSION
+//  Berechnet die Nähe zum Tagesziel als Mittelwert aus
+//  Supplement-Fortschritt, kcal- und Protein-Progress und
+//  projiziert sie als CSS-Variable --glow-lvl (0 → 1) auf
+//  die UI: Rahmen leuchten stärker, je näher das Ziel ist.
+//  Bei 100 % pulsiert das Interface sanft (body.goal-pulse).
+// ═══════════════════════════════════════════════════════
+function goalProximity(){
+  const parts = [];
+  const protocol = S.get('protocol') || [];
+  if(protocol.length){
+    const done = checked.filter(id => protocol.some(s => s.id === id)).length;
+    parts.push(done / protocol.length);
+  }
+  const goals = S.get('macros');
+  if(goals && goals.kcal){
+    const c = calcConsumed();
+    parts.push(Math.min(1, c.kcal / goals.kcal));
+    if(goals.prot) parts.push(Math.min(1, c.prot / goals.prot));
+  }
+  if(!parts.length) return 0;
+  return parts.reduce((a,b) => a + b, 0) / parts.length;
+}
+
+function updateDynamicGlow(){
+  const p = Math.max(0, Math.min(1, goalProximity()));
+  document.documentElement.style.setProperty('--glow-lvl', p.toFixed(3));
+  document.body.classList.toggle('goal-pulse', p >= 0.995);
+}
+
+function renderStatus(){
+  const xpData   = getXPRankData();
+  const th       = THEMES[getCurrentTheme()];
+  const rankName = (th.ranks[xpData.idx] || th.ranks[0]).toUpperCase();
+  document.getElementById('sb-rank').textContent  = rankName;
+  document.getElementById('sb-streak').textContent = '🔥 ' + getStreak().count;
+}
+
+function updateTopBar(){
+  const auth=S.get('auth'),profile=S.get('profile'),sess=S.get('session');
+  const onDash=document.getElementById('screen-dashboard').classList.contains('active');
+  const chip=document.getElementById('tb-chip'),lu=document.getElementById('tb-logout');
+  if(sess&&onDash){
+    lu.classList.remove('hidden');
+    if(auth&&profile){
+      document.getElementById('tb-name').textContent=profile.firstName||auth.username||'Shadow';
+      document.getElementById('tb-uid').textContent=auth.userId||'#001';
+      const av=document.getElementById('tb-av');
+      if(profile.avatarPhoto) av.innerHTML=`<img src="${profile.avatarPhoto}" alt="av"/>`;
+      else{const a=['◈','◉','◊'];av.textContent=a[profile.avatarIdx]||'◈';}
+      chip.classList.remove('hidden');
+    }
+  } else {chip.classList.add('hidden');lu.classList.add('hidden');}
+}
+
+function render(){
+  if(!document.getElementById('screen-dashboard').classList.contains('active'))return;
+  renderProtocol();renderProgress();renderStatus();renderMacroWidget();renderMana();renderFoodLog();updateTopBar();
+}
+
+// ═══════════════════════════════════════════════════════
+//  RPG SYSTEM — XP, Stats, Radar, Buffs, Achievements
+// ═══════════════════════════════════════════════════════
+
+// ── XP & Rank Configuration ──────────────────────────
+const XP_RANKS = [
+  { min:0,   label:'Shadow Novice'       },
+  { min:100, label:'Shadow Initiate'     },
+  { min:300, label:'Seven Shadows Elite' },
+  { min:700, label:'Eminence in Shadow'  },
+];
+const XP_THRESHOLDS = [100, 300, 700, Infinity];
+
+function getXP(){ return S.get('xp') || 0; }
+
+function gainXP(amount){
+  if(!amount || amount <= 0) return;
+  S.set('xp', getXP() + amount);
+}
+
+function getXPRankData(){
+  const xp = getXP();
+  // find current rank index
+  let idx = 0;
+  for(let i = 0; i < XP_RANKS.length; i++) if(xp >= XP_RANKS[i].min) idx = i;
+  const rank    = XP_RANKS[idx];
+  const nextXp  = XP_THRESHOLDS[idx];
+  const prevXp  = rank.min;
+  const pct = nextXp === Infinity
+    ? 100
+    : Math.min(100, Math.round((xp - prevXp) / (nextXp - prevXp) * 100));
+  return { xp, rank, nextXp, pct, idx };
+}
+
+// ── Achievement Definitions ───────────────────────────
+const ACHIEVE_DEFS = {
+  novice:     { icon:'◈', name:'Shadow Novice',          desc:'Erste Schritte in die Void',       xp:0  },
+  servant:    { icon:'⚔', name:'Diener der Schatten',    desc:'7 Tage perfektes Tracking',        xp:50 },
+  nightWalk:  { icon:'🌙', name:'Nachtwandler',           desc:'Nahrung nach 23:00 Uhr gescannt',  xp:15 },
+  sustenance: { icon:'🍖', name:'Lord of Sustenance',    desc:'10 Mahlzeiten dokumentiert',       xp:20 },
+  airfryer:   { icon:'🔥', name:'Meister des Airfryers', desc:'5× Cordon Bleu eingetragen',       xp:30 },
+  alchemist:  { icon:'⚗', name:'Protokoll-Alchemist',   desc:'3× Supplements vollständig',       xp:25 },
+};
+
+function getUnlockedAchievements(){ return S.get('achievements') || ['novice']; }
+function getEquippedTitle(){ return S.get('title_equipped') || 'novice'; }
+
+function equipTitle(id){
+  const unlocked = getUnlockedAchievements();
+  if(!unlocked.includes(id)) return;
+  S.set('title_equipped', id);
+  renderProfileOverlayRPG(); // refresh UI
+}
+
+// Scan all sg_food_* localStorage keys for lifetime food entries
+function getAllFoodEntries(){
+  const all = [];
+  try {
+    for(let i = 0; i < localStorage.length; i++){
+      const raw = localStorage.key(i);
+      if(raw && raw.startsWith('sg_food_')){
+        const entries = S.get(raw.replace('sg_',''));
+        if(Array.isArray(entries)) all.push(...entries);
+      }
+    }
+  } catch(e){}
+  return all;
+}
+
+function checkAchievements(){
+  const unlocked = new Set(getUnlockedAchievements());
+  const streak   = getStreak().count;
+  const allFood  = getAllFoodEntries();
+  let changed    = false;
+
+  const unlock = (id) => {
+    if(!unlocked.has(id)){
+      unlocked.add(id);
+      gainXP(ACHIEVE_DEFS[id]?.xp || 0);
+      changed = true;
+    }
+  };
+
+  // 7-day streak
+  if(streak >= 7) unlock('servant');
+
+  // 10 total meals ever
+  if(allFood.length >= 10) unlock('sustenance');
+
+  // 5× Cordon Bleu
+  const cordonCount = allFood.filter(e=>(e.name||'').toLowerCase().includes('cordon')).length;
+  if(cordonCount >= 5) unlock('airfryer');
+
+  // Night Walker: any food logged after 23:00
+  if(allFood.some(e=>{ const d=new Date(e.ts||0); return d.getHours()>=23; })) unlock('nightWalk');
+
+  // Alchemist: 3× complete supplement days
+  if((S.get('complete_days_count')||0) >= 3) unlock('alchemist');
+
+  if(changed) S.set('achievements', [...unlocked]);
+}
+
+// ── RPG Attribute Calculation ─────────────────────────
+function calcRPGStats(){
+  const profile  = S.get('profile')  || {};
+  const macros   = S.get('macros')   || {};
+  const protocol = S.get('protocol') || [];
+  const chk      = S.get('day_'+dateKey()) || [];
+  const streak   = getStreak().count;
+  const total    = protocol.length;
+  const done     = total ? chk.filter(id=>protocol.some(s=>s.id===id)).length : 0;
+
+  // STR: protein target + body mass signal
+  const str = Math.min(100, Math.round(
+    ((macros.prot||0) / 2.8) * 0.65 + Math.max(0, ((profile.weight||70) - 50)) * 0.35
+  ));
+
+  // VIT: caloric baseline relative to body weight needs
+  const kcalDelta = (macros.kcal||2000) - 1800;
+  const vit = Math.min(100, Math.max(5, Math.round(50 + kcalDelta / 28)));
+
+  // AGI: lower sugar-to-carb ratio = higher agility
+  const sugRatio = (macros.carb||1) > 0 ? (macros.sug||0) / (macros.carb||1) : 0.15;
+  const agi = Math.min(100, Math.max(8, Math.round(100 - sugRatio * 260)));
+
+  // INT: streak depth + XP progress
+  const xpPct = getXPRankData().pct;
+  const int_ = Math.min(100, Math.round(streak * 4 + xpPct * 0.28));
+
+  // MAG: today's supplement completion %
+  const mag = total ? Math.round((done / total) * 100) : 0;
+
+  return { STR: str, VIT: vit, AGI: agi, INT: int_, MAG: mag };
+}
+
+// ── Radar Chart — pure inline SVG (theme-aware labels) ─
+function buildRadarSVG(stats){
+  const labels = THEMES[getCurrentTheme()].attrs;
+  const vals   = [stats.STR, stats.VIT, stats.AGI, stats.INT, stats.MAG];
+  const cx = 105, cy = 108, R = 76;
+  const N  = 5;
+  // angles: start at top (−90°), clockwise
+  const ang = (i) => (i * 72 - 90) * Math.PI / 180;
+  const pt  = (i, frac) => [
+    (cx + R * frac * Math.cos(ang(i))).toFixed(1),
+    (cy + R * frac * Math.sin(ang(i))).toFixed(1),
+  ];
+
+  // Grid rings
+  const gridSVG = [.33,.66,1].map(lvl=>{
+    const pts = Array.from({length:N},(_,i)=>pt(i,lvl).join(',')).join(' ');
+    return `<polygon points="${pts}" class="radar-grid"/>`;
+  }).join('');
+
+  // Axis spokes
+  const axesSVG = Array.from({length:N},(_,i)=>
+    `<line x1="${cx}" y1="${cy}" x2="${pt(i,1)[0]}" y2="${pt(i,1)[1]}" class="radar-axis"/>`
+  ).join('');
+
+  // Stat fill polygon
+  const statPts = Array.from({length:N},(_,i)=>pt(i,vals[i]/100).join(',')).join(' ');
+  const statSVG = `<polygon points="${statPts}" class="radar-stat"/>`;
+
+  // Labels + values
+  const LR = R + 17;
+  const labelSVG = Array.from({length:N},(_,i)=>{
+    const a   = ang(i);
+    const lx  = (cx + LR * Math.cos(a)).toFixed(1);
+    const ly  = (cy + LR * Math.sin(a)).toFixed(1);
+    const anc = parseFloat(lx) < cx-4 ? 'end' : parseFloat(lx) > cx+4 ? 'start' : 'middle';
+    return `<text x="${lx}" y="${(parseFloat(ly)-1).toFixed(1)}" text-anchor="${anc}" class="radar-label">${labels[i]}</text>
+            <text x="${lx}" y="${(parseFloat(ly)+9).toFixed(1)}" text-anchor="${anc}" class="radar-val">${vals[i]}</text>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 210 215" class="rpg-radar-svg" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <filter id="rg"><feGaussianBlur stdDeviation="3" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    ${gridSVG}${axesSVG}${statSVG}${labelSVG}
+  </svg>`;
+}
+
+// ── Buff / Debuff Calculation (theme-aware) ───────────
+function calcBuffsDebuffs(){
+  const th      = THEMES[getCurrentTheme()];
+  const kiAns   = S.get('ki_ans')         || {};
+  const chk     = S.get('day_'+dateKey()) || [];
+  const protocol= S.get('protocol')       || [];
+  const macros  = S.get('macros')         || {};
+  const streak  = getStreak().count;
+  const buffs   = [];
+  const debuffs = [];
+
+  // Sleep debuffs — themed names
+  if(kiAns.sleep === 'sleepless'){
+    debuffs.push({ icon:'💤', name: th.sleep2.name, desc: th.sleep2.desc });
+  } else if(kiAns.sleep === 'restless'){
+    debuffs.push({ icon:'😴', name: th.sleep1.name, desc: th.sleep1.desc });
+  }
+
+  // Alpha-Awakening / Daily Quest Bonus / Nährstoff-Sync
+  const alphaDone = ['omega','multi'].every(id=>chk.includes(id)&&protocol.some(s=>s.id===id));
+  if(alphaDone){
+    buffs.push({ icon:'⚡', name: th.alpha.name, desc: th.alpha.desc });
+  }
+
+  // Streak buff at 7+ days — themed name
+  if(streak >= 7){
+    buffs.push({ icon:'🔥', name: th.streak.name(streak), desc: th.streak.desc });
+  }
+
+  // Sugar / Mana / RC contamination debuff
+  const sugRatio = (macros.carb||0) > 0 ? (macros.sug||0)/(macros.carb||1) : 0;
+  if(sugRatio > 0.28){
+    debuffs.push({ icon:'🍬', name: th.sugar.name, desc: th.sugar.desc });
+  }
+
+  return { buffs, debuffs };
+}
+
+// ── Full RPG Profile Re-render ────────────────────────
+function renderProfileOverlayRPG(){
+  const th     = THEMES[getCurrentTheme()];
+  // XP Bar
+  const xpData = getXPRankData();
+  const xpFill = document.getElementById('po-xp-fill');
+  const xpCurr = document.getElementById('po-xp-curr');
+  const xpNext = document.getElementById('po-xp-next');
+  const xpLab  = document.querySelector('.po-xp-label span:first-child');
+  if(xpFill) xpFill.style.width = xpData.pct + '%';
+  if(xpCurr) xpCurr.textContent = xpData.xp;
+  if(xpNext) xpNext.textContent = xpData.nextXp === Infinity ? '/ MAX' : '/ '+xpData.nextXp+' XP';
+  // Update label text (XP / DAILY QUEST / THREAT LEVEL)
+  if(xpLab) xpLab.firstChild.textContent = th.xpLabel + '  ';
+
+  // Profile overlay title
+  const poTagEl = document.getElementById('po-tag');
+  if(poTagEl) poTagEl.textContent = th.title;
+
+  // Rank label (use themed rank name, not generic XP_RANKS label)
+  const rkEl = document.getElementById('po-rk');
+  if(rkEl) rkEl.textContent = th.ranks[xpData.idx] || th.ranks[0];
+
+  // Equipped title display
+  const equipped = getEquippedTitle();
+  const titleTag = document.getElementById('po-equipped-title');
+  if(titleTag && ACHIEVE_DEFS[equipped]){
+    titleTag.textContent = '◈ ' + ACHIEVE_DEFS[equipped].name.toUpperCase();
+  }
+
+  // Radar chart
+  const stats = calcRPGStats();
+  const radarEl = document.getElementById('po-radar');
+  if(radarEl) radarEl.innerHTML = buildRadarSVG(stats);
+
+  // Attribute bars
+  const attrsEl = document.getElementById('po-attrs');
+  if(attrsEl){
+    const attrVals = [stats.STR, stats.VIT, stats.AGI, stats.INT, stats.MAG];
+    attrsEl.innerHTML = th.attrs.map((k,i)=>{ const v=attrVals[i]; return `
+      <div class="attr-row">
+        <div class="attr-label"><span>${k}</span><span class="av">${v}</span></div>
+        <div class="attr-track"><div class="attr-fill" style="width:${v}%"></div></div>
+      </div>`; }).join('');
+  }
+
+  // Buffs / Debuffs
+  const { buffs, debuffs } = calcBuffsDebuffs();
+  const buffsEl = document.getElementById('po-buffs');
+  if(buffsEl){
+    const badges = [
+      ...debuffs.map(d=>`<div class="status-badge debuff">
+        <span class="status-icon">${d.icon}</span>
+        <div><div class="status-name">${d.name}</div><div class="status-desc">${d.desc}</div></div>
+      </div>`),
+      ...buffs.map(b=>`<div class="status-badge buff">
+        <span class="status-icon">${b.icon}</span>
+        <div><div class="status-name">${b.name}</div><div class="status-desc">${b.desc}</div></div>
+      </div>`),
+    ];
+    buffsEl.innerHTML = badges.length ? badges.join('') :
+      `<div class="status-badge neutral">
+        <span class="status-icon">◈</span>
+        <div><div class="status-name">Keine aktiven Statuseffekte</div>
+        <div class="status-desc">Supplements abhaken für Buff-Aktivierung.</div></div>
+      </div>`;
+  }
+
+  // Title chips
+  const unlocked = getUnlockedAchievements();
+  const titlesEl = document.getElementById('po-titles');
+  if(titlesEl){
+    titlesEl.innerHTML = Object.entries(ACHIEVE_DEFS).map(([id,def])=>{
+      const isUnlocked = unlocked.includes(id);
+      const isEquipped = equipped === id;
+      const cls = isEquipped ? 'equipped' : isUnlocked ? '' : 'locked';
+      const onclick = isUnlocked ? `onclick="equipTitle('${id}')"` : '';
+      return `<span class="title-chip ${cls}" ${onclick}>${def.name}</span>`;
+    }).join('');
+  }
+
+  // Achievements grid
+  const achEl = document.getElementById('po-achievements');
+  if(achEl){
+    achEl.innerHTML = Object.entries(ACHIEVE_DEFS).map(([id,def])=>{
+      const isUnlocked = unlocked.includes(id);
+      return `<div class="achieve-card ${isUnlocked?'unlocked':''}">
+        <div class="achieve-icon">${def.icon}</div>
+        <div class="achieve-name">${def.name}</div>
+        <div class="achieve-desc">${def.desc}${isUnlocked?'':' <em>(+'+def.xp+' XP)</em>'}</div>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  PROFILE OVERLAY
+// ═══════════════════════════════════════════════════════
+function openProfileOverlay(){
+  const auth=S.get('auth'),profile=S.get('profile'),macros=S.get('macros');
+  if(!auth||!profile)return;
+  const streak=getStreak().count;
+  const av=document.getElementById('po-av');
+  if(profile.avatarPhoto)av.innerHTML=`<img src="${profile.avatarPhoto}" alt="av"/>`;
+  else{const a=['◈','◉','◊'];av.textContent=a[profile.avatarIdx]||'◈';}
+  document.getElementById('po-uid').textContent=auth.userId||'#001';
+  document.getElementById('po-nm').textContent=profile.firstName||auth.username||'Shadow';
+  document.getElementById('po-rk').textContent=getRank(streak);
+  document.getElementById('po-age').textContent=profile.age||'–';
+  document.getElementById('po-ht').textContent=(profile.height||'–')+' cm';
+  document.getElementById('po-wt').textContent=(profile.weight||'–')+' kg';
+  const gMap={m:t('gender_m'),f:t('gender_f'),x:t('gender_x')};
+  document.getElementById('po-gender').textContent=gMap[profile.gender]||'–';
+  // ULTRACODE: Fokus-Ziel + BMI in der Agenten-Akte
+  const goalMap={bulk:t('goal_bulk'),cut:t('goal_cut'),perf:t('goal_perf'),long:t('goal_long')};
+  document.getElementById('po-goal').textContent=goalMap[profile.goal]||'–';
+  const bmi=profile.height?profile.weight/Math.pow(profile.height/100,2):null;
+  document.getElementById('po-bmi').textContent=bmi?bmi.toFixed(1):'–';
+  // Macros
+  const mg=document.getElementById('po-macro-grid');
+  if(macros){
+    mg.innerHTML=`
+      <div class="po-macro-item"><div class="po-macro-l">${t('m_kcal')}</div><div class="po-macro-v">${macros.kcal}</div></div>
+      <div class="po-macro-item"><div class="po-macro-l">${t('m_prot')}</div><div class="po-macro-v">${macros.prot}g</div></div>
+      <div class="po-macro-item"><div class="po-macro-l">${t('m_carb')}</div><div class="po-macro-v">${macros.carb}g</div></div>
+      <div class="po-macro-item"><div class="po-macro-l">${t('m_fat')}</div><div class="po-macro-v">${macros.fat}g</div></div>
+      <div class="po-macro-item"><div class="po-macro-l">${t('m_sug')}</div><div class="po-macro-v">${macros.sug}g</div></div>
+    `;
+  } else mg.innerHTML='<div style="font-size:.75rem;color:var(--text3)">–</div>';
+  // Supplements
+  const protocol=S.get('protocol')||[];
+  document.getElementById('po-stags').innerHTML=protocol.map(s=>{
+    const d=SDEFS[s.id];return d?`<span class="po-stag">${t(d.nk)}</span>`:'';
+  }).join('');
+  document.getElementById('po').classList.add('open');
+  renderProfileOverlayRPG(); // RPG sections: radar, XP bar, buffs, titles, achievements
+}
+function closeProfileOverlay(){ document.getElementById('po').classList.remove('open'); }
+
+// ═══════════════════════════════════════════════════════
+//  BRIEFING
+// ═══════════════════════════════════════════════════════
+function openBriefing(){
+  const ph=document.getElementById('bp'),iframe=document.getElementById('b-iframe');
+  if(BRIEFING_URL){ph.style.display='none';iframe.style.display='block';iframe.src=BRIEFING_URL;}
+  else{ph.style.display='block';iframe.style.display='none';iframe.src='';}
+  document.getElementById('modal-br').classList.add('open');
+}
+function closeBriefing(){document.getElementById('modal-br').classList.remove('open');document.getElementById('b-iframe').src='';}
+
+// ═══════════════════════════════════════════════════════
+//  COMPLETION
+// ═══════════════════════════════════════════════════════
+function triggerComplete(n){
+  playSound();
+  document.getElementById('complete-streak-txt').textContent=t('complete_streak').replace('{n}',n);
+  document.getElementById('complete-ov').classList.add('show');
+  const pn=document.getElementById('prog-num');
+  pn.classList.remove('gold-flash');void pn.offsetWidth;pn.classList.add('gold-flash');
+}
+function dismissComplete(){ document.getElementById('complete-ov').classList.remove('show'); }
+
+function playSound(){
+  try{
+    const ctx=new(window.AudioContext||window.webkitAudioContext)();
+    [261.63,329.63,392,523.25].forEach((f,i)=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.type='sine';o.frequency.value=f;
+      o.connect(g);g.connect(ctx.destination);
+      g.gain.setValueAtTime(0,ctx.currentTime+i*.12);
+      g.gain.linearRampToValueAtTime(.14,ctx.currentTime+i*.12+.05);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+i*.12+.5);
+      o.start(ctx.currentTime+i*.12);o.stop(ctx.currentTime+i*.12+.5);
+    });
+  }catch(e){}
+}
+
+// ═══════════════════════════════════════════════════════
+//  SCREEN ROUTING
+// ═══════════════════════════════════════════════════════
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById('screen-'+id);
+  if(el)el.classList.add('active');
+  if(id==='ki'){
+    // Reset chat UI state on every entry
+    const chat=document.getElementById('ki-chat');
+    if(chat) chat.style.display='flex';
+    const gen=document.getElementById('ki-gen');
+    if(gen) gen.style.display='none';
+    const row=document.getElementById('ki-input-row');
+    if(row) row.style.display='none'; // startKI() will show it
+    showKIThinking(false);
+  }
+  updateTopBar();
+}
+
+// ═══════════════════════════════════════════════════════
+//  PARTICLE CANVAS
+// ═══════════════════════════════════════════════════════
+(function(){
+  const c=document.getElementById('cvs'),ctx=c.getContext('2d');
+  if(window.matchMedia('(prefers-reduced-motion:reduce)').matches)return;
+  let W,H,ps=[];
+  function resize(){W=c.width=innerWidth;H=c.height=innerHeight;}
+  function init(){resize();ps=Array.from({length:50},()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.4+.3,vx:(Math.random()-.5)*.22,vy:(Math.random()-.5)*.22,o:Math.random()*.45+.1}));}
+  function draw(){ctx.clearRect(0,0,W,H);ctx.fillStyle='rgba(124,58,237,.45)';
+    ps.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;ctx.globalAlpha=p.o;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();});ctx.globalAlpha=1;requestAnimationFrame(draw);}
+  window.addEventListener('resize',resize);init();draw();
+})();
+
+// ═══════════════════════════════════════════════════════
+//  CODE DIGIT UX
+// ═══════════════════════════════════════════════════════
+(function initCodeDigits(){
+  document.querySelectorAll('.code-digit').forEach((inp,i,all)=>{
+    inp.addEventListener('input',()=>{
+      inp.value=inp.value.replace(/\D/g,'').slice(-1);
+      if(inp.value&&i<all.length-1)all[i+1].focus();
+    });
+    inp.addEventListener('keydown',e=>{
+      if(e.key==='Backspace'&&!inp.value&&i>0){all[i-1].focus();}
+      if(e.key==='Enter')handleVerify();
+    });
+    inp.addEventListener('paste',e=>{
+      e.preventDefault();
+      const paste=(e.clipboardData||window.clipboardData).getData('text').replace(/\D/g,'');
+      all.forEach((d,j)=>{d.value=paste[j]||'';});
+      if(paste.length>=all.length)handleVerify();
+    });
+  });
+})();
+
+// ═══════════════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════════════
+(function boot(){
+  applyLang();
+  applyTheme(getCurrentTheme());
+  const sess=S.get('session');
+  if(!sess){showScreen('login');return;}
+  const profile=S.get('profile'),protocol=S.get('protocol');
+  if(!profile){showScreen('onboard');return;}
+  if(!protocol){showScreen('ki');return;}
+  load();showScreen('dashboard');render();
+})();
+
+// ═══════════════════════════════════════════════════════
+//  PWA — SERVICE WORKER REGISTRATION
+// ═══════════════════════════════════════════════════════
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg  => console.info('[SHADOW~1] ◈ SW aktiv — Scope:', reg.scope))
+      .catch(err => console.warn('[SHADOW~1] SW-Registrierung fehlgeschlagen:', err));
+  });
+}
+</script>
+</body>
+</html>
