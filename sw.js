@@ -3,7 +3,7 @@
    Serverlos: Die komplette App läuft nach dem ersten
    Besuch vollständig offline aus dem Cache.
 ═══════════════════════════════════════════════════════ */
-const CACHE  = 'shadow1-ultracode-v1';
+const CACHE  = 'shadow1-ultracode-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -31,7 +31,7 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if(e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  if(url.origin !== location.origin) return;   // API-Calls (OpenAI etc.) nie cachen
+  if(url.origin !== location.origin) return;   // API-Calls (OpenAI, Open Prices API etc.) nie cachen
   e.respondWith(
     caches.match(e.request).then(hit =>
       hit || fetch(e.request).then(res => {

@@ -964,6 +964,16 @@ html[data-theme="ghoul"] .scan-grid{
   background:rgba(249,200,70,.14);color:var(--gold);border:1px solid rgba(249,200,70,.35)}
 .cart-item-pr{font-weight:700;color:var(--accent3);flex-shrink:0;font-variant-numeric:tabular-nums}
 .cart-hint{font-size:.62rem;color:var(--text3);font-family:ui-monospace,monospace;text-align:center;opacity:.7}
+/* ◈ ULTRACODE — Live-Preis-Sync (Open Prices API) */
+.price-status-row{display:flex;align-items:center;justify-content:space-between;gap:.6rem;margin-bottom:.75rem}
+.price-status{font-size:.64rem;font-family:ui-monospace,'SF Mono',monospace;letter-spacing:.04em;
+  color:var(--text3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.price-status.ok{color:var(--success)}
+.price-status.err{color:var(--text3)}
+.price-status.loading{color:var(--accent3);animation:kp 1.2s ease-in-out infinite}
+.cart-live{font-size:.58rem;font-weight:700;padding:.12rem .38rem;border-radius:999px;flex-shrink:0;
+  background:rgba(34,211,160,.12);color:var(--success);border:1px solid rgba(34,211,160,.35);
+  letter-spacing:.06em}
 
 /* ◈ ULTRACODE — Fokus-Ziel-Auswahl (Onboarding) */
 .goal-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:1.15rem}
@@ -1267,6 +1277,11 @@ html[data-theme="ghoul"] .scan-grid{
     <!-- ◈ ULTRACODE: SMART CART — Proviant-Kalkulator (Supermarkt-Algorithmus) -->
     <div class="widget" id="cart-widget">
       <div class="w-title" data-i18n="w_cart">🛒 PROVIANT-KALKULATOR</div>
+      <!-- ◈ ULTRACODE: Live-Preis-Status (Open Prices API) + manueller Sync -->
+      <div class="price-status-row">
+        <span class="price-status" id="price-status">◈ …</span>
+        <button class="seg-btn" onclick="syncLivePrices(true)" data-i18n="price_sync">↻ PREIS-SYNC</button>
+      </div>
       <div class="cart-form">
         <div class="cart-row">
           <span class="cart-label" data-i18n="cart_period">ZEITRAUM</span>
@@ -1629,6 +1644,11 @@ de:{
   cart_deal:'AKTION',cart_hint:'// Simulierte Marktdaten · Aktionen rotieren wöchentlich',cart_none:'// Kein Artikel passt ins Budget…',
   // ── ULTRACODE: Materia-Scanner 2.0 ──
   scan_scanning:'SCANNING…',scan_detected:'erkannt',
+  // ── ULTRACODE: Live-Preis-Sync (Open Prices API) ──
+  price_sync:'↻ PREIS-SYNC',cart_live:'LIVE',
+  price_status_loading:'Synchronisiere Live-Preise…',
+  price_status_live:'Live-Preise · Open Prices API',
+  price_status_sim:'Simulierte Preise (API offline)',
 },
 en:{
   login_sub:'SUPPLEMENT PROTOCOL',tab_login:'Login',tab_register:'Register',
@@ -1697,6 +1717,10 @@ en:{
   cart_total:'TOTAL',cart_saved:'SAVED',cart_fit:'BUDGET USE',cart_nearest:'Cheapest market',
   cart_deal:'DEAL',cart_hint:'// Simulated market data · deals rotate weekly',cart_none:'// Nothing fits the budget…',
   scan_scanning:'SCANNING…',scan_detected:'detected',
+  price_sync:'↻ PRICE SYNC',cart_live:'LIVE',
+  price_status_loading:'Syncing live prices…',
+  price_status_live:'live prices · Open Prices API',
+  price_status_sim:'Simulated prices (API offline)',
 },
 ja:{
   login_sub:'サプリメント・プロトコル',tab_login:'ログイン',tab_register:'登録',
@@ -1761,6 +1785,10 @@ ja:{
   cart_total:'合計',cart_saved:'節約',cart_fit:'消化率',cart_nearest:'最安マーケット',
   cart_deal:'セール',cart_hint:'// シミュレーション・週替わりセール',cart_none:'// 予算内の商品なし…',
   scan_scanning:'スキャン中…',scan_detected:'検出',
+  price_sync:'↻ 価格同期',cart_live:'LIVE',
+  price_status_loading:'価格を同期中…',
+  price_status_live:'ライブ価格 · Open Prices API',
+  price_status_sim:'シミュレーション価格（オフライン）',
 },
 ko:{
   login_sub:'서플리먼트 프로토콜',tab_login:'로그인',tab_register:'회원가입',
@@ -1825,6 +1853,10 @@ ko:{
   cart_total:'합계',cart_saved:'절약',cart_fit:'사용률',cart_nearest:'최저가 마켓',
   cart_deal:'세일',cart_hint:'// 시뮬레이션 · 주간 세일 로테이션',cart_none:'// 예산 내 상품 없음…',
   scan_scanning:'스캔 중…',scan_detected:'감지됨',
+  price_sync:'↻ 가격 동기화',cart_live:'LIVE',
+  price_status_loading:'실시간 가격 동기화 중…',
+  price_status_live:'실시간 가격 · Open Prices API',
+  price_status_sim:'시뮬레이션 가격 (오프라인)',
 },
 es:{
   login_sub:'PROTOCOLO DE SUPLEMENTOS',tab_login:'Iniciar Sesión',tab_register:'Registrarse',
@@ -1890,6 +1922,10 @@ es:{
   cart_total:'TOTAL',cart_saved:'AHORRADO',cart_fit:'USO',cart_nearest:'Mercado más barato',
   cart_deal:'OFERTA',cart_hint:'// Datos simulados · ofertas rotan semanalmente',cart_none:'// Nada entra en el presupuesto…',
   scan_scanning:'ESCANEANDO…',scan_detected:'detectado',
+  price_sync:'↻ SINCRONIZAR',cart_live:'LIVE',
+  price_status_loading:'Sincronizando precios…',
+  price_status_live:'precios en vivo · Open Prices API',
+  price_status_sim:'Precios simulados (API offline)',
 }};
 
 let lang = S.get('lang') || 'de';
@@ -2563,7 +2599,8 @@ function load(){
   checked=S.get('day_'+dateKey())||[];
   loadMana();
   loadNote();
-  loadCartCfg();   // ULTRACODE: Smart-Cart-Einstellungen wiederherstellen
+  loadCartCfg();     // ULTRACODE: Smart-Cart-Einstellungen wiederherstellen
+  syncLivePrices();  // ULTRACODE: Live-Preise laden (non-blocking, 24h-Cache)
 }
 async function save(){ S.set('day_'+dateKey(),checked); }
 
@@ -2924,21 +2961,23 @@ const MARKET_DB = {
     {id:'spar',      name:'SPAR',       factor:1.18},
   ],
   // kcal/prot = Nährwert der GESAMTEN Packung · tags = Fokus-Ziel-Relevanz
+  // off = Open-Food-Facts-Kategorie-Tags für den Live-Preis-Sync (Reihenfolge = Priorität)
+  // kg  = Packungsgröße für die Umrechnung von KILOGRAM-Preisen · unitCount = Stück pro Packung
   products: [
-    {id:'oats',     name:'Haferflocken 500g',  icon:'🥣', base:1.29, kcal:1850, prot:67,  tags:['bulk','perf']},
-    {id:'eggs',     name:'Eier 10 Stk',        icon:'🥚', base:3.29, kcal:780,  prot:66,  tags:['bulk','cut']},
-    {id:'quark',    name:'Magerquark 500g',    icon:'🥛', base:1.19, kcal:335,  prot:60,  tags:['cut','bulk']},
-    {id:'chicken',  name:'Hähnchenbrust 1kg',  icon:'🍗', base:7.99, kcal:1100, prot:230, tags:['bulk','cut','perf']},
-    {id:'rice',     name:'Naturreis 1kg',      icon:'🍚', base:2.29, kcal:3500, prot:75,  tags:['bulk','perf']},
-    {id:'tuna',     name:'Thunfisch 3×80g',    icon:'🐟', base:3.49, kcal:260,  prot:58,  tags:['cut','long']},
-    {id:'banana',   name:'Bananen 1kg',        icon:'🍌', base:1.79, kcal:890,  prot:11,  tags:['perf','bulk']},
-    {id:'broccoli', name:'Brokkoli TK 750g',   icon:'🥦', base:1.99, kcal:255,  prot:21,  tags:['cut','long']},
-    {id:'lentils',  name:'Linsen 500g',        icon:'🫘', base:1.49, kcal:1650, prot:120, tags:['long','cut']},
-    {id:'oil',      name:'Olivenöl 500ml',     icon:'🫒', base:5.99, kcal:4400, prot:0,   tags:['long']},
-    {id:'bread',    name:'Vollkornbrot 500g',  icon:'🍞', base:2.19, kcal:1100, prot:42,  tags:['bulk']},
-    {id:'skyr',     name:'Skyr 450g',          icon:'🍶', base:1.99, kcal:280,  prot:49,  tags:['cut']},
-    {id:'pb',       name:'Erdnussbutter 350g', icon:'🥜', base:2.99, kcal:2100, prot:90,  tags:['bulk']},
-    {id:'berries',  name:'TK-Beeren 300g',     icon:'🫐', base:2.49, kcal:135,  prot:3,   tags:['long','cut']},
+    {id:'oats',     name:'Haferflocken 500g',  icon:'🥣', base:1.29, kcal:1850, prot:67,  tags:['bulk','perf'],       off:['en:oat-flakes','en:oats'],            kg:0.5},
+    {id:'eggs',     name:'Eier 10 Stk',        icon:'🥚', base:3.29, kcal:780,  prot:66,  tags:['bulk','cut'],        off:['en:chicken-eggs','en:eggs'],          kg:0.6, unitCount:10},
+    {id:'quark',    name:'Magerquark 500g',    icon:'🥛', base:1.19, kcal:335,  prot:60,  tags:['cut','bulk'],        off:['en:quarks'],                          kg:0.5},
+    {id:'chicken',  name:'Hähnchenbrust 1kg',  icon:'🍗', base:7.99, kcal:1100, prot:230, tags:['bulk','cut','perf'], off:['en:chicken-breasts'],                 kg:1},
+    {id:'rice',     name:'Naturreis 1kg',      icon:'🍚', base:2.29, kcal:3500, prot:75,  tags:['bulk','perf'],       off:['en:brown-rices','en:rices'],          kg:1},
+    {id:'tuna',     name:'Thunfisch 3×80g',    icon:'🐟', base:3.49, kcal:260,  prot:58,  tags:['cut','long'],        off:['en:canned-tunas','en:tunas'],         kg:0.24},
+    {id:'banana',   name:'Bananen 1kg',        icon:'🍌', base:1.79, kcal:890,  prot:11,  tags:['perf','bulk'],       off:['en:bananas'],                         kg:1},
+    {id:'broccoli', name:'Brokkoli TK 750g',   icon:'🥦', base:1.99, kcal:255,  prot:21,  tags:['cut','long'],        off:['en:broccoli'],                        kg:0.75},
+    {id:'lentils',  name:'Linsen 500g',        icon:'🫘', base:1.49, kcal:1650, prot:120, tags:['long','cut'],        off:['en:lentils','en:pulses'],             kg:0.5},
+    {id:'oil',      name:'Olivenöl 500ml',     icon:'🫒', base:5.99, kcal:4400, prot:0,   tags:['long'],              off:['en:olive-oils'],                      kg:0.5},
+    {id:'bread',    name:'Vollkornbrot 500g',  icon:'🍞', base:2.19, kcal:1100, prot:42,  tags:['bulk'],              off:['en:wholemeal-breads','en:breads'],    kg:0.5},
+    {id:'skyr',     name:'Skyr 450g',          icon:'🍶', base:1.99, kcal:280,  prot:49,  tags:['cut'],               off:['en:skyrs','en:strained-yogurts'],     kg:0.45},
+    {id:'pb',       name:'Erdnussbutter 350g', icon:'🥜', base:2.99, kcal:2100, prot:90,  tags:['bulk'],              off:['en:peanut-butters','en:nut-butters'], kg:0.35},
+    {id:'berries',  name:'TK-Beeren 300g',     icon:'🫐', base:2.49, kcal:135,  prot:3,   tags:['long','cut'],        off:['en:frozen-berries','en:berries'],     kg:0.3},
   ],
 };
 
@@ -2959,6 +2998,155 @@ function loadCartCfg(){
   setCartBudget(cfg.budget || 20);
   const a = document.getElementById('cart-addr');
   if(a && cfg.addr) a.value = cfg.addr;
+}
+
+// ═══════════════════════════════════════════════════════
+//  ◈ ULTRACODE ENGINE 2b — LIVE PRICE SYNC
+//  Echte Marktpreise über die Open Prices API von
+//  Open Food Facts (https://prices.openfoodfacts.org):
+//  kostenlos, kein API-Key, offene Lizenz, CORS-frei —
+//  läuft daher direkt aus der statischen PWA (GitHub Pages).
+//
+//  Stabilitäts-Schichten (die App blockiert NIE auf der API):
+//  1. 24h-Cache im localStorage (TTL) — spart Requests
+//  2. AbortSignal-Timeout (8s) pro Request
+//  3. Fallback-Kategorie-Tags pro Produkt (2 Versuche)
+//  4. Einheiten-Umrechnung (KILOGRAM/UNIT → Packungspreis)
+//  5. Plausibilitäts-Klammer (0,35×–3× Basispreis) gegen
+//     Ausreißer & Einheiten-Fehler, dann Median
+//  6. Stale-while-error: bei API-Ausfall alter Cache,
+//     sonst simulierte Basispreise — Kalkulator läuft immer
+// ═══════════════════════════════════════════════════════
+const PRICE_API = {
+  endpoint : 'https://prices.openfoodfacts.org/api/v1/prices',
+  query    : 'currency=EUR&order_by=-date&size=30',
+  timeoutMs: 6000,
+  ttlMs    : 24 * 60 * 60 * 1000,   // 24h Cache
+  maxTags  : 2,                     // max. Kategorie-Versuche pro Produkt
+  chunk    : 7,                     // parallele Requests pro Welle — hält Totalausfall auf ≤24s (2 Wellen × 2 Tag-Versuche × 6s) begrenzt
+};
+let LIVE_PRICES    = {};   // { productId: {price, samples, tag} }
+let priceSyncState = { running:false, ts:null, count:0, error:null };
+
+function median(arr){
+  const s = arr.slice().sort((a,b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2;
+}
+
+// Ein API-Aufruf für einen Kategorie-Tag — wirft bei jedem Problem
+async function fetchCategoryPrices(tag){
+  const url = `${PRICE_API.endpoint}?category_tag=${encodeURIComponent(tag)}&${PRICE_API.query}`;
+  const res = await fetch(url, {
+    headers: { 'Accept':'application/json' },
+    signal : AbortSignal.timeout(PRICE_API.timeoutMs),
+  });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if(!data || !Array.isArray(data.items)) throw new Error('Malformed API response');
+  return data.items;
+}
+
+// KILOGRAM-/UNIT-Preise auf den Packungspreis des Produkts umrechnen
+function toPackPrice(item, prod){
+  const v = Number(item?.price);
+  if(!isFinite(v) || v <= 0) return null;
+  if(item.price_per === 'KILOGRAM') return v * (prod.kg || 1);
+  return v * (prod.unitCount || 1);
+}
+
+// Live-Preis eines Produkts: Tags der Reihe nach probieren, Median der plausiblen Werte
+async function fetchLivePrice(prod){
+  for(const tag of (prod.off || []).slice(0, PRICE_API.maxTags)){
+    try {
+      const items = await fetchCategoryPrices(tag);
+      const vals = items.map(i => toPackPrice(i, prod))
+        .filter(v => v != null && v >= prod.base * 0.35 && v <= prod.base * 3);
+      if(vals.length) return { price: Math.round(median(vals) * 100) / 100, samples: vals.length, tag };
+    } catch(e){ /* nächster Tag bzw. Sim-Fallback — bewusst still */ }
+  }
+  return null;
+}
+
+async function syncLivePrices(force = false){
+  if(priceSyncState.running) return;
+  const cache = S.get('price_cache');
+
+  // 1) Frischer Cache → sofort übernehmen, keine Requests
+  if(!force && cache && cache.prices && Date.now() - cache.ts < PRICE_API.ttlMs){
+    LIVE_PRICES = cache.prices;
+    priceSyncState = { running:false, ts:cache.ts, count:Object.keys(LIVE_PRICES).length, error:null };
+    renderPriceStatus();
+    return;
+  }
+
+  // 2) Offline → alten Cache nutzen (falls vorhanden), nie Requests feuern
+  if(typeof navigator !== 'undefined' && navigator.onLine === false){
+    if(cache && cache.prices){ LIVE_PRICES = cache.prices; priceSyncState.ts = cache.ts; priceSyncState.count = Object.keys(LIVE_PRICES).length; }
+    priceSyncState.error = 'offline';
+    renderPriceStatus();
+    return;
+  }
+
+  priceSyncState.running = true; priceSyncState.error = null;
+  renderPriceStatus();
+
+  // 3) In Wellen à 5 Produkte abfragen (Promise.allSettled — Einzelfehler egal)
+  const results  = {};
+  const products = MARKET_DB.products.filter(p => p.off && p.off.length);
+  for(let i = 0; i < products.length; i += PRICE_API.chunk){
+    const chunk   = products.slice(i, i + PRICE_API.chunk);
+    const settled = await Promise.allSettled(chunk.map(p => fetchLivePrice(p)));
+    settled.forEach((r, j) => { if(r.status === 'fulfilled' && r.value) results[chunk[j].id] = r.value; });
+  }
+
+  priceSyncState.running = false;
+  if(Object.keys(results).length){
+    LIVE_PRICES = results;
+    priceSyncState.ts    = Date.now();
+    priceSyncState.count = Object.keys(results).length;
+    priceSyncState.error = null;
+    S.set('price_cache', { ts: priceSyncState.ts, prices: results });
+  } else if(cache && cache.prices){
+    // 4a) Stale-while-error: Refresh fehlgeschlagen, alter Cache bleibt aktiv
+    LIVE_PRICES = cache.prices;
+    priceSyncState.ts    = cache.ts;
+    priceSyncState.count = Object.keys(LIVE_PRICES).length;
+    priceSyncState.error = 'stale';
+  } else {
+    // 4b) Totalausfall ohne Cache → LIVE_PRICES/count MÜSSEN synchron auf 0 sein,
+    //     sonst zeigt die UI "Live" an, obwohl gerade rein simuliert wird
+    LIVE_PRICES = {};
+    priceSyncState.ts    = null;
+    priceSyncState.count = 0;
+    priceSyncState.error = 'no-data';
+  }
+  renderPriceStatus();
+  // Bereits berechnete Einkaufsliste mit den frischen Preisen aktualisieren
+  if(document.getElementById('cart-results')?.childElementCount) runSmartCart();
+}
+
+function renderPriceStatus(){
+  const el = document.getElementById('price-status');
+  if(!el) return;
+  const total = MARKET_DB.products.length;
+  if(priceSyncState.running){
+    el.className = 'price-status loading';
+    el.textContent = '◈ ' + t('price_status_loading');
+  } else if(priceSyncState.count > 0){
+    const time = priceSyncState.ts ? new Date(priceSyncState.ts).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
+    el.className = 'price-status ok';
+    el.textContent = `◈ ${priceSyncState.count}/${total} ${t('price_status_live')} · ${time}`;
+  } else {
+    el.className = 'price-status err';
+    el.textContent = '◈ ' + t('price_status_sim');
+  }
+}
+
+// Effektiver Basispreis: Live-Median wenn vorhanden, sonst Simulations-Basis
+function effBase(prod){
+  const live = LIVE_PRICES[prod.id];
+  return live ? live.price : prod.base;
 }
 
 // Deterministischer 32-bit-PRNG (Mulberry32) — reproduzierbare Wochen-Aktionen
@@ -3020,11 +3208,12 @@ function runSmartCart(){
   MARKET_DB.markets.forEach(m => { deals[m.id] = getMarketDeals(m.id); });
 
   // 2) Bestpreis-Suche: für jedes Produkt der günstigste Markt inkl. Aktion
+  //    Basispreis = Live-Median (Open Prices API) falls vorhanden, sonst Simulation
   const offers = MARKET_DB.products.map(p => {
     let best = null;
     for(const m of MARKET_DB.markets){
       const disc  = deals[m.id][p.id] || 0;
-      const price = Math.round(p.base * m.factor * (1 - disc) * 100) / 100;
+      const price = Math.round(effBase(p) * m.factor * (1 - disc) * 100) / 100;
       if(!best || price < best.price) best = {product:p, market:m, price, disc};
     }
     return best;
@@ -3061,12 +3250,12 @@ function runSmartCart(){
     return;
   }
 
-  const saved = items.reduce((a,i) => a + i.product.base * i.market.factor * i.disc * i.qty, 0);
+  const saved = items.reduce((a,i) => a + effBase(i.product) * i.market.factor * i.disc * i.qty, 0);
   const util  = Math.round(total / budget * 100);
 
   // 5) Preisniveau je Markt (kompletter Warenkorb) → günstigster Markt
   const level = MARKET_DB.markets
-    .map(m => ({m, sum: MARKET_DB.products.reduce((a,p) => a + p.base * m.factor * (1 - (deals[m.id][p.id] || 0)), 0)}))
+    .map(m => ({m, sum: MARKET_DB.products.reduce((a,p) => a + effBase(p) * m.factor * (1 - (deals[m.id][p.id] || 0)), 0)}))
     .sort((a,b) => a.sum - b.sum);
   const cheapest = level[0].m;
 
@@ -3092,6 +3281,7 @@ function runSmartCart(){
         <span class="cart-item-ic">${i.product.icon}</span>
         <span class="cart-item-nm">${i.product.name}</span>
         <span class="cart-item-qty">×${i.qty}</span>
+        ${LIVE_PRICES[i.product.id] ? `<span class="cart-live" title="Open Prices API · ${LIVE_PRICES[i.product.id].samples} Samples">${t('cart_live')}</span>` : ''}
         ${i.disc ? `<span class="cart-deal">−${Math.round(i.disc*100)}% ${t('cart_deal')}</span>` : ''}
         <span class="cart-item-pr">${fmtEUR(i.price * i.qty)}</span>
       </div>`).join('');
