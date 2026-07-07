@@ -1,0 +1,56 @@
+/* ═══════════════════════════════════════════════════════
+   ◈ FULL-STACK-ERWEITERUNGEN — Nav-Buttons + Shadow Nexus
+   (Basis-Styles kommen 1:1 aus legacy.css)
+═══════════════════════════════════════════════════════ */
+.nav-btn{background:transparent;border:1px solid var(--border);color:var(--text2);
+  font-size:.68rem;font-weight:600;letter-spacing:.06em;padding:.3rem .55rem;
+  border-radius:6px;cursor:pointer;transition:all .18s;white-space:nowrap;
+  display:inline-flex;align-items:center;justify-content:center;gap:.3em}
+.nav-btn:hover{border-color:var(--border2);color:var(--text)}
+.nav-btn.active{border-color:var(--accent2);color:var(--accent3);
+  background:rgba(var(--glow-rgb),.14);box-shadow:0 0 8px rgba(var(--glow-rgb),.25)}
+
+/* Chat-Screen */
+#screen-chat{padding:52px 0 0;overflow:hidden}
+.chat-wrap{display:flex;flex-direction:column;width:100%;height:calc(100dvh - 52px);
+  max-width:640px;margin:0 auto}
+.chat-rooms{display:flex;gap:.3rem;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end}
+.chat-list{padding-bottom:1rem}
+.chat-media{max-width:min(260px,100%);border-radius:10px;display:block;margin-bottom:.35rem;
+  border:1px solid var(--border)}
+.chat-warn{align-self:center;max-width:92%;text-align:center;
+  font-size:.72rem;line-height:1.55;color:var(--danger);
+  background:rgba(232,58,90,.07);border:1px solid rgba(232,58,90,.25);
+  border-radius:var(--r2);padding:.55rem .8rem;animation:fadeIn .3s ease}
+.chat-warn-bot{display:block;font-size:.6rem;font-weight:700;letter-spacing:.14em;
+  margin-bottom:.2rem;opacity:.85}
+.chat-sys{align-self:center;font-size:.64rem;color:var(--text3);
+  font-family:ui-monospace,'SF Mono',monospace;padding:.15rem 0}
+.chat-offline{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.4rem;padding:2rem 1.4rem;max-width:420px;margin:0 auto;width:100%;text-align:center}
+.chat-offline .cart-addr{text-align:center}
+.chat-offline-hint{font-size:.76rem;color:var(--text3);line-height:1.6;margin-bottom:.9rem}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* Mobile: Raum-Chips unter dem Header statt daneben */
+@media (max-width:520px){
+  .ki-chat-hd{flex-wrap:wrap}
+  .chat-rooms{width:100%;justify-content:flex-start}
+}
+
+/* ◈ Responsive Top-Bar: alle Menüs auf Mobile komprimiert & bedienbar
+   (Nav/Logout → Icons, kleinere Theme-/Sprach-Buttons, Chip schrumpft) */
+@media (max-width:640px){
+  .top-bar{padding:0 .6rem}
+  .nav-btn .nav-label,.logout-btn .nav-label{display:none}
+  .nav-btn,.logout-btn{padding:.3rem .45rem;font-size:.78rem}
+  .theme-btn{width:24px;height:24px;font-size:.72rem}
+  .lang-btn{padding:.16rem .26rem;font-size:.58rem}
+  .lang-switcher{gap:.12rem}
+  .tb-right{gap:.28rem}
+  .profile-chip{max-width:140px}
+}
+@media (max-width:400px){
+  .profile-chip{max-width:42px;padding:.2rem}
+  .profile-chip .pt{display:none}
+}

@@ -3,7 +3,7 @@
    Serverlos: Die komplette App läuft nach dem ersten
    Besuch vollständig offline aus dem Cache.
 ═══════════════════════════════════════════════════════ */
-const CACHE  = 'shadow1-ultracode-v3';
+const CACHE  = 'shadow1-fullstack-v4';
 const ASSETS = [
   './',
   './index.html',
