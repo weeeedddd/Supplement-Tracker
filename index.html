@@ -975,6 +975,57 @@ html[data-theme="ghoul"] .scan-grid{
   background:rgba(34,211,160,.12);color:var(--success);border:1px solid rgba(34,211,160,.35);
   letter-spacing:.06em}
 
+/* ═══════════════════════════════════════════════════════
+   ◈ ULTRACODE — SUPPLEMENT-INFO-ICONS
+   PC: Hover über die Karte zeigt die Erklärung ·
+   Mobile: Tipp auf das ⓘ-Icon klappt sie auf/zu.
+═══════════════════════════════════════════════════════ */
+.sc-ib{width:20px;height:20px;border-radius:50%;border:1px solid var(--border2);
+  background:rgba(0,0,0,.3);color:var(--text3);font-size:.68rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;
+  transition:all .18s;font-family:Georgia,'Times New Roman',serif;font-style:italic;
+  line-height:1;position:relative;z-index:2;padding:0}
+.sc-ib:hover{border-color:var(--accent2);color:var(--accent3);
+  box-shadow:0 0 8px rgba(var(--glow-rgb),.35)}
+.sc-infobox{display:none;font-size:.7rem;color:var(--text2);line-height:1.5;
+  margin-top:.45rem;padding:.5rem .65rem;background:rgba(0,0,0,.32);
+  border-left:2px solid var(--accent2);border-radius:0 var(--r3) var(--r3) 0}
+.sc-infobox.open{display:block;animation:fiu .25s ease}
+@media (hover:hover) and (pointer:fine){
+  .supp-card:hover .sc-infobox{display:block}
+}
+
+/* ═══════════════════════════════════════════════════════
+   ◈ ULTRACODE — MOBILE-OPTIMIERUNG PROFIL-OVERLAY
+   dvh statt vh (iOS-URL-Leiste), Touch-Scrolling,
+   Safe-Area-Insets, kompaktes Layout auf schmalen Screens.
+═══════════════════════════════════════════════════════ */
+.profile-overlay{
+  height:100dvh;max-height:100dvh;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  touch-action:pan-y;
+  padding:calc(64px + env(safe-area-inset-top)) 1.1rem calc(3rem + env(safe-area-inset-bottom));
+}
+.po-close{top:calc(56px + env(safe-area-inset-top));right:1.1rem;padding:.4rem;z-index:5}
+@media (max-width:430px){
+  .po-av{width:70px;height:70px;font-size:1.8rem;margin-bottom:.7rem}
+  .po-uid{font-size:1.5rem}
+  .po-nm{font-size:.95rem}
+  .po-grid{gap:.45rem}
+  .po-stat{padding:.5rem .3rem}
+  .po-stat-v{font-size:.8rem}
+  .po-stat-l{font-size:.56rem}
+  .rpg-radar-svg{width:180px;height:180px}
+  .po-macro-grid{gap:.45rem}
+  .rpg-attrs{gap:.45rem .7rem}
+  .po-achieve-grid{grid-template-columns:1fr}
+}
+@media (max-height:640px){
+  .profile-overlay{padding-top:calc(56px + env(safe-area-inset-top))}
+  .po-av{width:62px;height:62px;margin-bottom:.55rem}
+}
+
 /* ◈ ULTRACODE — Fokus-Ziel-Auswahl (Onboarding) */
 .goal-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:1.15rem}
 .goal-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.18rem;
@@ -1116,10 +1167,11 @@ html[data-theme="ghoul"] .scan-grid{
       <div class="glass-card">
         <div class="ob-title" data-i18n="ob_prof_title">PROFIL KONFIGURIEREN</div>
         <div class="ob-sub" data-i18n="ob_prof_sub">Physische Parameter für das Protokoll</div>
-        <div class="fg"><input type="text" id="ob-fn" placeholder=" " value="Dominic"/><label data-i18n="ob_first">Vorname</label></div>
-        <div class="fg"><input type="number" id="ob-age" placeholder=" " value="20"/><label data-i18n="ob_age">Alter</label></div>
-        <div class="fg"><input type="number" id="ob-ht" placeholder=" " value="195"/><label data-i18n="ob_height">Größe (cm)</label></div>
-        <div class="fg"><input type="number" id="ob-wt" placeholder=" " value="140"/><label data-i18n="ob_weight">Gewicht (kg)</label></div>
+        <!-- ULTRACODE Datenschutz: keine echten Namen/Werte als Vorbelegung -->
+        <div class="fg"><input type="text" id="ob-fn" placeholder=" "/><label data-i18n="ob_first">Dein Name</label></div>
+        <div class="fg"><input type="number" id="ob-age" placeholder=" "/><label data-i18n="ob_age">Alter</label></div>
+        <div class="fg"><input type="number" id="ob-ht" placeholder=" "/><label data-i18n="ob_height">Größe (cm)</label></div>
+        <div class="fg"><input type="number" id="ob-wt" placeholder=" "/><label data-i18n="ob_weight">Gewicht (kg)</label></div>
         <span class="gender-label" data-i18n="ob_gender">KÖRPERLICHE ENTITÄT</span>
         <div class="gender-row">
           <button class="gender-btn sel" data-g="m" onclick="selectGender('m')" data-i18n="gender_m">♂ Männlich</button>
@@ -1240,8 +1292,8 @@ html[data-theme="ghoul"] .scan-grid{
     <div class="widget" id="scanner-widget" style="display:none">
       <div class="w-title" data-i18n="w_scanner">🔬 MATERIA-SCANNER</div>
       <div class="scanner-row">
-        <input type="text" class="scanner-input" id="scanner-input"
-          placeholder="z.B. 1 Teller Jollof Rice mit Chicken oder Airfryer Cordon Bleu…"/>
+        <input type="text" class="scanner-input" id="scanner-input" data-i18n-ph="scanner_ph"
+          placeholder="z. B. 1 Teller Reis mit Hähnchen · 150 g Chips · Protein-Shake…"/>
         <label class="scanner-file-btn" title="Bild hochladen">
           📷
           <input type="file" id="scanner-file" accept="image/*" capture="environment" onchange="handleScannerFile(event)"/>
@@ -1579,7 +1631,7 @@ de:{
   btn_continue:'Protokoll starten',btn_briefing:'◈ SHADOW BRIEFING',btn_dismiss:'Weiter in die Void',
   ob_av_title:'AVATAR WÄHLEN',ob_av_sub:'Wähle deine Erscheinung in der Void',
   ob_upload:'Foto',ob_prof_title:'PROFIL KONFIGURIEREN',ob_prof_sub:'Physische Parameter für das Protokoll',
-  ob_first:'Vorname',ob_age:'Alter',ob_height:'Größe (cm)',ob_weight:'Gewicht (kg)',
+  ob_first:'Dein Name',ob_age:'Alter',ob_height:'Größe (cm)',ob_weight:'Gewicht (kg)',
   ki_title:'SHADOW KI INITIIERUNG',ki_desc:'Das Protokoll wartet auf dich.',
   ki_init_btn:'SHADOW KI INITIIEREN',ki_generating:'Protokoll wird initialisiert…',ki_prefix:'SHADOW KI FRAGT',
   ki_q1:'Wie oft trainierst du deine physische Hülle?',
@@ -1612,7 +1664,7 @@ de:{
   supp_ashwa:'Ashwagandha',supp_ashwa_dose:'600mg abends',supp_ashwa_note:'Adaptogen',
   supp_mag:'Magnesium',supp_mag_dose:'400mg abends',
   supp_melatonin:'Melatonin',supp_melatonin_dose:'1–3mg vor Schlaf',supp_melatonin_note:'Bei Bedarf',
-  ki_greeting:'Nenne den Zustand deiner physischen Hülle und deinen Schlafzyklus, {name}…',
+  ki_greeting:'◈ Die Schatten lauschen, {name}.\nErzähl mir von deinem Körper und deinem Alltag: Wie oft trainierst du — und wie gut schläfst du wirklich?',
   ki_thinking:'Resonanz wird evaluiert…',ki_input_ph:'Antwort eingeben…',ki_you:'Du',
   btn_logout:'Abmelden',
   w_scanner:'🔬 MATERIA-SCANNER',scan_btn:'◈ KI ANALYSIEREN',scan_loading:'KI analysiert Materia…',
@@ -1649,6 +1701,46 @@ de:{
   price_status_loading:'Synchronisiere Live-Preise…',
   price_status_live:'Live-Preise · Open Prices API',
   price_status_sim:'Simulierte Preise (API offline)',
+  // ── ULTRACODE: Scanner-Beispiele lokalisiert ──
+  scanner_ph:'z. B. 1 Teller Reis mit Hähnchen · 150 g Chips · Protein-Shake…',
+  // ── ULTRACODE: Shadow-KI Fallback — Sprach-Fix (immer aktive Sprache) ──
+  ki_redirect:'// ◈ ACCESS GRANTED — nimm dir Zeit zum Lesen…',
+  ki_saved:'// ◈ Protokoll versiegelt — Zugang wird gewährt…',
+  kib_train_daily:'Tägliches Training. Dein Gefäß läuft auf hoher Frequenz — das System registriert eine tiefe Resonanz-Signatur.',
+  kib_train_35:'Drei bis fünf Einheiten pro Woche. Konstant. Die Void erkennt diese Disziplin an.',
+  kib_train_12:'Dein Trainingspuls ist niedrig. Das Protokoll wird diese Grenze berücksichtigen.',
+  kib_train_none:'Kein strukturiertes Training erkannt. Deine Basis wird auf Minimal-Last kalibriert.',
+  kib_sleep_bad:'Dein Schlaf ist zerrüttet — deine Erholung arbeitet unter schwerer Last.',
+  kib_sleep_mid:'Unruhige Nächte erkannt. Deine Regeneration bleibt spürbar unter ihrem Potenzial.',
+  kib_sleep_good:'Dein Schlafzyklus ist stabil. Das Fundament deiner Erholung trägt.',
+  kib_nutr_prot:'Proteinreiche Ernährung bestätigt. Deine Aufbau-Pfade sind gut versorgt.',
+  kib_nutr_fast:'Hoher Anteil an Fast Food und Verarbeitetem erkannt. Die Nährstoff-Dichte ist zu niedrig.',
+  kib_nutr_bal:'Ausgewogene Ernährung registriert. Solide — aber noch nicht auf Maximal-Leistung optimiert.',
+  kib_q_nutrition:'Eine Dimension liegt noch im Dunkeln, {name}:\nDeine Ernährung. Was landet an einem normalen Tag auf deinem Teller — ganz ehrlich?',
+  kib_q_stress:'Letzte Kalibrierungs-Phase. Eine Variable fehlt noch:\n\nWie sieht dein Alltag aus — viel Stress, langes Sitzen im Büro, oder bist du körperlich viel unterwegs? Sprich frei. Das System liest zwischen den Zeilen.',
+  kib_close_high_stress:'Erhöhtes Stress-Feld erkannt.\nAdaptogene wurden in dein Protokoll eingeschrieben.',
+  kib_close_active:'Hohe Alltagsaktivität registriert.\nDeine Kalorienziele wurden für die höhere Belastung angepasst.',
+  kib_close_sedentary:'Lange Sitzphasen erkannt.\nDas Protokoll wurde entsprechend kalibriert.',
+  kib_close_neutral:'Alle Umgebungsvariablen wurden verarbeitet.',
+  kib_final:'Kalibrierung abgeschlossen, {name}.\n\nDeine Resonanz-Signatur wurde über alle drei Dimensionen versiegelt.\nDas Shadow-Protokoll ist in das System eingeschrieben.\n\nDein Dashboard öffnet sich gleich von selbst — lies in Ruhe zu Ende.\n\n◈ ACCESS: GRANTED',
+  // ── ULTRACODE: Supplement-Erklärungen (Info-Icons) ──
+  supp_omega_info:'EPA & DHA stützen Herz und Gehirn und hemmen Entzündungen — wichtig, wenn wenig fetter Fisch auf dem Speiseplan steht.',
+  supp_multi_info:'Deckt Mikronährstoff-Lücken ab und sichert die Basisversorgung mit Vitaminen und Mineralien.',
+  supp_kreatin_info:'Erhöht die ATP-Verfügbarkeit im Muskel — mehr Kraft, mehr Wiederholungen, schnellerer Muskelaufbau.',
+  supp_bcaa_info:'Verzweigtkettige Aminosäuren schützen die Muskulatur bei hartem oder nüchternem Training.',
+  supp_protein_info:'Liefert die Bausteine für Muskelreparatur und -wachstum direkt nach dem Training.',
+  supp_vitc_info:'Antioxidans — unterstützt Immunsystem und Kollagenbildung und verbessert die Eisenaufnahme.',
+  supp_zinc_info:'Wichtig für Testosteron, Immunsystem und Regeneration — geht über Schweiß verloren.',
+  supp_enzyme_info:'Helfen, große Proteinmengen zu verdauen und Nährstoffe besser aufzunehmen.',
+  supp_ashwa_info:'Adaptogen — senkt Cortisol, verbessert Schlafqualität und Stressresistenz.',
+  supp_mag_info:'Entspannt Muskeln und Nerven, beugt Krämpfen vor und vertieft den Schlaf.',
+  supp_melatonin_info:'Das Schlafhormon — verkürzt die Einschlafzeit und stabilisiert den Schlafrhythmus.',
+  supp_lcarnitin_info:'Transportiert Fettsäuren in die Mitochondrien — unterstützt die Fettverbrennung im Training.',
+  supp_greentea_info:'EGCG kurbelt die Thermogenese an und unterstützt die Fettoxidation im Kaloriendefizit.',
+  supp_rhodiola_info:'Adaptogen gegen mentale Erschöpfung — steigert Fokus und Stresstoleranz.',
+  supp_vitd_info:'Das Sonnenhormon — essenziell für Knochen, Immunsystem und Testosteron; K2 lenkt Calcium in die Knochen.',
+  supp_iron_info:'Sauerstofftransport im Blut — beugt Müdigkeit vor; Vitamin C verbessert die Aufnahme.',
+  supp_citrullin_info:'Steigert die Stickoxid-Produktion — besserer Pump, mehr Ausdauer, weniger Muskelkater.',
 },
 en:{
   login_sub:'SUPPLEMENT PROTOCOL',tab_login:'Login',tab_register:'Register',
@@ -1657,7 +1749,7 @@ en:{
   btn_continue:'Start Protocol',btn_briefing:'◈ SHADOW BRIEFING',btn_dismiss:'Into the Void',
   ob_av_title:'CHOOSE AVATAR',ob_av_sub:'Select your appearance in the Void',
   ob_upload:'Photo',ob_prof_title:'CONFIGURE PROFILE',ob_prof_sub:'Physical parameters for the protocol',
-  ob_first:'First Name',ob_age:'Age',ob_height:'Height (cm)',ob_weight:'Weight (kg)',
+  ob_first:'Your Name',ob_age:'Age',ob_height:'Height (cm)',ob_weight:'Weight (kg)',
   ki_title:'SHADOW AI INITIATION',ki_desc:'The protocol awaits.',
   ki_init_btn:'INITIATE SHADOW AI',ki_generating:'Protocol initializing…',ki_prefix:'SHADOW AI ASKS',
   ki_q1:'How often do you train your physical vessel?',
@@ -1690,7 +1782,7 @@ en:{
   supp_ashwa:'Ashwagandha',supp_ashwa_dose:'600mg evening',supp_ashwa_note:'Adaptogen',
   supp_mag:'Magnesium',supp_mag_dose:'400mg evening',
   supp_melatonin:'Melatonin',supp_melatonin_dose:'1–3mg before sleep',supp_melatonin_note:'As needed',
-  ki_greeting:'State the condition of your physical vessel and your sleep cycle, {name}…',
+  ki_greeting:'◈ The shadows are listening, {name}.\nTell me about your body and your daily life: how often do you train — and how well do you really sleep?',
   ki_thinking:'Evaluating resonance…',ki_input_ph:'Respond to Shadow AI…',ki_you:'You',
   btn_logout:'Log Out',
   w_scanner:'🔬 MATERIA SCANNER',scan_btn:'◈ AI ANALYSE',scan_loading:'AI analyzing materia…',
@@ -1721,6 +1813,43 @@ en:{
   price_status_loading:'Syncing live prices…',
   price_status_live:'live prices · Open Prices API',
   price_status_sim:'Simulated prices (API offline)',
+  scanner_ph:'e.g. a plate of chicken with rice · 150 g of chips · protein shake…',
+  ki_redirect:'// ◈ ACCESS GRANTED — take your time reading…',
+  ki_saved:'// ◈ Protocol sealed — access being granted…',
+  kib_train_daily:'Daily training. Your vessel runs at high frequency — the system registers a deep resonance signature.',
+  kib_train_35:'Three to five sessions per week. Consistent. The Void acknowledges this discipline.',
+  kib_train_12:'Your training pulse runs low. The protocol will account for this limit.',
+  kib_train_none:'No structured training detected. Your baseline will be calibrated to minimal load.',
+  kib_sleep_bad:'Your sleep is fractured — your recovery is operating under severe strain.',
+  kib_sleep_mid:'Restless nights detected. Your regeneration stays clearly below its potential.',
+  kib_sleep_good:'Your sleep cycle is stable. The foundation of your recovery holds.',
+  kib_nutr_prot:'Protein-rich intake confirmed. Your growth pathways are well supplied.',
+  kib_nutr_fast:'High share of fast food and processed input detected. Nutrient density is too low.',
+  kib_nutr_bal:'Balanced nutrition registered. Solid — though not yet optimised for peak output.',
+  kib_q_nutrition:'One dimension still lies in the dark, {name}:\nYour nutrition. What ends up on your plate on a normal day — honestly?',
+  kib_q_stress:'Final calibration phase. One variable remains:\n\nWhat does your daily life look like — lots of stress, long hours sitting at a desk, or are you physically on the move? Speak freely. The system reads between the lines.',
+  kib_close_high_stress:'Elevated stress field detected.\nAdaptogens have been inscribed into your protocol.',
+  kib_close_active:'High daily activity registered.\nYour calorie targets were adjusted for the extra load.',
+  kib_close_sedentary:'Long sedentary intervals detected.\nThe protocol has been calibrated accordingly.',
+  kib_close_neutral:'All environmental variables have been processed.',
+  kib_final:'Calibration complete, {name}.\n\nYour resonance signature has been sealed across all three dimensions.\nThe Shadow Protocol has been inscribed into the system.\n\nYour dashboard will open by itself in a moment — take your time to finish reading.\n\n◈ ACCESS: GRANTED',
+  supp_omega_info:'EPA & DHA support heart and brain and reduce inflammation — key when you eat little fatty fish.',
+  supp_multi_info:'Covers micronutrient gaps and secures your baseline vitamin and mineral supply.',
+  supp_kreatin_info:'Boosts ATP availability in the muscle — more strength, more reps, faster gains.',
+  supp_bcaa_info:'Branched-chain aminos protect muscle during hard or fasted training.',
+  supp_protein_info:'Delivers the building blocks for muscle repair and growth right after training.',
+  supp_vitc_info:'Antioxidant — supports immunity and collagen production, improves iron absorption.',
+  supp_zinc_info:'Key for testosterone, immunity and recovery — lost through sweat.',
+  supp_enzyme_info:'Help digest large protein loads and absorb nutrients better.',
+  supp_ashwa_info:'Adaptogen — lowers cortisol, improves sleep quality and stress resilience.',
+  supp_mag_info:'Relaxes muscles and nerves, prevents cramps and deepens sleep.',
+  supp_melatonin_info:'The sleep hormone — shortens time to fall asleep and stabilises your rhythm.',
+  supp_lcarnitin_info:'Shuttles fatty acids into the mitochondria — supports fat burning during training.',
+  supp_greentea_info:'EGCG fires up thermogenesis and supports fat oxidation in a calorie deficit.',
+  supp_rhodiola_info:'Adaptogen against mental fatigue — sharpens focus and stress tolerance.',
+  supp_vitd_info:'The sunshine hormone — vital for bones, immunity and testosterone; K2 routes calcium into the bones.',
+  supp_iron_info:'Oxygen transport in the blood — prevents fatigue; vitamin C boosts absorption.',
+  supp_citrullin_info:'Raises nitric-oxide production — better pump, more endurance, less soreness.',
 },
 ja:{
   login_sub:'サプリメント・プロトコル',tab_login:'ログイン',tab_register:'登録',
@@ -1759,7 +1888,7 @@ ja:{
   supp_ashwa:'アシュワガンダ',supp_ashwa_dose:'600mg 夜',supp_ashwa_note:'適応原',
   supp_mag:'マグネシウム',supp_mag_dose:'400mg 夜',
   supp_melatonin:'メラトニン',supp_melatonin_dose:'就寝前1〜3mg',supp_melatonin_note:'必要時',
-  ki_greeting:'あなたの肉体の状態と睡眠サイクルを述べよ、{name}…',
+  ki_greeting:'◈ 影が耳を澄ましている、{name}。\n体と日常について教えてくれ：どのくらい鍛えている？そして、本当によく眠れているか？',
   ki_thinking:'共鳴を評価中…',ki_input_ph:'シャドウAIに返答…',ki_you:'あなた',
   btn_logout:'ログアウト',
   w_scanner:'🔬 マテリア・スキャナー',scan_btn:'◈ AI 解析',scan_loading:'AI がマテリアを解析中…',
@@ -1789,6 +1918,43 @@ ja:{
   price_status_loading:'価格を同期中…',
   price_status_live:'ライブ価格 · Open Prices API',
   price_status_sim:'シミュレーション価格（オフライン）',
+  scanner_ph:'例：チキンライス一皿 · ポテトチップス150g · プロテインシェイク…',
+  ki_redirect:'// ◈ ACCESS GRANTED — ゆっくり読んでくれ…',
+  ki_saved:'// ◈ プロトコル封印 — アクセス許可中…',
+  kib_train_daily:'毎日の鍛錬。器は高周波で稼働している——深い共鳴シグネチャを記録した。',
+  kib_train_35:'週3〜5回。安定した出力。虚無はその規律を認める。',
+  kib_train_12:'鍛錬の頻度は低い。プロトコルはその限界を考慮する。',
+  kib_train_none:'構造化された鍛錬は検出されず。基礎を最小負荷に設定する。',
+  kib_sleep_bad:'睡眠は崩壊している——回復系は重い負荷の下にある。',
+  kib_sleep_mid:'不安定な眠りを検出。回復は本来の力を下回っている。',
+  kib_sleep_good:'睡眠サイクルは安定。回復の土台は堅い。',
+  kib_nutr_prot:'高タンパクの摂取を確認。合成経路は良好に供給されている。',
+  kib_nutr_fast:'加工食品の比率が高い。栄養密度が不足している。',
+  kib_nutr_bal:'バランスの取れた食事を記録。堅実だが、最適化の余地がある。',
+  kib_q_nutrition:'まだ闇の中にある次元がある、{name}。\n食事だ。普通の日に何を食べている——正直に。',
+  kib_q_stress:'最終キャリブレーション。残る変数は一つ。\n\n日常はどうだ——ストレスが多いか、長時間の座り仕事か、それとも体をよく動かすか。自由に語れ。システムは行間を読む。',
+  kib_close_high_stress:'高いストレス場を検出。\nアダプトゲンをプロトコルに刻んだ。',
+  kib_close_active:'高い日常活動を記録。\nカロリー目標を引き上げた。',
+  kib_close_sedentary:'長い座位時間を検出。\nプロトコルを調整した。',
+  kib_close_neutral:'全ての環境変数を処理した。',
+  kib_final:'キャリブレーション完了、{name}。\n\n共鳴シグネチャは三次元すべてで封印された。\nシャドウ・プロトコルはシステムに刻まれた。\n\nまもなくダッシュボードが自動で開く——ゆっくり読み終えてくれ。\n\n◈ ACCESS: GRANTED',
+  supp_omega_info:'EPA・DHAが心臓と脳を支え、炎症を抑える。魚をあまり食べない人に。',
+  supp_multi_info:'ビタミン・ミネラルの基礎を確保し、栄養の穴を埋める。',
+  supp_kreatin_info:'筋内ATPを増やし、筋力・回数・筋肥大を後押しする。',
+  supp_bcaa_info:'ハードな／空腹時のトレーニングで筋分解を防ぐ。',
+  supp_protein_info:'トレ後の筋修復と成長の材料を供給する。',
+  supp_vitc_info:'抗酸化。免疫とコラーゲン生成、鉄の吸収を支援。',
+  supp_zinc_info:'テストステロン・免疫・回復に必須。汗で失われる。',
+  supp_enzyme_info:'大量のタンパク質の消化と吸収を助ける。',
+  supp_ashwa_info:'コルチゾールを下げ、睡眠とストレス耐性を改善する。',
+  supp_mag_info:'筋肉と神経を緩め、痙攣を防ぎ、眠りを深くする。',
+  supp_melatonin_info:'睡眠ホルモン。入眠を早め、リズムを安定させる。',
+  supp_lcarnitin_info:'脂肪酸をミトコンドリアへ運び、脂肪燃焼を支援。',
+  supp_greentea_info:'EGCGが熱産生を高め、減量中の脂肪酸化を支援。',
+  supp_rhodiola_info:'精神疲労に効くアダプトゲン。集中力と耐性を強化。',
+  supp_vitd_info:'骨・免疫・テストステロンに必須。K2がカルシウムを骨へ導く。',
+  supp_iron_info:'血中の酸素運搬。疲労を防ぐ。ビタミンCで吸収アップ。',
+  supp_citrullin_info:'NO産生を高め、パンプと持久力を向上させる。',
 },
 ko:{
   login_sub:'서플리먼트 프로토콜',tab_login:'로그인',tab_register:'회원가입',
@@ -1827,7 +1993,7 @@ ko:{
   supp_ashwa:'아슈와간다',supp_ashwa_dose:'저녁 600mg',supp_ashwa_note:'적응원',
   supp_mag:'마그네슘',supp_mag_dose:'저녁 400mg',
   supp_melatonin:'멜라토닌',supp_melatonin_dose:'취침 전 1~3mg',supp_melatonin_note:'필요시',
-  ki_greeting:'당신의 신체 상태와 수면 주기를 말하라, {name}…',
+  ki_greeting:'◈ 그림자가 귀 기울이고 있다, {name}.\n몸과 일상에 대해 말해다오: 얼마나 자주 운동하고 — 정말 잘 자고 있는가?',
   ki_thinking:'공명 평가 중…',ki_input_ph:'쉐도우 AI에게 답변…',ki_you:'나',
   btn_logout:'로그아웃',
   w_scanner:'🔬 마테리아 스캐너',scan_btn:'◈ AI 분석',scan_loading:'AI가 마테리아 분석 중…',
@@ -1857,6 +2023,43 @@ ko:{
   price_status_loading:'실시간 가격 동기화 중…',
   price_status_live:'실시간 가격 · Open Prices API',
   price_status_sim:'시뮬레이션 가격 (오프라인)',
+  scanner_ph:'예: 치킨라이스 한 접시 · 감자칩 150g · 프로틴 쉐이크…',
+  ki_redirect:'// ◈ ACCESS GRANTED — 천천히 읽어라…',
+  ki_saved:'// ◈ 프로토콜 봉인 — 접근 허가 중…',
+  kib_train_daily:'매일 단련하는군. 그릇이 고주파로 가동 중이다 — 깊은 공명 시그니처를 기록했다.',
+  kib_train_35:'주 3~5회. 꾸준하다. 보이드가 그 규율을 인정한다.',
+  kib_train_12:'단련의 빈도가 낮다. 프로토콜이 그 한계를 반영할 것이다.',
+  kib_train_none:'체계적인 단련이 감지되지 않았다. 기초를 최소 부하로 설정한다.',
+  kib_sleep_bad:'수면이 무너져 있다 — 회복 계통이 무거운 부하 아래 있다.',
+  kib_sleep_mid:'불안정한 잠을 감지했다. 회복이 제 실력에 못 미치고 있다.',
+  kib_sleep_good:'수면 주기는 안정적이다. 회복의 토대가 단단하다.',
+  kib_nutr_prot:'고단백 섭취 확인. 합성 경로가 잘 공급되고 있다.',
+  kib_nutr_fast:'패스트푸드·가공식품 비율이 높다. 영양 밀도가 부족하다.',
+  kib_nutr_bal:'균형 잡힌 식사를 기록했다. 견실하나 최적화의 여지가 있다.',
+  kib_q_nutrition:'아직 어둠 속에 있는 차원이 하나 있다, {name}.\n식사다. 평범한 날 무엇을 먹는가 — 솔직하게.',
+  kib_q_stress:'최종 캘리브레이션. 남은 변수는 하나.\n\n일상은 어떠한가 — 스트레스가 많은가, 오래 앉아 있는가, 아니면 몸을 많이 움직이는가. 자유롭게 말하라. 시스템은 행간을 읽는다.',
+  kib_close_high_stress:'높은 스트레스 장을 감지했다.\n어댑토겐을 프로토콜에 새겨 넣었다.',
+  kib_close_active:'높은 일상 활동량을 기록했다.\n칼로리 목표를 상향 조정했다.',
+  kib_close_sedentary:'긴 좌식 시간을 감지했다.\n프로토콜을 조정했다.',
+  kib_close_neutral:'모든 환경 변수를 처리했다.',
+  kib_final:'캘리브레이션 완료, {name}.\n\n공명 시그니처가 세 차원 모두에 봉인되었다.\n쉐도우 프로토콜이 시스템에 새겨졌다.\n\n곧 대시보드가 자동으로 열린다 — 천천히 끝까지 읽어라.\n\n◈ ACCESS: GRANTED',
+  supp_omega_info:'EPA·DHA가 심장과 뇌를 지키고 염증을 억제한다. 생선을 적게 먹는 사람에게.',
+  supp_multi_info:'비타민·미네랄 기초를 확보하고 영양 공백을 메운다.',
+  supp_kreatin_info:'근육 내 ATP를 늘려 근력·횟수·근성장을 밀어준다.',
+  supp_bcaa_info:'고강도/공복 운동 시 근손실을 막는다.',
+  supp_protein_info:'운동 직후 근육 회복과 성장의 재료를 공급한다.',
+  supp_vitc_info:'항산화. 면역과 콜라겐 생성, 철분 흡수를 돕는다.',
+  supp_zinc_info:'테스토스테론·면역·회복에 필수. 땀으로 손실된다.',
+  supp_enzyme_info:'대량의 단백질 소화와 영양 흡수를 돕는다.',
+  supp_ashwa_info:'코르티솔을 낮추고 수면과 스트레스 내성을 개선한다.',
+  supp_mag_info:'근육과 신경을 이완시키고 경련을 예방하며 잠을 깊게 한다.',
+  supp_melatonin_info:'수면 호르몬. 입면을 앞당기고 리듬을 안정시킨다.',
+  supp_lcarnitin_info:'지방산을 미토콘드리아로 운반해 지방 연소를 돕는다.',
+  supp_greentea_info:'EGCG가 열 생성을 높이고 감량 중 지방 산화를 돕는다.',
+  supp_rhodiola_info:'정신 피로에 효과적인 어댑토겐. 집중력과 내성 강화.',
+  supp_vitd_info:'뼈·면역·테스토스테론에 필수. K2가 칼슘을 뼈로 보낸다.',
+  supp_iron_info:'혈중 산소 운반. 피로 예방. 비타민C가 흡수를 높인다.',
+  supp_citrullin_info:'산화질소 생성을 높여 펌핑과 지구력을 향상시킨다.',
 },
 es:{
   login_sub:'PROTOCOLO DE SUPLEMENTOS',tab_login:'Iniciar Sesión',tab_register:'Registrarse',
@@ -1865,7 +2068,7 @@ es:{
   btn_continue:'Iniciar Protocolo',btn_briefing:'◈ BRIEFING SHADOW',btn_dismiss:'Al Vacío',
   ob_av_title:'ELEGIR AVATAR',ob_av_sub:'Elige tu apariencia en el Vacío',
   ob_upload:'Foto',ob_prof_title:'CONFIGURAR PERFIL',ob_prof_sub:'Parámetros físicos para el protocolo',
-  ob_first:'Nombre',ob_age:'Edad',ob_height:'Altura (cm)',ob_weight:'Peso (kg)',
+  ob_first:'Tu nombre',ob_age:'Edad',ob_height:'Altura (cm)',ob_weight:'Peso (kg)',
   ki_title:'INICIACIÓN IA SHADOW',ki_desc:'El protocolo te espera.',
   ki_init_btn:'INICIAR IA SHADOW',ki_generating:'Inicializando protocolo…',ki_prefix:'IA SHADOW PREGUNTA',
   ki_q1:'¿Con qué frecuencia entrenas?',ki_q2:'¿Cómo es tu alimentación?',ki_q3:'¿Qué tan profundo es tu sueño?',
@@ -1895,7 +2098,7 @@ es:{
   supp_ashwa:'Ashwagandha',supp_ashwa_dose:'600mg tarde',supp_ashwa_note:'Adaptógeno',
   supp_mag:'Magnesio',supp_mag_dose:'400mg tarde',
   supp_melatonin:'Melatonina',supp_melatonin_dose:'1–3mg dormir',supp_melatonin_note:'Según necesidad',
-  ki_greeting:'Describe el estado de tu recipiente físico y tu ciclo de sueño, {name}…',
+  ki_greeting:'◈ Las sombras escuchan, {name}.\nHáblame de tu cuerpo y tu día a día: ¿con qué frecuencia entrenas — y qué tan bien duermes en realidad?',
   ki_thinking:'Evaluando resonancia…',ki_input_ph:'Responder a Shadow AI…',ki_you:'Tú',
   btn_logout:'Cerrar Sesión',
   w_scanner:'🔬 ESCÁNER DE MATERIA',scan_btn:'◈ ANALIZAR IA',scan_loading:'IA analizando materia…',
@@ -1926,6 +2129,43 @@ es:{
   price_status_loading:'Sincronizando precios…',
   price_status_live:'precios en vivo · Open Prices API',
   price_status_sim:'Precios simulados (API offline)',
+  scanner_ph:'p. ej. un plato de pollo con arroz · 150 g de papas fritas · batido de proteína…',
+  ki_redirect:'// ◈ ACCESS GRANTED — tómate tu tiempo para leer…',
+  ki_saved:'// ◈ Protocolo sellado — concediendo acceso…',
+  kib_train_daily:'Entrenamiento diario. Tu recipiente opera a alta frecuencia — el sistema registra una firma de resonancia profunda.',
+  kib_train_35:'De tres a cinco sesiones por semana. Constante. El Vacío reconoce esta disciplina.',
+  kib_train_12:'Tu pulso de entrenamiento es bajo. El protocolo tendrá en cuenta este límite.',
+  kib_train_none:'No se detectó entrenamiento estructurado. Tu base se calibrará a carga mínima.',
+  kib_sleep_bad:'Tu sueño está fracturado — tu recuperación opera bajo una carga severa.',
+  kib_sleep_mid:'Noches inquietas detectadas. Tu regeneración queda por debajo de su potencial.',
+  kib_sleep_good:'Tu ciclo de sueño es estable. La base de tu recuperación se sostiene.',
+  kib_nutr_prot:'Ingesta rica en proteína confirmada. Tus vías de construcción están bien abastecidas.',
+  kib_nutr_fast:'Alta proporción de comida rápida y procesada detectada. La densidad de nutrientes es demasiado baja.',
+  kib_nutr_bal:'Alimentación equilibrada registrada. Sólida — aunque aún no optimizada para el máximo rendimiento.',
+  kib_q_nutrition:'Una dimensión sigue en la oscuridad, {name}:\nTu alimentación. ¿Qué acaba en tu plato un día normal — con sinceridad?',
+  kib_q_stress:'Fase final de calibración. Queda una variable:\n\n¿Cómo es tu día a día — mucho estrés, largas horas sentado, o te mueves mucho físicamente? Habla con libertad. El sistema lee entre líneas.',
+  kib_close_high_stress:'Campo de estrés elevado detectado.\nSe han inscrito adaptógenos en tu protocolo.',
+  kib_close_active:'Alta actividad diaria registrada.\nTus objetivos calóricos se ajustaron a la carga extra.',
+  kib_close_sedentary:'Largos intervalos sedentarios detectados.\nEl protocolo se ha calibrado en consecuencia.',
+  kib_close_neutral:'Todas las variables del entorno han sido procesadas.',
+  kib_final:'Calibración completa, {name}.\n\nTu firma de resonancia ha sido sellada en las tres dimensiones.\nEl Protocolo Shadow ha sido inscrito en el sistema.\n\nTu panel se abrirá solo en un momento — tómate tu tiempo para terminar de leer.\n\n◈ ACCESS: GRANTED',
+  supp_omega_info:'EPA y DHA cuidan corazón y cerebro y reducen la inflamación — clave si comes poco pescado azul.',
+  supp_multi_info:'Cubre carencias de micronutrientes y asegura la base de vitaminas y minerales.',
+  supp_kreatin_info:'Aumenta el ATP disponible en el músculo — más fuerza, más repeticiones, más crecimiento.',
+  supp_bcaa_info:'Los aminoácidos ramificados protegen el músculo en entrenos duros o en ayunas.',
+  supp_protein_info:'Aporta los ladrillos para reparar y construir músculo justo después de entrenar.',
+  supp_vitc_info:'Antioxidante — apoya inmunidad y colágeno, mejora la absorción de hierro.',
+  supp_zinc_info:'Clave para testosterona, inmunidad y recuperación — se pierde con el sudor.',
+  supp_enzyme_info:'Ayudan a digerir grandes cantidades de proteína y absorber mejor los nutrientes.',
+  supp_ashwa_info:'Adaptógeno — baja el cortisol, mejora el sueño y la resistencia al estrés.',
+  supp_mag_info:'Relaja músculos y nervios, previene calambres y profundiza el sueño.',
+  supp_melatonin_info:'La hormona del sueño — acorta el tiempo para dormirte y estabiliza tu ritmo.',
+  supp_lcarnitin_info:'Transporta ácidos grasos a las mitocondrias — apoya la quema de grasa al entrenar.',
+  supp_greentea_info:'El EGCG activa la termogénesis y apoya la oxidación de grasa en déficit.',
+  supp_rhodiola_info:'Adaptógeno contra la fatiga mental — agudiza el foco y la tolerancia al estrés.',
+  supp_vitd_info:'La hormona del sol — vital para huesos, inmunidad y testosterona; la K2 lleva el calcio al hueso.',
+  supp_iron_info:'Transporte de oxígeno en la sangre — previene la fatiga; la vitamina C mejora la absorción.',
+  supp_citrullin_info:'Eleva la producción de óxido nítrico — mejor pump, más resistencia, menos agujetas.',
 }};
 
 let lang = S.get('lang') || 'de';
@@ -2247,10 +2487,11 @@ function goOb2(){
   document.getElementById('ob2').classList.add('active');
 }
 function finishOb(){
+  // ULTRACODE Datenschutz: neutrale Defaults statt persönlicher Beispieldaten
   const fn=document.getElementById('ob-fn').value.trim()||'Shadow';
-  const age=parseFloat(document.getElementById('ob-age').value)||20;
-  const ht=parseFloat(document.getElementById('ob-ht').value)||195;
-  const wt=parseFloat(document.getElementById('ob-wt').value)||140;
+  const age=parseFloat(document.getElementById('ob-age').value)||25;
+  const ht=parseFloat(document.getElementById('ob-ht').value)||180;
+  const wt=parseFloat(document.getElementById('ob-wt').value)||80;
   S.set('profile',{firstName:fn,age,height:ht,weight:wt,gender:selGender,goal:selGoal,avatarIdx:selAvIdx,avatarPhoto:avB64||null});
   showScreen('ki');
   // Onboarding-Flow: KI-Befragung startet automatisch — kein manueller Button nötig
@@ -2338,16 +2579,18 @@ async function sendKIMessage(){
     if(resp.macros)   S.set('macros',   resp.macros);
     if(resp.protocol) S.set('protocol', resp.protocol);
 
-    // Transition: fade chat → gen screen
+    // ULTRACODE: "ACCESS GRANTED" in Ruhe lesbar — ~12s Lesezeit im Chat,
+    // dann kurze Gen-Sequenz, Weiterleitung erst nach ~15s
+    setChatStatus(t('ki_redirect'));
     setTimeout(()=>{
       document.getElementById('ki-input-row').style.display = 'none';
       document.getElementById('ki-thinking').style.display  = 'none';
       const chat = document.getElementById('ki-chat');
       if(chat) chat.style.display = 'none';
-      setKIStatus('// ◈ Protokoll gespeichert — Zugang wird gewährt…', 'ok');
+      setKIStatus(t('ki_saved'), 'ok');
       document.getElementById('ki-gen').style.display = 'flex';
-    }, 1400);
-    setTimeout(()=>{ load(); showScreen('dashboard'); render(); }, 3600);
+    }, 12000);
+    setTimeout(()=>{ load(); showScreen('dashboard'); render(); }, 15500);
     return;
   }
 
@@ -2371,9 +2614,18 @@ async function callOnboardingAPI(history){
     // Build profile context string (appended to system prompt)
     const profileCtx = buildProfileContext(profile);
 
+    // ULTRACODE Sprach-Fix: harte Sprach-Direktive — KI antwortet immer in der
+    // App-Sprache bzw. spiegelt die Sprache des Users, wechselt nie eigenmächtig
+    const langNames = { de:'German', en:'English', ja:'Japanese', ko:'Korean', es:'Spanish' };
+    const langDirective = `\n\nLANGUAGE DIRECTIVE (highest priority, overrides everything):`
+      + ` The interface language is ${langNames[lang] || 'German'}.`
+      + ` You MUST write every "response" in ${langNames[lang] || 'German'}.`
+      + ` If the Vessel writes in a different language, mirror the Vessel's language instead.`
+      + ` NEVER switch to English on your own.`;
+
     // Map kiHistory roles to OpenAI roles
     const messages = [
-      { role:'system', content: SHADOW_SYSTEM_PROMPT + (profileCtx ? '\n\n' + profileCtx : '') },
+      { role:'system', content: SHADOW_SYSTEM_PROMPT + langDirective + (profileCtx ? '\n\n' + profileCtx : '') },
       ...history.map(m => ({
         role:    m.role === 'ai' ? 'assistant' : 'user',
         content: m.content,
@@ -2477,36 +2729,32 @@ function buildFallbackResponse(history, profile, errMsg){
   if(!kiAns.sleep)     kiAns.sleep     = detect(sleepMap, combined) || 'restless';
 
   // ── TURN 1 — Training & Schlaf absorbiert → nach Ernährung fragen ─────────
+  // ULTRACODE Sprach-Fix: alle Antworten kommen aus dem I18N-Katalog der
+  // AKTIVEN Sprache (t()) — die KI wechselt nie mehr ins Englische.
   if(turn === 1){
-    const trainingNote = ({
-      'daily':  'Your physical cadence is relentless — daily sessions leave a deep resonance signature in the system.',
-      '3-5x':   'Three to five cycles per week. Consistent. The void acknowledges this output.',
-      '1-2x':   'Your training pulse runs low. The protocol will account for this limitation.',
-      'none':   'No structured physical training detected. Your baseline is set to minimal.',
-    })[kiAns.training] || 'Training frequency has been parsed and logged.';
+    const trainingNote = t({
+      'daily':'kib_train_daily', '3-5x':'kib_train_35',
+      '1-2x':'kib_train_12',     'none':'kib_train_none',
+    }[kiAns.training] || 'kib_train_35');
 
-    const sleepNote = ({
-      'sleepless': 'Your rest cycle is fractured — recovery systems are operating under severe strain.',
-      'restless':  'Disrupted sleep patterns detected. Recovery efficiency is noticeably compromised.',
-      'good':      'Rest cycle appears stable. Recovery substrate is functional and intact.',
-    })[kiAns.sleep] || 'Sleep resonance noted.';
+    const sleepNote = t({
+      'sleepless':'kib_sleep_bad', 'restless':'kib_sleep_mid', 'good':'kib_sleep_good',
+    }[kiAns.sleep] || 'kib_sleep_mid');
 
     return {
-      message: `${trainingNote}\n\n${sleepNote}\n\nOne critical dimension remains uncharted, ${name}.\nSpeak of your sustenance — describe the fuel intake of your vessel across a standard cycle.`,
+      message: `${trainingNote}\n\n${sleepNote}\n\n${t('kib_q_nutrition').replace('{name}', name)}`,
       finalEvaluation: false,
     };
   }
 
   // ── TURN 2 — Ernährung absorbiert → letzte Dimension abfragen ────────────
   if(turn === 2){
-    const nutrNote = ({
-      'highprot':  'Protein-dense intake confirmed. Your synthesis pathways are well-supplied.',
-      'fastfood':  'High processed-input resonance detected. Micronutrient density is suboptimal.',
-      'balanced':  'Balanced substrate matrix registered. Adequate — though not yet optimised for peak output.',
-    })[kiAns.nutrition] || 'Nutritional profile has been encoded.';
+    const nutrNote = t({
+      'highprot':'kib_nutr_prot', 'fastfood':'kib_nutr_fast', 'balanced':'kib_nutr_bal',
+    }[kiAns.nutrition] || 'kib_nutr_bal');
 
     return {
-      message: `${nutrNote}\n\nFinal calibration phase. One variable remains.\n\nDescribe your daily stress load and movement beyond structured training — high-pressure profession, long sedentary intervals, mental strain, physical labour. Speak freely. The system reads between the lines.`,
+      message: `${nutrNote}\n\n${t('kib_q_stress')}`,
       finalEvaluation: false,
     };
   }
@@ -2542,15 +2790,14 @@ function buildFallbackResponse(history, profile, errMsg){
     if(!protocol.find(p=>p.id==='rhodiola'))    protocol.push({id:'rhodiola',   phase:'gamma',wk:'why_stress'});
   }
 
-  const closingNote = {
-    'high_stress': 'Elevated psychological pressure field detected.\nAdaptogenic compounds have been inscribed into your protocol.',
-    'active':      'Heightened daily kinetic output registered.\nCaloric targets have been adjusted for sustained physical throughput.',
-    'sedentary':   'Prolonged sedentary intervals noted.\nProtocol has been calibrated accordingly.',
-    'neutral':     'All environmental variables have been processed.',
-  }[activityMod];
+  // ULTRACODE Sprach-Fix: Abschlussbewertung in der aktiven Sprache
+  const closingNote = t({
+    'high_stress':'kib_close_high_stress', 'active':'kib_close_active',
+    'sedentary':'kib_close_sedentary',     'neutral':'kib_close_neutral',
+  }[activityMod]);
 
   return {
-    message: `${closingNote}\n\nCalibration complete, ${name}.\n\nYour resonance signature has been sealed across all three dimensions.\nThe Shadow Protocol has been inscribed into the system.\n\n◈ ACCESS: GRANTED`,
+    message: `${closingNote}\n\n${t('kib_final').replace('{name}', name)}`,
     finalEvaluation: true,
     macros,
     protocol,
@@ -2668,6 +2915,174 @@ function clearScannerImage(){
 function startScanAnimation(){ document.getElementById('scan-stage')?.classList.add('scanning'); }
 function stopScanAnimation(){ document.getElementById('scan-stage')?.classList.remove('scanning'); }
 
+// ═══════════════════════════════════════════════════════
+//  ◈ ULTRACODE — MATERIA-SCANNER 2.1 · ECHTE NÄHRWERTE
+//  Genauigkeits-Kaskade (Open Food Facts, kostenlos, kein Key):
+//   1. Barcode im Foto (nativer BarcodeDetector) →
+//      OFF-Produktdatenbank = EXAKTE Herstellerwerte
+//   2. Texteingabe → OFF-Volltextsuche (CORS *, 1 Request
+//      pro Scan + 7-Tage-Cache gegen das Rate-Limit),
+//      Treffer werden per Wort-Überlappung validiert
+//   3. Erweiterte Keyword-DB mit per-100g-Werten +
+//      Gramm-Parsing ("150 g") und Mengen-Parsing ("2x")
+//   4. Vision-Hash-Simulation nur noch als letztes Netz
+// ═══════════════════════════════════════════════════════
+const FOOD_API = {
+  product : 'https://world.openfoodfacts.org/api/v2/product/',
+  search  : 'https://world.openfoodfacts.org/cgi/search.pl',
+  fields  : 'product_name,brands,nutriments,serving_quantity',
+  timeoutMs: 7000,
+  cacheTtl : 7 * 24 * 60 * 60 * 1000,   // 7 Tage Query-Cache
+};
+
+// "150 g" / "150g" / "150 gramm" → 150
+function parseGrams(text){
+  const m = (text || '').match(/(\d+(?:[.,]\d+)?)\s*(?:g|gramm|grams?)\b/i);
+  const v = m ? Math.round(parseFloat(m[1].replace(',', '.'))) : null;
+  return (v && v >= 5 && v <= 2000) ? v : null;
+}
+// "2x …" / "… x2" / "2 Teller …" → 2
+function parseMultiplier(text){
+  const m = (text || '').match(/(?:^|\s)(\d+)\s*[x×](?:\s|$)|(?:^|\s)[x×]\s*(\d+)(?:\s|$)|^(\d+)\s+(?:teller|portion(?:en)?|plates?|servings?|접시|皿)/i);
+  const n = m ? parseInt(m[1] || m[2] || m[3], 10) : 1;
+  return (n >= 1 && n <= 10) ? n : 1;
+}
+
+async function offFetch(url){
+  const res = await fetch(url, { headers:{ 'Accept':'application/json' }, signal: AbortSignal.timeout(FOOD_API.timeoutMs) });
+  if(!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// OFF-Nährwerte (pro 100g) → Makros für die konkrete Portionsgröße
+function macrosFromOFF(prod, grams){
+  const n = prod?.nutriments || {};
+  const kcal100 = n['energy-kcal_100g'] ?? (n['energy_100g'] ? n['energy_100g'] / 4.184 : null);
+  if(kcal100 == null || !(kcal100 > 0)) return null;
+  const g = grams || Number(prod.serving_quantity) || 100;
+  const f = g / 100;
+  const r = v => Math.round((Number(v) || 0) * f);
+  return {
+    grams: g,
+    macros: { kcal: Math.round(kcal100 * f), prot: r(n.proteins_100g), carb: r(n.carbohydrates_100g), fat: r(n.fat_100g), sug: r(n.sugars_100g) },
+  };
+}
+function offName(prod, grams){
+  const brand = (Array.isArray(prod.brands) ? prod.brands[0] : String(prod.brands || '').split(',')[0] || '').trim();
+  const nm = (prod.product_name || '').trim() || 'Produkt';
+  const full = brand && !nm.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${nm}` : nm;
+  return `${full} (${grams} g)`;
+}
+
+// 1) Barcode → exaktes Produkt aus der OFF-Datenbank
+async function offProductByBarcode(code){
+  const d = await offFetch(`${FOOD_API.product}${encodeURIComponent(code)}.json?fields=${FOOD_API.fields}`);
+  return d && d.status === 1 ? d.product : null;
+}
+
+// 2) Volltextsuche mit Treffer-Validierung: mind. 40% der Query-Wörter
+//    müssen in Marke+Produktname vorkommen UND kcal-Werte vollständig sein —
+//    verhindert Fantasie-Treffer wie "Chips → Ofenkartoffel"
+async function offSearchProduct(query){
+  const key = 'q_' + query.toLowerCase().trim().replace(/\s+/g, ' ');
+  const cache = S.get('food_cache') || {};
+  if(cache[key] && Date.now() - cache[key].ts < FOOD_API.cacheTtl) return cache[key].prod;
+
+  const url = `${FOOD_API.search}?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=5&fields=${FOOD_API.fields}`;
+  const d = await offFetch(url);
+
+  const words = query.toLowerCase().split(/[^a-zäöüßàáâçéèêíìîñóòôúùû0-9']+/).filter(w => w.length > 2);
+  let best = null;
+  for(const p of (d.products || [])){
+    const hay = ((p.brands || '') + ' ' + (p.product_name || '')).toLowerCase();
+    const hits = words.filter(w => hay.includes(w)).length;
+    const complete = p.nutriments && (p.nutriments['energy-kcal_100g'] > 0);
+    if(complete && hits >= Math.max(1, Math.ceil(words.length * 0.4))){
+      const score = hits + 0.5;
+      if(!best || score > best.score) best = { prod: p, score };
+    }
+  }
+  const prod = best ? best.prod : null;
+  // Auch Fehltreffer cachen — schützt das search.pl-Rate-Limit bei Wiederholungen
+  cache[key] = { ts: Date.now(), prod };
+  try { S.set('food_cache', cache); } catch(e){}
+  return prod;
+}
+
+// Barcode-Erkennung im Foto — nativer BarcodeDetector (Chrome/Android/Safari 17+);
+// fehlt die API oder schlägt sie fehl, geht die Kaskade einfach weiter
+async function detectBarcode(imageB64){
+  if(!('BarcodeDetector' in window)) return null;
+  try {
+    const blob = await (await fetch(imageB64)).blob();
+    const bmp  = await createImageBitmap(blob);
+    const det  = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128'] });
+    const found = await det.detect(bmp);
+    return found?.[0]?.rawValue || null;
+  } catch(e){ return null; }
+}
+
+// 3) Erweiterte Keyword-DB: realistische Werte PRO 100g + typische Portion —
+//    Gramm-Angaben im Text skalieren die Werte exakt
+const FOOD_PER100 = [
+  {w:['chips','crisps'],                    g:50,  m:{kcal:530, prot:6,  carb:50, fat:34, sug:2}},
+  {w:['schokolade','chocolate','schoko'],   g:50,  m:{kcal:540, prot:7,  carb:57, fat:31, sug:52}},
+  {w:['keks','cookie','biscuit'],           g:40,  m:{kcal:480, prot:6,  carb:66, fat:21, sug:32}},
+  {w:['gummibär','haribo','gummy'],         g:75,  m:{kcal:340, prot:7,  carb:77, fat:0,  sug:46}},
+  {w:['eis','ice cream','gelato'],          g:100, m:{kcal:210, prot:4,  carb:24, fat:11, sug:22}},
+  {w:['joghurt','yogurt','yoghurt'],        g:200, m:{kcal:62,  prot:4,  carb:5,  fat:3,  sug:5}},
+  {w:['banane','banana'],                   g:120, m:{kcal:89,  prot:1,  carb:23, fat:0,  sug:12}},
+  {w:['apfel','apple'],                     g:180, m:{kcal:52,  prot:0,  carb:14, fat:0,  sug:10}},
+  {w:['rührei','spiegelei','scrambled egg'],g:120, m:{kcal:155, prot:13, carb:1,  fat:11, sug:1}},
+  {w:['nüsse','nuts','mandeln','almonds'],  g:40,  m:{kcal:610, prot:21, carb:10, fat:53, sug:4}},
+];
+
+function keywordFoodEstimate(text){
+  const s = (text || '').toLowerCase();
+  const grams = parseGrams(s);
+  const mult  = parseMultiplier(s);
+  for(const e of FOOD_PER100){
+    if(e.w.some(w => s.includes(w))){
+      const g = grams || e.g * mult;   // explizite Gramm-Angabe schlägt Portion×Menge
+      const f = g / 100;
+      const r = v => Math.round(v * f);
+      return { name: `${text} (${g} g)`, macros: {kcal:r(e.m.kcal), prot:r(e.m.prot), carb:r(e.m.carb), fat:r(e.m.fat), sug:r(e.m.sug)} };
+    }
+  }
+  // Alt-DB (Portionswerte) mit Mengen-Multiplikator als letzte Text-Stufe
+  const base = dummyFoodMacros(text || '');
+  if(mult > 1) for(const k of Object.keys(base)) base[k] = Math.round(base[k] * mult);
+  return { name: text, macros: base };
+}
+
+// Text-Analyse: echte OFF-Suche → Keyword-Schätzung
+async function analyzeTextLocally(txt){
+  try {
+    const prod = await offSearchProduct(txt);
+    if(prod){
+      const r = macrosFromOFF(prod, parseGrams(txt));
+      if(r) return { name: '◈ ' + offName(prod, r.grams), macros: r.macros };
+    }
+  } catch(e){ /* API down/geblockt → lokale Schätzung, Scanner läuft weiter */ }
+  return keywordFoodEstimate(txt);
+}
+
+// Bild-Analyse: Barcode → OFF-Exaktwerte · Text-Hint → OFF-Suche · sonst Vision-Sim
+async function analyzeImageLocally(imageB64, hint){
+  const code = await detectBarcode(imageB64);
+  if(code){
+    try {
+      const prod = await offProductByBarcode(code);
+      if(prod){
+        const r = macrosFromOFF(prod, parseGrams(hint));
+        if(r) return { name: '◈ ' + offName(prod, r.grams), macros: r.macros };
+      }
+    } catch(e){ /* Produkt unbekannt/API down → weiter in der Kaskade */ }
+  }
+  if(hint) return analyzeTextLocally(hint);
+  return simulateVisionScan(imageB64, null);
+}
+
 // Keyword-based dummy macro fallback
 function dummyFoodMacros(input){
   const s = input.toLowerCase();
@@ -2776,19 +3191,23 @@ async function submitFood(){
   try {
     let macros, autoName = null;
     if(hasImage && !isAIProviderActive()){
-      // ── MATERIA-SCANNER 2.0: lokale KI-Simulation — 2s Scan, dann Bild-Analyse ──
-      const scan = simulateVisionScan(scannerFileB64, txt);
-      await sleep(2000);
+      // ── MATERIA-SCANNER 2.1: Barcode → OFF-Datenbank → Vision-Fallback ──
+      const [scan] = await Promise.all([analyzeImageLocally(scannerFileB64, txt), sleep(2000)]);
       macros = scan.macros; autoName = scan.name;
     } else if(hasImage){
       // API-Modus: echte Vision-Analyse, Scan-FX bleibt mind. 2s sichtbar
       [macros] = await Promise.all([analyzeFoodInfo(txt, scannerFileB64), sleep(2000)]);
+    } else if(!isAIProviderActive()){
+      // Text ohne API-Key: OFF-Produktsuche liefert echte Herstellerwerte
+      const r = await analyzeTextLocally(txt);
+      macros = r.macros; autoName = r.name;
     } else {
       macros = await analyzeFoodInfo(txt, null);
     }
     const entry = {
       id: Date.now(),
-      name: txt || autoName || '📷 Bild-Scan',
+      // OFF-Treffer (autoName mit ◈-Präfix) ist präziser als die Roheingabe
+      name: autoName || txt || '📷 Bild-Scan',
       ...macros,
       ts: Date.now(),
     };
@@ -3306,6 +3725,13 @@ function runSmartCart(){
 // ═══════════════════════════════════════════════════════
 //  TOGGLE SUPPLEMENTS
 // ═══════════════════════════════════════════════════════
+// ULTRACODE: Info-Icon-Toggle — stopPropagation, damit der Tap
+// nicht gleichzeitig das Supplement abhakt
+function toggleSuppInfo(ev, id){
+  ev.stopPropagation();
+  document.getElementById('si-' + id)?.classList.toggle('open');
+}
+
 function toggle(id){
   const protocol=S.get('protocol')||[];
   const ids=protocol.map(s=>s.id);
@@ -3350,12 +3776,17 @@ function renderProtocol(){
       const note=d.ok?`<div class="sc-note">${t(d.ok)}</div>`:'';
       // ULTRACODE: Smart-Engine-Begründung — warum dieses Supplement im Protokoll ist
       const why=s.wk?`<div class="sc-note">◈ ${t(s.wk)}</div>`:'';
+      // ULTRACODE: Info-Icon + Erklärbox (Hover am PC, Tap am Handy)
+      const infoTxt=t(d.nk+'_info');
+      const infobox=infoTxt!==d.nk+'_info'?`<div class="sc-infobox" id="si-${s.id}">◈ ${infoTxt}</div>`:'';
+      const infoBtn=infobox?`<button class="sc-ib" onclick="toggleSuppInfo(event,'${s.id}')" title="Info" aria-label="Info">i</button>`:'';
       html+=`<div class="supp-card${done?' done':''}" onclick="toggle('${s.id}')">
         <div class="sc-chk">${done?'✓':''}</div>
         <div class="sc-info">
           <div class="sc-name">${t(d.nk)}</div>
-          <div class="sc-dose">${t(d.dk)}</div>${note}${why}
+          <div class="sc-dose">${t(d.dk)}</div>${note}${why}${infobox}
         </div>
+        ${infoBtn}
       </div>`;
     });
     html+='</div>';
