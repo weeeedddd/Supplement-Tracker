@@ -132,7 +132,7 @@ const FOOD_PER100: { w: string[]; g: number; m: Macros }[] = [
   { w: ['kaffee', 'coffee'], g: 200, m: { kcal: 2, prot: 0, carb: 0, fat: 0, sug: 0 } },
   { w: ['tee', 'tea'], g: 250, m: { kcal: 2, prot: 0, carb: 0, fat: 0, sug: 0 } },
   { w: ['butter'], g: 15, m: { kcal: 717, prot: 1, carb: 0, fat: 81, sug: 0 } },
-  { w: ['öl', 'oil', 'olive oil', 'olive oil'], g: 15, m: { kcal: 884, prot: 0, carb: 0, fat: 100, sug: 0 } },
+  { w: ['öl', 'oil'], g: 15, m: { kcal: 884, prot: 0, carb: 0, fat: 100, sug: 0 } },
   { w: ['avocado'], g: 150, m: { kcal: 240, prot: 3, carb: 13, fat: 22, sug: 1 } },
   { w: ['bohne', 'bean'], g: 150, m: { kcal: 127, prot: 9, carb: 22, fat: 1, sug: 0 } },
   { w: ['linsen', 'lentil'], g: 150, m: { kcal: 116, prot: 9, carb: 20, fat: 1, sug: 1 } },

@@ -254,11 +254,11 @@ function EditFoodModal({ entry, onSave, onClose }: { entry: FoodEntry; onSave: (
         <h3>{t('edit_title')}</h3>
         <input className="edit-name-input" value={e.name} onChange={ev => setE({ ...e, name: ev.target.value })} />
         <div className="edit-macro-grid">
-          <div className="edit-field"><label>KCAL</label><input type="number" value={e.kcal} onChange={ev => setE({ ...e, kcal: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>PROTEIN (g)</label><input type="number" value={e.prot} onChange={ev => setE({ ...e, prot: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>CARBS (g)</label><input type="number" value={e.carb} onChange={ev => setE({ ...e, carb: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>FETT (g)</label><input type="number" value={e.fat} onChange={ev => setE({ ...e, fat: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>ZUCKER (g)</label><input type="number" value={e.sug} onChange={ev => setE({ ...e, sug: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>{t('edit_kcal')}</label><input type="number" value={e.kcal} onChange={ev => setE({ ...e, kcal: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>{t('edit_prot')}</label><input type="number" value={e.prot} onChange={ev => setE({ ...e, prot: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>{t('edit_carb')}</label><input type="number" value={e.carb} onChange={ev => setE({ ...e, carb: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>{t('edit_fat')}</label><input type="number" value={e.fat} onChange={ev => setE({ ...e, fat: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>{t('edit_sug')}</label><input type="number" value={e.sug} onChange={ev => setE({ ...e, sug: num(ev.target.value) })} /></div>
         </div>
         <div className="edit-actions">
           <button className="edit-cancel" onClick={onClose}>{t('edit_cancel')}</button>

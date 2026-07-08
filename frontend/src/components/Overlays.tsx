@@ -60,7 +60,7 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
           <div className="po-stat"><div className="po-stat-l">{t('po_bmi')}</div><div className="po-stat-v">{bmi ? bmi.toFixed(1) : '–'}</div></div>
         </div>
 
-        <div className="po-sec-title">◈ ATTRIBUT-MATRIX</div>
+        <div className="po-sec-title">◈ {t('po_attr_matrix')}</div>
         <div className="rpg-radar-wrap">
           <div dangerouslySetInnerHTML={{ __html: buildRadarSVG(stats, th.attrs) }} />
         </div>
@@ -74,7 +74,7 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
           ))}
         </div>
 
-        <div className="po-sec-title">⚡ GEFÄSS-STATUS</div>
+        <div className="po-sec-title">⚡ {t('po_status')}</div>
         <div className="po-status-grid">
           {[...debuffs.map(d => ({ ...d, cls: 'debuff' })), ...buffs.map(b => ({ ...b, cls: 'buff' }))].map((s, i) => (
             <div className={`status-badge ${s.cls}`} key={i}>
@@ -85,8 +85,8 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
           {!buffs.length && !debuffs.length && (
             <div className="status-badge neutral">
               <span className="status-icon">◈</span>
-              <div><div className="status-name">Keine aktiven Statuseffekte</div>
-                <div className="status-desc">Supplements abhaken für Buff-Aktivierung.</div></div>
+              <div><div className="status-name">{t('po_no_effects')}</div>
+                <div className="status-desc">{t('po_effect_desc')}</div></div>
             </div>
           )}
         </div>
@@ -109,19 +109,22 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
           {protocol.map(s => SDEFS[s.id] ? <span className="po-stag" key={s.id}>{t(SDEFS[s.id].nk)}</span> : null)}
         </div>
 
-        <div className="po-sec-title">◈ TITEL AUSRÜSTEN</div>
+        <div className="po-sec-title">◈ {t('po_titles')}</div>
         <div className="po-title-chips">
           {Object.entries(ACHIEVE_DEFS).map(([id, def]) => {
             const isUnlocked = unlocked.includes(id);
             const cls = equipped === id ? 'equipped' : isUnlocked ? '' : 'locked';
             return (
               <span key={id} className={`title-chip ${cls}`}
-                onClick={isUnlocked ? () => { equipTitle(id); refresh(); } : undefined}>{def.name}</span>
+                onClick={isUnlocked ? () => { equipTitle(id); refresh(); } : undefined}>
+                {def.name}
+                {!isUnlocked && <em> (+{def.xp} XP)</em>}
+              </span>
             );
           })}
         </div>
 
-        <div className="po-sec-title">🏆 ERRUNGENSCHAFTEN</div>
+        <div className="po-sec-title">◈ {t('po_achievements')}</div>
         <div className="po-achieve-grid">
           {Object.entries(ACHIEVE_DEFS).map(([id, def]) => {
             const isUnlocked = unlocked.includes(id);
@@ -129,7 +132,7 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
               <div className={`achieve-card ${isUnlocked ? 'unlocked' : ''}`} key={id}>
                 <div className="achieve-icon">{def.icon}</div>
                 <div className="achieve-name">{def.name}</div>
-                <div className="achieve-desc">{def.desc}{isUnlocked ? '' : <em> (+{def.xp} XP)</em>}</div>
+                <div className="achieve-desc">{def.desc}</div>
               </div>
             );
           })}
