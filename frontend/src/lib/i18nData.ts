@@ -118,6 +118,17 @@ de:{
   supp_vitd_info:'Das Sonnenhormon — essenziell für Knochen, Immunsystem und Testosteron; K2 lenkt Calcium in die Knochen.',
   supp_iron_info:'Sauerstofftransport im Blut — beugt Müdigkeit vor; Vitamin C verbessert die Aufnahme.',
   supp_citrullin_info:'Steigert die Stickoxid-Produktion — besserer Pump, mehr Ausdauer, weniger Muskelkater.',
+  // ── ULTRACODE: Profil-Overlay Labels ──
+  po_tag:'SHADOW AGENT AKTE',
+  po_attr_matrix:'ATTRIBUT-MATRIX',
+  po_status:'GEFÄSS-STATUS',
+  po_no_effects:'Keine aktiven Statuseffekte',
+  po_effect_desc:'Supplements abhaken für Buff-Aktivierung.',
+  po_titles:'TITEL AUSRÜSTEN',
+  po_achievements:'ERRUNGENSCHAFTEN',
+  po_unlock:'Freigeschaltet',
+  // ── ULTRACODE: Edit Modal Fields ──
+  edit_kcal:'KCAL',edit_prot:'PROTEIN',edit_carb:'CARBS',edit_fat:'FETT',edit_sug:'ZUCKER',
 },
 en:{
   login_sub:'SUPPLEMENT PROTOCOL',tab_login:'Login',tab_register:'Register',
@@ -227,6 +238,17 @@ en:{
   supp_vitd_info:'The sunshine hormone — vital for bones, immunity and testosterone; K2 routes calcium into the bones.',
   supp_iron_info:'Oxygen transport in the blood — prevents fatigue; vitamin C boosts absorption.',
   supp_citrullin_info:'Raises nitric-oxide production — better pump, more endurance, less soreness.',
+  // ── ULTRACODE: Profil-Overlay Labels ──
+  po_tag:'SHADOW AGENT FILE',
+  po_attr_matrix:'ATTRIBUTES',
+  po_status:'VESSEL STATUS',
+  po_no_effects:'No active status effects',
+  po_effect_desc:'Check supplements to activate buffs.',
+  po_titles:'EQUIP TITLE',
+  po_achievements:'ACHIEVEMENTS',
+  po_unlock:'Unlocked',
+  // ── ULTRACODE: Edit Modal Fields ──
+  edit_kcal:'KCAL',edit_prot:'PROTEIN',edit_carb:'CARBS',edit_fat:'FAT',edit_sug:'SUGAR',
 },
 ja:{
   login_sub:'サプリメント・プロトコル',tab_login:'ログイン',tab_register:'登録',
@@ -332,6 +354,17 @@ ja:{
   supp_vitd_info:'骨・免疫・テストステロンに必須。K2がカルシウムを骨へ導く。',
   supp_iron_info:'血中の酸素運搬。疲労を防ぐ。ビタミンCで吸収アップ。',
   supp_citrullin_info:'NO産生を高め、パンプと持久力を向上させる。',
+  // ── ULTRACODE: Profil-Overlay Labels ──
+  po_tag:'シャドウ エージェント',
+  po_attr_matrix:'属性マトリックス',
+  po_status:'器のステータス',
+  po_no_effects:'アクティブなステータス効果なし',
+  po_effect_desc:'サプリメントをチェックしてバフを有効化。',
+  po_titles:'タイトル装備',
+  po_achievements:'実績',
+  po_unlock:'解放済み',
+  // ── ULTRACODE: Edit Modal Fields ──
+  edit_kcal:'kcal',edit_prot:'タンパク',edit_carb:'炭水化物',edit_fat:'脂質',edit_sug:'糖質',
 },
 ko:{
   login_sub:'서플리먼트 프로토콜',tab_login:'로그인',tab_register:'회원가입',
@@ -437,6 +470,17 @@ ko:{
   supp_vitd_info:'뼈·면역·테스토스테론에 필수. K2가 칼슘을 뼈로 보낸다.',
   supp_iron_info:'혈중 산소 운반. 피로 예방. 비타민C가 흡수를 높인다.',
   supp_citrullin_info:'산화질소 생성을 높여 펌핑과 지구력을 향상시킨다.',
+  // ── ULTRACODE: Profil-Overlay Labels ──
+  po_tag:'쉐도우 에이전트',
+  po_attr_matrix:'속성 매트릭스',
+  po_status:'용기의 상태',
+  po_no_effects:'활성 상태 효과 없음',
+  po_effect_desc:'보너스를 활성화하려면 보충제를 체크하세요.',
+  po_titles:'제목 장비',
+  po_achievements:'업적',
+  po_unlock:'잠금 해제',
+  // ── ULTRACODE: Edit Modal Fields ──
+  edit_kcal:'kcal',edit_prot:'단백질',edit_carb:'탄수화물',edit_fat:'지방',edit_sug:'당',
 },
 es:{
   login_sub:'PROTOCOLO DE SUPLEMENTOS',tab_login:'Iniciar Sesión',tab_register:'Registrarse',
@@ -543,4 +587,15 @@ es:{
   supp_vitd_info:'La hormona del sol — vital para huesos, inmunidad y testosterona; la K2 lleva el calcio al hueso.',
   supp_iron_info:'Transporte de oxígeno en la sangre — previene la fatiga; la vitamina C mejora la absorción.',
   supp_citrullin_info:'Eleva la producción de óxido nítrico — mejor pump, más resistencia, menos agujetas.',
+  // ── ULTRACODE: Profil-Overlay Labels ──
+  po_tag:'ARCHIVO AGENTE SHADOW',
+  po_attr_matrix:'MATRIZ DE ATRIBUTOS',
+  po_status:'ESTADO DEL RECIPIENTE',
+  po_no_effects:'Sin efectos de estado activos',
+  po_effect_desc:'Marca suplementos para activar buffs.',
+  po_titles:'EQUIPAR TÍTULO',
+  po_achievements:'LOGROS',
+  po_unlock:'Desbloqueado',
+  // ── ULTRACODE: Edit Modal Fields ──
+  edit_kcal:'KCAL',edit_prot:'Proteína',edit_carb:'Carbos',edit_fat:'Grasa',edit_sug:'Azúcar',
 }};
