@@ -158,7 +158,10 @@ export const ACHIEVE_DEFS: Record<string, { icon: string; name: string; desc: st
   alchemist:  { icon: '⚗', name: 'Protokoll-Alchemist', desc: '3× Supplements vollständig', xp: 25 },
 };
 
-export function getUnlockedAchievements(): string[] { return S.get('achievements') || ['novice']; }
+// Härtung: Storage-Werte können korrupt sein (Nicht-Array) — nie durchreichen
+export function asArray<T>(v: unknown, fallback: T[] = []): T[] { return Array.isArray(v) ? (v as T[]) : fallback; }
+
+export function getUnlockedAchievements(): string[] { return asArray<string>(S.get('achievements'), ['novice']); }
 export function getEquippedTitle(): string { return S.get('title_equipped') || 'novice'; }
 export function equipTitle(id: string): void {
   if (getUnlockedAchievements().includes(id)) S.set('title_equipped', id);
@@ -198,8 +201,8 @@ export function checkAchievements(): void {
 export function calcRPGStats() {
   const profile = S.get<Profile>('profile') || ({} as Partial<Profile>);
   const macros = S.get<Macros>('macros') || ({} as Partial<Macros>);
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
-  const chk = S.get<string[]>('day_' + dateKey()) || [];
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
+  const chk = asArray<string>(S.get('day_' + dateKey()));
   const streak = getStreak().count;
   const total = protocol.length;
   const done = total ? chk.filter(id => protocol.some(s => s.id === id)).length : 0;
@@ -247,26 +250,30 @@ export function buildRadarSVG(stats: ReturnType<typeof calcRPGStats>, attrs: str
 // ═══ BUFFS / DEBUFFS (theme-aware, Theme-Objekt wird injiziert) ═══════
 export function calcBuffsDebuffs(th: any) {
   const kiAns = S.get<Record<string, string>>('ki_ans') || {};
-  const chk = S.get<string[]>('day_' + dateKey()) || [];
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
+  const chk = asArray<string>(S.get('day_' + dateKey()));
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
   const macros = S.get<Macros>('macros') || ({} as Partial<Macros>);
   const streak = getStreak().count;
   const buffs: { icon: string; name: string; desc: string }[] = [];
   const debuffs: { icon: string; name: string; desc: string }[] = [];
 
-  if (kiAns.sleep === 'sleepless') debuffs.push({ icon: '💤', name: th.sleep2.name, desc: th.sleep2.desc });
-  else if (kiAns.sleep === 'restless') debuffs.push({ icon: '😴', name: th.sleep1.name, desc: th.sleep1.desc });
+  // Härtung: jedes Theme-Feld defensiv — Buffs fallen weg statt zu crashen
+  if (kiAns.sleep === 'sleepless' && th?.sleep2) debuffs.push({ icon: '💤', name: th.sleep2.name, desc: th.sleep2.desc });
+  else if (kiAns.sleep === 'restless' && th?.sleep1) debuffs.push({ icon: '😴', name: th.sleep1.name, desc: th.sleep1.desc });
 
   const alphaDone = ['omega', 'multi'].every(id => chk.includes(id) && protocol.some(s => s.id === id));
-  if (alphaDone) buffs.push({ icon: '⚡', name: th.alpha.name, desc: th.alpha.desc });
-  if (streak >= 7) buffs.push({ icon: '🔥', name: th.streak.name(streak), desc: th.streak.desc });
+  if (alphaDone && th?.alpha) buffs.push({ icon: '⚡', name: th.alpha.name, desc: th.alpha.desc });
+  if (streak >= 7) {
+    const nm = typeof th?.streak?.name === 'function' ? th.streak.name(streak) : `Streak ${streak}d`;
+    buffs.push({ icon: '🔥', name: nm, desc: th?.streak?.desc ?? '' });
+  }
   const sugRatio = (macros.carb || 0) > 0 ? (macros.sug || 0) / (macros.carb || 1) : 0;
-  if (sugRatio > 0.28) debuffs.push({ icon: '🍬', name: th.sugar.name, desc: th.sugar.desc });
+  if (sugRatio > 0.28 && th?.sugar) debuffs.push({ icon: '🍬', name: th.sugar.name, desc: th.sugar.desc });
   return { buffs, debuffs };
 }
 
 // ═══ FOOD LOG ════════════════════════════════════════════════════════
-export function getFoodLog(): FoodEntry[] { return S.get('food_' + dateKey()) || []; }
+export function getFoodLog(): FoodEntry[] { return asArray<FoodEntry>(S.get('food_' + dateKey())); }
 export function saveFoodLog(log: FoodEntry[]): void { S.set('food_' + dateKey(), log); }
 export function calcConsumed(): Macros {
   return getFoodLog().reduce((a, e) => ({
@@ -278,7 +285,7 @@ export function calcConsumed(): Macros {
 // ═══ DYNAMIC GLOW — Zielnähe 0→1 ═════════════════════════════════════
 export function goalProximity(checked: string[]): number {
   const parts: number[] = [];
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
   if (protocol.length) {
     const done = checked.filter(id => protocol.some(s => s.id === id)).length;
     parts.push(done / protocol.length);

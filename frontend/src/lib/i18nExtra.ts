@@ -2,6 +2,7 @@
 //    Wird in i18n.ts über den generierten Basiskatalog gemergt.
 export const I18N_EXTRA: Record<string, Record<string, string>> = {
   de: {
+    scan_fail: '◈ Materia nicht eindeutig erkannt — nimm den Barcode der Verpackung ins Bild oder tippe den Produktnamen ein.',
     nav_dash: '◈ TERMINAL', nav_chat: '👥 NEXUS',
     chat_title: 'SHADOW NEXUS', chat_sub: 'Community-Kanäle der Void',
     chat_room_global: '🌐 Global', chat_room_lang: 'Sprachraum',
@@ -15,6 +16,7 @@ export const I18N_EXTRA: Record<string, Record<string, string>> = {
     chat_warn_spam: 'Zu viele Echos in zu kurzer Zeit. Die Void verlangt Geduld.',
   },
   en: {
+    scan_fail: '◈ Materia not clearly identified — include the package barcode in the photo or type the product name.',
     nav_dash: '◈ TERMINAL', nav_chat: '👥 NEXUS',
     chat_title: 'SHADOW NEXUS', chat_sub: 'Community channels of the Void',
     chat_room_global: '🌐 Global', chat_room_lang: 'Language room',
@@ -28,6 +30,7 @@ export const I18N_EXTRA: Record<string, Record<string, string>> = {
     chat_warn_spam: 'Too many echoes in too little time. The Void demands patience.',
   },
   ja: {
+    scan_fail: '◈ 判別できなかった。パッケージのバーコードを写すか、商品名を入力してくれ。',
     nav_dash: '◈ ターミナル', nav_chat: '👥 ネクサス',
     chat_title: 'シャドウ・ネクサス', chat_sub: '虚無のコミュニティチャンネル',
     chat_room_global: '🌐 グローバル', chat_room_lang: '言語ルーム',
@@ -41,6 +44,7 @@ export const I18N_EXTRA: Record<string, Record<string, string>> = {
     chat_warn_spam: '短時間に響きが多すぎる。虚無は忍耐を求める。',
   },
   ko: {
+    scan_fail: '◈ 식별하지 못했다 — 포장의 바코드를 찍거나 제품명을 입력하라.',
     nav_dash: '◈ 터미널', nav_chat: '👥 넥서스',
     chat_title: '쉐도우 넥서스', chat_sub: '보이드의 커뮤니티 채널',
     chat_room_global: '🌐 글로벌', chat_room_lang: '언어 룸',
@@ -54,6 +58,7 @@ export const I18N_EXTRA: Record<string, Record<string, string>> = {
     chat_warn_spam: '너무 짧은 시간에 너무 많은 메아리. 보이드는 인내를 요구한다.',
   },
   es: {
+    scan_fail: '◈ Materia no identificada — incluye el código de barras del envase o escribe el nombre del producto.',
     nav_dash: '◈ TERMINAL', nav_chat: '👥 NEXUS',
     chat_title: 'SHADOW NEXUS', chat_sub: 'Canales comunitarios del Vacío',
     chat_room_global: '🌐 Global', chat_room_lang: 'Sala de idioma',

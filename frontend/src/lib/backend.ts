@@ -4,7 +4,7 @@
 //  Backend laufen alle Features lokal weiter; Chat zeigt Offline-Status.
 //  Backend-URL: localStorage (sg_backend_url) > VITE_BACKEND_URL > ''.
 // ═══════════════════════════════════════════════════════════════════
-import { S } from './storage';
+import { S, timeoutSignal } from './storage';
 
 export function getBackendUrl(): string {
   const stored = S.get<string>('backend_url');
@@ -20,7 +20,7 @@ export async function backendHealth(): Promise<boolean> {
   const base = getBackendUrl();
   if (!base) return false;
   try {
-    const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`${base}/api/health`, { signal: timeoutSignal(5000) });
     return res.ok;
   } catch { return false; }
 }
@@ -34,7 +34,7 @@ export function syncScanToBackend(entry: { name: string; kcal: number; prot: num
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ uid: auth.userId || 'anon', ...entry }),
-    signal: AbortSignal.timeout(6000),
+    signal: timeoutSignal(6000),
   }).catch(() => { /* Backend offline — lokal bleibt die Quelle der Wahrheit */ });
 }
 
@@ -58,7 +58,7 @@ export async function uploadChatMedia(file: File): Promise<string | null> {
   try {
     const fd = new FormData();
     fd.append('file', file);
-    const res = await fetch(`${base}/api/chat/upload`, { method: 'POST', body: fd, signal: AbortSignal.timeout(15000) });
+    const res = await fetch(`${base}/api/chat/upload`, { method: 'POST', body: fd, signal: timeoutSignal(15000) });
     if (!res.ok) return null;
     const d = await res.json();
     return d?.url ? `${base}${d.url}` : null;

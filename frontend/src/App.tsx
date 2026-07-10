@@ -9,6 +9,7 @@ import { KiScreen } from './components/KiScreen';
 import { Dashboard } from './components/Dashboard';
 import { ProfileOverlay, CompleteOverlay, BriefingModal } from './components/Overlays';
 import { ChatScreen } from './components/ChatScreen';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 const IconLogout = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
 const IconUser = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
@@ -23,6 +24,8 @@ const IconShield = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 const IconGlobe = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>;
 const IconPower = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>;
 const IconEyeOff = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>;
+
+const AV = ['◈', '◉', '◊'];
 
 const THEME_BTNS = [
   { id: 'shadow', icon: IconMoon, title: 'Shadow Garden' },
@@ -137,12 +140,15 @@ export default function App() {
         </div>
       </div>
 
-      {screen === 'login' && <LoginScreen />}
-      {screen === 'verify' && <VerifyScreen />}
-      {screen === 'onboard' && <OnboardScreen />}
-      {screen === 'ki' && <KiScreen />}
-      {screen === 'dashboard' && <Dashboard onComplete={n => setCompleteStreak(n)} />}
-      {screen === 'chat' && <ChatScreen />}
+      {/* Jeder Screen in einer eigenen ErrorBoundary — ein Crash schwärzt nie die App */}
+      <ErrorBoundary label={screen}>
+        {screen === 'login' && <LoginScreen />}
+        {screen === 'verify' && <VerifyScreen />}
+        {screen === 'onboard' && <OnboardScreen />}
+        {screen === 'ki' && <KiScreen />}
+        {screen === 'dashboard' && <Dashboard onComplete={n => setCompleteStreak(n)} />}
+        {screen === 'chat' && <ChatScreen />}
+      </ErrorBoundary>
 
       {screen === 'dashboard' && (
         <div className="bottom-bar">
@@ -150,7 +156,9 @@ export default function App() {
         </div>
       )}
 
-      <ProfileOverlay open={profileOpen} onClose={() => setProfileOpen(false)} />
+      <ErrorBoundary label="profile-overlay">
+        <ProfileOverlay open={profileOpen} onClose={() => setProfileOpen(false)} />
+      </ErrorBoundary>
       <BriefingModal open={briefingOpen} onClose={() => setBriefingOpen(false)} />
       <CompleteOverlay streak={completeStreak} onDismiss={() => setCompleteStreak(null)} />
     </>

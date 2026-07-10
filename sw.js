@@ -1,9 +1,17 @@
 /* ═══════════════════════════════════════════════════════
-   SHADOW~1 — Service Worker · Cache-First App-Shell
-   Serverlos: Die komplette App läuft nach dem ersten
-   Besuch vollständig offline aus dem Cache.
+   SHADOW~1 — Service Worker v5
+   FIX Schwarzbildschirm: Die alte cache-first-Strategie
+   konnte nach einem Deployment ein veraltetes index.html
+   ausliefern, dessen gehashte Assets nicht mehr existieren —
+   und lieferte bei Asset-Fehlern HTML statt JavaScript aus
+   (→ Parse-Error → schwarzer Screen).
+   Neu:
+   · Navigationen: NETWORK-FIRST (immer frischestes index.html),
+     Cache nur als Offline-Fallback
+   · Assets: cache-first, aber NIEMALS HTML-Fallback für
+     Skripte/Styles — ein Fehler bleibt ein Fehler
 ═══════════════════════════════════════════════════════ */
-const CACHE  = 'shadow1-fullstack-v4';
+const CACHE  = 'shadow1-fullstack-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -29,16 +37,32 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if(e.request.method !== 'GET') return;
+  if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  if(url.origin !== location.origin) return;   // API-Calls (OpenAI, Open Prices API etc.) nie cachen
+  if (url.origin !== location.origin) return;   // API-Calls (Backend, OFF etc.) nie anfassen
+
+  // Navigationen: network-first — Deployments kommen sofort an
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).then(res => {
+        const copy = res.clone();
+        caches.open(CACHE).then(c => c.put('./index.html', copy));
+        return res;
+      }).catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
+  // Assets: cache-first mit Runtime-Caching; kein HTML-Fallback
   e.respondWith(
     caches.match(e.request).then(hit =>
       hit || fetch(e.request).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, copy));
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+        }
         return res;
-      }).catch(() => caches.match('./index.html'))
+      })
     )
   );
 });

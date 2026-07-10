@@ -7,7 +7,7 @@ import { refresh, useAppState } from '../lib/store';
 import { theme, getCurrentTheme } from '../lib/themes';
 import {
   SDEFS, gainXP, checkAchievements, getStreak, finaliseStreak, completedToday,
-  getXPRankData, calcConsumed, getFoodLog, saveFoodLog, updateDynamicGlow, playSound,
+  getXPRankData, calcConsumed, getFoodLog, saveFoodLog, updateDynamicGlow, playSound, asArray,
   type FoodEntry, type Macros, type ProtocolItem, type Profile,
 } from '../lib/engine';
 import { analyzeImageLocally, analyzeTextLocally } from '../lib/scanner';
@@ -28,6 +28,7 @@ const IconRefresh = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" 
 const IconStore = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0v0a2 2 0 0 1-2-2V7"/></svg>;
 const IconMapPin = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>;
 const IconCheck = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+const IconPlus = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
 const IconInfo = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
 const IconTarget = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
 
@@ -38,7 +39,7 @@ function getChecked(): string[] { return S.get('day_' + dateKey()) || []; }
 export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
   useAppState();
   const th = theme();
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
   const checked = getChecked();
 
   useEffect(() => { syncLivePrices(); }, []);
@@ -68,12 +69,13 @@ export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
   const done = checked.filter(id => protocol.some(s => s.id === id)).length;
   const circ = 2 * Math.PI * 38;
   const xpData = getXPRankData();
-  const rankName = (th.ranks[xpData.idx] || th.ranks[0]).toUpperCase();
+  // Härtung: Theme-Felder defensiv lesen — nie undefined.toUpperCase()
+  const rankName = String(th?.ranks?.[xpData.idx] ?? th?.ranks?.[0] ?? 'Shadow Novice').toUpperCase();
 
   return (
     <div className="screen active" id="screen-dashboard">
       <div className="status-bar">
-        <span>{th.sigil}</span>
+        <span>{th?.sigil ?? '◈ SHADOW~1'}</span>
         <span className="sb-rank">{rankName}</span>
         <span className="sb-streak">{IconFlame} {getStreak().count}</span>
       </div>
@@ -150,6 +152,7 @@ function ScannerWidget() {
   const [imgB64, setImgB64] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [scanErr, setScanErr] = useState('');
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const log = getFoodLog();
@@ -168,12 +171,17 @@ function ScannerWidget() {
   const submit = async () => {
     const q = txt.trim();
     if (!q && !imgB64) return;
-    setBusy(true);
+    setBusy(true); setScanErr('');
     if (imgB64) setScanning(true);
     try {
       let result;
       if (imgB64) [result] = await Promise.all([analyzeImageLocally(imgB64, q), sleep(2000)]);
       else result = await analyzeTextLocally(q);
+      // Ehrlichkeit statt Mock: nichts erkannt → Hinweis, KEIN Fantasie-Eintrag
+      if (!result) {
+        setScanErr(t('scan_fail'));
+        return;
+      }
       const entry: FoodEntry = { id: Date.now(), name: result.name || q || '📷 Scan', ...result.macros, ts: Date.now() };
       const l = getFoodLog(); l.push(entry); saveFoodLog(l);
       syncScanToBackend({ name: entry.name, kcal: entry.kcal, prot: entry.prot, carb: entry.carb, fat: entry.fat, sug: entry.sug });
@@ -216,6 +224,7 @@ function ScannerWidget() {
         <button className="scan-btn" disabled={busy} onClick={submit}>{t('scan_btn')}</button>
         {busy && <span className="scan-loading" style={{ display: 'block' }}>{t('scan_loading')}</span>}
       </div>
+      {scanErr && <div className="terminal-err" style={{ display: 'block' }}>{scanErr}</div>}
       <div className="tages-akte">
         <div className="ta-header">
           <span className="ta-title">{t('ta_title')}</span>

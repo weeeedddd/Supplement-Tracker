@@ -18,3 +18,15 @@ export const S = {
 
 export function dateKey(): string { return new Date().toISOString().slice(0, 10); }
 export function prevKey(): string { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+
+// ── Härtung: AbortSignal.timeout existiert erst ab iOS 16 / Safari 16.
+//    Auf älteren Geräten würde der Aufruf synchron werfen → hier ein
+//    sicherer Wrapper, der notfalls ohne Timeout-Signal arbeitet.
+export function timeoutSignal(ms: number): AbortSignal | undefined {
+  try {
+    if (typeof AbortSignal !== 'undefined' && typeof (AbortSignal as any).timeout === 'function') {
+      return (AbortSignal as any).timeout(ms);
+    }
+  } catch { /* noop */ }
+  return undefined;
+}

@@ -3,3 +3,9 @@ uvicorn[standard]>=0.32,<1.0
 sqlalchemy>=2.0,<3.0
 httpx>=0.27,<1.0
 python-multipart>=0.0.12,<1.0
+# Foto-Scan (Barcode-Dekodierung vom Bild)
+zxing-cpp>=2.2
+Pillow>=10.0
+numpy>=1.26
+# Optional für OCR von Verpackungstext: pytesseract + tesseract-ocr-Binary
+# pytesseract>=0.3.10

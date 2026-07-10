@@ -4,7 +4,7 @@
 //  ohne Backend läuft die identische Kaskade direkt gegen Open Food
 //  Facts (funktioniert auch auf GitHub Pages). Nie werfende Fallbacks.
 // ═══════════════════════════════════════════════════════════════════
-import { S } from './storage';
+import { S, timeoutSignal } from './storage';
 import { t } from './i18n';
 import { getBackendUrl } from './backend';
 import type { Macros } from './engine';
@@ -31,7 +31,7 @@ export function parseMultiplier(text: string): number {
 }
 
 async function offFetch(url: string): Promise<any> {
-  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(FOOD_API.timeoutMs) });
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: timeoutSignal(FOOD_API.timeoutMs) });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return res.json();
 }
@@ -349,11 +349,29 @@ async function backendAnalyze(params: Record<string, string>): Promise<ScanResul
   if (!backend) return null;
   try {
     const qs = new URLSearchParams(params).toString();
-    const res = await fetch(`${backend}/api/food/analyze?${qs}`, { signal: AbortSignal.timeout(9000) });
+    const res = await fetch(`${backend}/api/food/analyze?${qs}`, { signal: timeoutSignal(9000) });
     if (!res.ok) return null;
     const d = await res.json();
     if (d && d.found && d.macros) return { name: '◈ ' + d.name, macros: d.macros };
   } catch { /* Backend down → lokale Kaskade */ }
+  return null;
+}
+
+// ── ECHTER Foto-Scan über das Backend: das Bild selbst wird hochgeladen
+//    und serverseitig ausgewertet (Barcode-Dekodierung, optional OCR)
+async function backendScanImage(imageB64: string, hint: string): Promise<ScanResult | null> {
+  const backend = getBackendUrl();
+  if (!backend) return null;
+  try {
+    const blob = await (await fetch(imageB64)).blob();
+    const fd = new FormData();
+    fd.append('file', blob, 'scan.jpg');
+    const qs = hint ? `?q=${encodeURIComponent(hint)}` : '';
+    const res = await fetch(`${backend}/api/food/scan${qs}`, { method: 'POST', body: fd, signal: timeoutSignal(15000) });
+    if (!res.ok) return null;
+    const d = await res.json();
+    if (d && d.found && d.macros) return { name: '◈ ' + d.name, macros: d.macros };
+  } catch { /* Backend down → Browser-Kaskade */ }
   return null;
 }
 
@@ -371,8 +389,15 @@ export async function analyzeTextLocally(txt: string): Promise<ScanResult> {
   return keywordFoodEstimate(txt);
 }
 
-export async function analyzeImageLocally(imageB64: string, hint: string): Promise<ScanResult> {
-  // 1. Barcode erkennen
+// FIX „Burrito Bowl": Die Vision-SIMULATION ist raus. Wird nichts echt
+// erkannt, liefert die Kaskade null — die UI zeigt dann eine ehrliche
+// Meldung statt erfundener Nährwerte.
+export async function analyzeImageLocally(imageB64: string, hint: string): Promise<ScanResult | null> {
+  // 1) Backend wertet das ECHTE Bild aus (Barcode serverseitig, optional OCR)
+  const viaScan = await backendScanImage(imageB64, hint);
+  if (viaScan) return viaScan;
+
+  // 2) Browser-BarcodeDetector (Chrome/Android/Safari 17+) → OFF-Produkt
   const code = await detectBarcode(imageB64);
   if (code) {
     const viaBackend = await backendAnalyze({ barcode: code, ...(hint ? { q: hint } : {}) });
@@ -385,20 +410,10 @@ export async function analyzeImageLocally(imageB64: string, hint: string): Promi
       }
     } catch { /* weiter in der Kaskade */ }
   }
-  // 2. Wenn ein Text-Hint da ist → direkt als Nahrungsmittel-Anfrage werten
-  if (hint && hint.trim()) {
-    const viaBackend = await backendAnalyze({ q: hint });
-    if (viaBackend) return viaBackend;
-    try {
-      const prod = await offSearchProduct(hint);
-      if (prod) {
-        const r = macrosFromOFF(prod, parseGrams(hint));
-        if (r) return { name: '◈ ' + offName(prod, r.grams), macros: r.macros };
-      }
-    } catch { /* weiter */ }
-    const kw = keywordFoodEstimate(hint);
-    if (kw.name) return kw;
-  }
-  // 3. Letzter Ausweg: reine Bildsimulation
-  return simulateVisionScan(imageB64);
+
+  // 3) Text-Hint des Users → validierte Suche/Keyword-Schätzung
+  if (hint && hint.trim()) return analyzeTextLocally(hint);
+
+  // 4) Nichts erkannt → ehrlich null (keine Mock-Daten mehr)
+  return null;
 }

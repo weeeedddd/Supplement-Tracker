@@ -28,6 +28,7 @@ from .db import Base, SessionLocal, engine, get_db
 from .models import AuthToken, ChatMessage, ScanEntry, User
 from .services.food import analyze_barcode, analyze_text
 from .services.prices import get_live_prices_cached
+from .services.vision import MAX_IMAGE_BYTES, capabilities, decode_barcode, ocr_text
 from .shadow_bot import WARNINGS, moderate
 
 app = FastAPI(title="SHADOW~1 Backend", version="2.0.0")
@@ -132,6 +133,44 @@ def food_analyze(
         if res:
             return res
     return {"found": False}
+
+
+# ═══ FOTO-SCAN: echte Bild-Auswertung (Barcode → OCR → ehrliches Nein) ═══
+@app.post("/api/food/scan")
+async def food_scan(
+    file: UploadFile = File(...),
+    q: str | None = Query(default=None, max_length=200),
+    db: Session = Depends(get_db),
+):
+    data = await file.read()
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(413, "max 8 MB")
+
+    # 1) Barcode direkt vom Foto → exakte Produktdaten
+    code = decode_barcode(data)
+    if code:
+        res = analyze_barcode(code, q)
+        if res:
+            res["source"] = "photo-barcode"
+            res["barcode"] = code
+            return res
+
+    # 2) Text-Hint des Users → validierte Volltextsuche
+    if q and q.strip():
+        res = analyze_text(db, q.strip())
+        if res:
+            return res
+
+    # 3) OCR des Verpackungstexts (optional, nur mit installiertem tesseract)
+    ocr_q = ocr_text(data)
+    if ocr_q:
+        res = analyze_text(db, ocr_q)
+        if res:
+            res["source"] = "photo-ocr"
+            return res
+
+    # 4) Ehrliches Ergebnis statt Fantasie-Werten
+    return {"found": False, "capabilities": capabilities(), "barcode": code}
 
 
 # ═══ SCAN-HISTORIE ════════════════════════════════════════════════════

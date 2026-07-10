@@ -32,6 +32,25 @@
 .chat-offline-hint{font-size:.76rem;color:var(--text3);line-height:1.6;margin-bottom:.9rem}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 
+/* ◈ ErrorBoundary — sichtbare Fehlanzeige statt schwarzem Screen */
+.eb-panel{position:relative;z-index:60;max-width:420px;margin:14vh auto 0;
+  display:flex;flex-direction:column;align-items:center;gap:.6rem;text-align:center;
+  padding:1.6rem 1.3rem;background:var(--s1,rgba(14,12,24,.9));
+  border:1px solid rgba(232,58,90,.4);border-radius:16px}
+.eb-sigil{font-size:2.2rem;color:var(--danger,#e83a5a);animation:kp 2s ease-in-out infinite}
+.eb-panel h2{font-size:.95rem;font-weight:700;letter-spacing:.18em;color:var(--danger,#e83a5a)}
+.eb-panel p{font-size:.76rem;color:var(--text2,#a094c4);line-height:1.55}
+.eb-panel p em{font-size:.68rem;opacity:.7}
+.eb-msg{max-width:100%;overflow-x:auto;font-size:.64rem;color:var(--danger,#e83a5a);
+  font-family:ui-monospace,'SF Mono',monospace;background:rgba(232,58,90,.07);
+  border:1px solid rgba(232,58,90,.22);border-radius:8px;padding:.5rem .7rem;
+  white-space:pre-wrap;word-break:break-word;text-align:left}
+.eb-actions{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center}
+.eb-actions button{padding:.55rem 1rem;border-radius:8px;cursor:pointer;font-size:.76rem;
+  font-weight:600;border:1px solid var(--border2,rgba(91,58,140,.5));
+  background:transparent;color:var(--text,#e8e0f5);transition:all .18s}
+.eb-actions button:hover{border-color:var(--accent2,#a855f7)}
+
 /* Mobile: Raum-Chips unter dem Header statt daneben */
 @media (max-width:520px){
   .ki-chat-hd{flex-wrap:wrap}
@@ -49,6 +68,17 @@
   .lang-switcher{gap:.12rem}
   .tb-right{gap:.28rem}
   .profile-chip{max-width:140px}
+  /* FIX Überlappung: Chip behält seine Breite, die Menü-Leiste wird
+     bei Platzmangel horizontal scrollbar statt über den Chip zu ragen */
+  .tb-left{flex:0 0 auto;max-width:46%}
+  /* flex-start + auto-Margin: rechtsbündig wenn Platz ist, aber bei
+     Überlauf bleibt alles per Scroll erreichbar (flex-end würde den
+     Links-Überstand unerreichbar machen) */
+  .tb-right{flex:1 1 auto;min-width:0;justify-content:flex-start;
+    overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .tb-right>:first-child{margin-left:auto}
+  .tb-right::-webkit-scrollbar{display:none}
+  .tb-right>*{flex-shrink:0}
 }
 @media (max-width:400px){
   .profile-chip{max-width:42px;padding:.2rem}

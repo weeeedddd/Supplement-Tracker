@@ -3,7 +3,7 @@
 //  Live-Preise: bevorzugt das Python-Backend (/api/prices/live),
 //  fällt auf die Open Prices API direkt zurück, dann auf Simulation.
 // ═══════════════════════════════════════════════════════════════════
-import { S } from './storage';
+import { S, timeoutSignal } from './storage';
 import { refresh } from './store';
 import { getBackendUrl } from './backend';
 
@@ -105,7 +105,7 @@ function median(arr: number[]): number {
 
 async function fetchCategoryPrices(tag: string): Promise<any[]> {
   const url = `${PRICE_API.endpoint}?category_tag=${encodeURIComponent(tag)}&${PRICE_API.query}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(PRICE_API.timeoutMs) });
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: timeoutSignal(PRICE_API.timeoutMs) });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
   if (!data || !Array.isArray(data.items)) throw new Error('Malformed API response');
@@ -153,7 +153,7 @@ export async function syncLivePrices(force = false): Promise<void> {
   const backend = getBackendUrl();
   if (backend) {
     try {
-      const res = await fetch(`${backend}/api/prices/live`, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(`${backend}/api/prices/live`, { signal: timeoutSignal(8000) });
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data.prices === 'object') results = data.prices;

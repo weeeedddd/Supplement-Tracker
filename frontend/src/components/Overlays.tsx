@@ -6,7 +6,7 @@ import { refresh, useAppState } from '../lib/store';
 import { theme } from '../lib/themes';
 import {
   getStreak, getXPRankData, calcRPGStats, buildRadarSVG, calcBuffsDebuffs,
-  ACHIEVE_DEFS, getUnlockedAchievements, getEquippedTitle, equipTitle,
+  ACHIEVE_DEFS, getUnlockedAchievements, getEquippedTitle, equipTitle, asArray,
   SDEFS, type Macros, type Profile, type ProtocolItem,
 } from '../lib/engine';
 
@@ -18,7 +18,7 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
   const auth = S.get<any>('auth');
   const profile = S.get<Profile>('profile');
   const macros = S.get<Macros>('macros');
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
   const stats = useMemo(() => calcRPGStats(), [open]);
 
   if (!auth || !profile) return null;
@@ -30,20 +30,22 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
   const goalMap: Record<string, string> = { bulk: t('goal_bulk'), cut: t('goal_cut'), perf: t('goal_perf'), long: t('goal_long') };
   const bmi = profile.height ? profile.weight / Math.pow(profile.height / 100, 2) : null;
   const attrVals = [stats.STR, stats.VIT, stats.AGI, stats.INT, stats.MAG];
+  // Härtung: Theme-Arrays defensiv — Attribut-Labels & Ränge nie undefined
+  const attrs: string[] = Array.isArray(th?.attrs) ? th.attrs : ['STR', 'VIT', 'AGI', 'INT', 'MAG'];
 
   return (
     <div className={`profile-overlay${open ? ' open' : ''}`} id="po">
       <button className="po-close" onClick={onClose}>✕</button>
       <div className="po-c">
         <div className="po-av">{profile.avatarPhoto ? <img src={profile.avatarPhoto} alt="av" /> : (AV[profile.avatarIdx] || '◈')}</div>
-        <div className="po-tag">{th.title}</div>
+        <div className="po-tag">{th?.title ?? 'SHADOW AGENT AKTE'}</div>
         <div className="po-uid">{auth.userId || '#001'}</div>
         <div className="po-nm">{profile.firstName || auth.username || 'Shadow'}</div>
-        <div className="po-rk">{th.ranks[xpData.idx] || th.ranks[0]}</div>
+        <div className="po-rk">{th?.ranks?.[xpData.idx] ?? th?.ranks?.[0] ?? 'Shadow Novice'}</div>
 
         <div className="po-xp-wrap">
           <div className="po-xp-label">
-            <span>{th.xpLabel} <span className="xp-curr">{xpData.xp}</span></span>
+            <span>{th?.xpLabel ?? 'XP'} <span className="xp-curr">{xpData.xp}</span></span>
             <span>{xpData.nextXp === Infinity ? '/ MAX' : `/ ${xpData.nextXp} XP`}</span>
           </div>
           <div className="po-xp-track"><div className="po-xp-fill" style={{ width: xpData.pct + '%' }} /></div>
@@ -62,11 +64,11 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
 
         <div className="po-sec-title">◈ ATTRIBUT-MATRIX</div>
         <div className="rpg-radar-wrap">
-          <div dangerouslySetInnerHTML={{ __html: buildRadarSVG(stats, th.attrs) }} />
+          <div dangerouslySetInnerHTML={{ __html: buildRadarSVG(stats, attrs) }} />
         </div>
 
         <div className="rpg-attrs">
-          {th.attrs.map((k: string, i: number) => (
+          {attrs.map((k: string, i: number) => (
             <div className="attr-row" key={k}>
               <div className="attr-label"><span>{k}</span><span className="av">{attrVals[i]}</span></div>
               <div className="attr-track"><div className="attr-fill" style={{ width: attrVals[i] + '%' }} /></div>
