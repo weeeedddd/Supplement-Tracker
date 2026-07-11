@@ -125,30 +125,53 @@
   .chat-rooms{width:100%;justify-content:flex-start}
 }
 
-/* ◈ Responsive Top-Bar: alle Menüs auf Mobile komprimiert & bedienbar
-   (Nav/Logout → Icons, kleinere Theme-/Sprach-Buttons, Chip schrumpft) */
-@media (max-width:640px){
-  .top-bar{padding:0 .6rem}
+/* ═══════════════════════════════════════════════════════
+   ◈ KOMPAKTE HEADER-DROPDOWNS (mobil) — Quick Settings + Sprache
+   Glassmorphic-Popover, feine lila Rahmen, .3s-Transitions.
+═══════════════════════════════════════════════════════ */
+.tb-compact{display:none;align-items:center;gap:.3rem}
+.tb-menu{position:relative;display:flex}
+.tb-menu-btn{display:inline-flex;align-items:center;justify-content:center;gap:.25rem;
+  height:30px;padding:0 .5rem;border:1px solid var(--border);border-radius:7px;
+  background:transparent;color:var(--text2);cursor:pointer;transition:all .3s;flex-shrink:0}
+.tb-menu-btn:hover{border-color:var(--accent);color:var(--accent)}
+.tb-menu-btn[aria-expanded="true"]{border-color:var(--accent2);color:var(--accent3);
+  background:rgba(var(--glow-rgb),.14);box-shadow:0 0 8px rgba(var(--glow-rgb),.28)}
+.tb-lang-code{font-size:.66rem;font-weight:700;letter-spacing:.04em}
+.tb-caret{font-size:.58rem;opacity:.7;margin-left:-.1rem}
+.tb-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:250;min-width:158px;
+  display:flex;flex-direction:column;gap:.12rem;padding:.35rem;
+  background:rgba(10,8,18,.82);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);
+  border:1px solid var(--border2);border-radius:12px;
+  box-shadow:0 14px 34px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);
+  animation:tbPop .18s ease}
+@keyframes tbPop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.tb-pop-label{font-size:.54rem;font-weight:700;letter-spacing:.16em;color:var(--text3);
+  padding:.25rem .5rem .1rem}
+.tb-pop-item{display:flex;align-items:center;gap:.55rem;width:100%;
+  padding:.5rem .55rem;border:1px solid transparent;border-radius:8px;
+  background:transparent;color:var(--text2);font-size:.78rem;font-weight:600;
+  cursor:pointer;transition:all .3s;text-align:left;white-space:nowrap}
+.tb-pop-item:hover{background:rgba(var(--glow-rgb),.12);color:var(--text)}
+.tb-pop-item.active{border-color:var(--accent2);color:var(--accent3);background:rgba(var(--glow-rgb),.16)}
+.tb-pop-ic{display:inline-flex;align-items:center;width:16px;justify-content:center}
+@media (prefers-reduced-motion:reduce){ .tb-pop{animation:none} }
+
+/* ◈ Responsive Top-Bar (≤768px): 8 Einzel-Buttons → 2 Dropdowns,
+   Nav/Logout als Icons, eine bündige Zeile ohne Scroll/Umbruch. */
+@media (max-width:768px){
+  .top-bar{padding:0 .6rem;overflow:visible}
+  .theme-switcher,.lang-switcher{display:none}   /* durch Dropdowns ersetzt */
+  .tb-compact{display:flex}
   .nav-btn .nav-label,.logout-btn .nav-label{display:none}
-  .nav-btn,.logout-btn{padding:.3rem .45rem;font-size:.78rem}
-  .theme-btn{width:24px;height:24px;font-size:.72rem}
-  .lang-btn{padding:.16rem .26rem;font-size:.58rem}
-  .lang-switcher{gap:.12rem}
-  .tb-right{gap:.28rem}
-  .profile-chip{max-width:140px}
-  /* FIX Überlappung: Chip behält seine Breite, die Menü-Leiste wird
-     bei Platzmangel horizontal scrollbar statt über den Chip zu ragen */
-  .tb-left{flex:0 0 auto;max-width:46%}
-  /* flex-start + auto-Margin: rechtsbündig wenn Platz ist, aber bei
-     Überlauf bleibt alles per Scroll erreichbar (flex-end würde den
-     Links-Überstand unerreichbar machen) */
-  .tb-right{flex:1 1 auto;min-width:0;justify-content:flex-start;
-    overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  .tb-right>:first-child{margin-left:auto}
-  .tb-right::-webkit-scrollbar{display:none}
-  .tb-right>*{flex-shrink:0}
+  .nav-btn,.logout-btn{padding:.3rem .42rem;font-size:.78rem}
+  .tb-right{gap:.3rem;flex-wrap:nowrap;min-width:0}
+  .tb-left{flex:0 1 auto;min-width:0}
+  .profile-chip{max-width:150px}
 }
-@media (max-width:400px){
-  .profile-chip{max-width:42px;padding:.2rem}
+@media (max-width:420px){
+  .profile-chip{max-width:40px;padding:.2rem}
   .profile-chip .pt{display:none}
+  .tb-right{gap:.22rem}
+  .tb-menu-btn{padding:0 .4rem}
 }

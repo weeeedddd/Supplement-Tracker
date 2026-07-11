@@ -33,6 +33,11 @@ const THEME_BTNS = [
   { id: 'ghoul', icon: IconEye, title: 'CCG Database' },
 ];
 
+// Flaggen-Labels für das kompakte Sprach-Dropdown (mobil)
+const LANG_LABEL: Record<string, string> = {
+  de: '🇩🇪 Deutsch', en: '🇬🇧 English', ja: '🇯🇵 日本語', ko: '🇰🇷 한국어', es: '🇪🇸 Español',
+};
+
 function ParticleCanvas() {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
@@ -70,7 +75,18 @@ export default function App() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [completeStreak, setCompleteStreak] = useState<number | null>(null);
+  const [menu, setMenu] = useState<null | 'lang' | 'set'>(null);   // mobile Dropdowns
   const screen = getScreen();
+
+  // Kompakte Header-Dropdowns bei Klick außerhalb / Escape schließen
+  useEffect(() => {
+    if (!menu) return;
+    const onDoc = (e: Event) => { if (!(e.target as HTMLElement).closest('.tb-menu')) setMenu(null); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    document.addEventListener('pointerdown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('pointerdown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [menu]);
 
   // Boot: Theme setzen + Session-Routing (einmalig)
   useEffect(() => {
@@ -126,6 +142,7 @@ export default function App() {
               </button>
             </>
           )}
+          {/* Desktop: einzelne Toggles inline */}
           <div className="theme-switcher">
             {THEME_BTNS.map(b => (
               <button key={b.id} className={`theme-btn${getCurrentTheme() === b.id ? ' active' : ''}`}
@@ -136,6 +153,44 @@ export default function App() {
             {LANGS.map(l => (
               <button key={l} className={`lang-btn${lang === l ? ' active' : ''}`} onClick={() => setLang(l)}>{l.toUpperCase()}</button>
             ))}
+          </div>
+
+          {/* Mobile: kompakte Glassmorphic-Dropdowns statt 8 Einzel-Buttons */}
+          <div className="tb-compact">
+            <div className="tb-menu">
+              <button className="tb-menu-btn" aria-haspopup="menu" aria-expanded={menu === 'set'}
+                title="Quick Settings" onClick={() => setMenu(menu === 'set' ? null : 'set')}>
+                {IconSettings}
+              </button>
+              {menu === 'set' && (
+                <div className="tb-pop" role="menu">
+                  <div className="tb-pop-label">THEME</div>
+                  {THEME_BTNS.map(b => (
+                    <button key={b.id} role="menuitemradio" aria-checked={getCurrentTheme() === b.id}
+                      className={`tb-pop-item${getCurrentTheme() === b.id ? ' active' : ''}`}
+                      onClick={() => { applyTheme(b.id); setMenu(null); }}>
+                      <span className="tb-pop-ic">{b.icon}</span><span>{b.title}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="tb-menu">
+              <button className="tb-menu-btn tb-lang-btn" aria-haspopup="menu" aria-expanded={menu === 'lang'}
+                title="Sprache / Language" onClick={() => setMenu(menu === 'lang' ? null : 'lang')}>
+                {IconGlobe}<span className="tb-lang-code">{lang.toUpperCase()}</span>
+                <span className="tb-caret" aria-hidden="true">▾</span>
+              </button>
+              {menu === 'lang' && (
+                <div className="tb-pop tb-pop-lang" role="menu">
+                  {LANGS.map(l => (
+                    <button key={l} role="menuitemradio" aria-checked={lang === l}
+                      className={`tb-pop-item${lang === l ? ' active' : ''}`}
+                      onClick={() => { setLang(l); setMenu(null); }}>{LANG_LABEL[l] || l.toUpperCase()}</button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
