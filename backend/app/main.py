@@ -239,7 +239,7 @@ MAX_TEXT_LEN = 800
 
 
 class Hub:
-    """Verbindungs-Verwaltung pro Raum + Broadcast."""
+    """Verbindungs-Verwaltung pro Raum + Broadcast + Live-Präsenz."""
 
     def __init__(self) -> None:
         self.rooms: dict[str, set[WebSocket]] = {r: set() for r in ROOMS}
@@ -260,6 +260,13 @@ class Hub:
                 dead.append(ws)
         for ws in dead:
             self.rooms[room].discard(ws)
+
+    async def presence(self, room: str) -> None:
+        """Live-Zähler an alle im Raum — bei Join und Leave."""
+        await self.broadcast(room, {
+            "type": "presence", "room": room,
+            "count": len(self.rooms[room]), "ts": time.time(),
+        })
 
 
 hub = Hub()
@@ -289,6 +296,8 @@ async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#0
         await ws.send_text(json.dumps({"type": "history", "messages": history}))
     finally:
         db.close()
+
+    await hub.presence(room)   # Live-Präsenz: alle sehen den neuen Zähler
 
     try:
         while True:
@@ -329,3 +338,7 @@ async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#0
         pass
     finally:
         hub.leave(room, ws)
+        try:
+            await hub.presence(room)
+        except Exception:
+            pass

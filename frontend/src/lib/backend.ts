@@ -40,10 +40,11 @@ export function syncScanToBackend(entry: { name: string; kcal: number; prot: num
 
 // ── Chat ─────────────────────────────────────────────────────────────
 export interface ChatMsg {
-  type: 'msg' | 'warning' | 'system' | 'history';
+  type: 'msg' | 'warning' | 'system' | 'history' | 'presence';
   room?: string; user?: string; uid?: string;
   text?: string; media?: string | null; ts?: number;
   reason?: string; messages?: ChatMsg[];
+  count?: number;   // presence: aktuelle Nutzerzahl im Raum
 }
 
 export function chatSocketUrl(room: string, user: string, uid: string): string {

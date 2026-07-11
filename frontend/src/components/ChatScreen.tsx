@@ -27,6 +27,7 @@ export function ChatScreen() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [connected, setConnected] = useState(false);
+  const [online, setOnline] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -54,6 +55,7 @@ export function ChatScreen() {
       try {
         const m: ChatMsg = JSON.parse(ev.data);
         if (m.type === 'history' && Array.isArray(m.messages)) setMsgs(m.messages);
+        else if (m.type === 'presence') setOnline(m.count ?? 0);   // Zähler, nicht in die Liste
         else setMsgs(prev => [...prev.slice(-199), m]);
       } catch { /* malformed frame — ignorieren */ }
     };
@@ -102,7 +104,7 @@ export function ChatScreen() {
             <div className="ki-chat-hd-title">{t('chat_title')}</div>
             <div className="ki-chat-hd-sub">
               {health === 'online'
-                ? `// ${t('chat_connected')} ${getBackendUrl().replace(/^https?:\/\//, '')} ${connected ? '· ◈' : '· …'}`
+                ? `// ${t('chat_connected')} ${getBackendUrl().replace(/^https?:\/\//, '')} ${connected ? `· 👥 ${online} ◈` : '· …'}`
                 : `// ${t('chat_offline')}`}
             </div>
           </div>
