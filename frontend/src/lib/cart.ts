@@ -82,6 +82,27 @@ export function marketDistances(addr: string) {
   }));
 }
 
+// ── Standort-Details je Supermarkt (Region Österreich) ───────────────
+export interface StoreInfo { region: string; hours: string; note: string; }
+export const MARKET_LOCATIONS: Record<string, StoreInfo> = {
+  hofer: { region: 'Österreichweit · z. B. Mariahilfer Straße 120, 1070 Wien',
+    hours: 'Mo–Fr 8:00–19:30 · Sa 8:00–18:00', note: 'Diskont · über 530 Filialen in Österreich' },
+  lidl: { region: 'Österreichweit · z. B. Landstraßer Hauptstraße 1B, 1030 Wien',
+    hours: 'Mo–Fr 8:00–20:00 · Sa 8:00–18:00', note: 'Diskont · rund 250 Filialen' },
+  billa: { region: 'Österreichweit · z. B. Praterstern 1, 1020 Wien',
+    hours: 'Mo–Fr 7:15–19:30 · Sa 7:15–18:00', note: 'Supermarkt · über 1.000 Filialen' },
+  billaplus: { region: 'Ballungszentren · z. B. SCS Vösendorf, 2334',
+    hours: 'Mo–Fr 8:00–20:00 · Sa 8:00–18:00', note: 'Großfläche · frühere Merkur-Märkte' },
+  spar: { region: 'Österreichweit · z. B. Getreidegasse 20, 5020 Salzburg',
+    hours: 'Mo–Fr 7:30–19:30 · Sa 7:30–18:00', note: 'Supermarkt · dichtestes Filialnetz' },
+};
+
+/** Google-Maps-Suche nach der nächsten Filiale rund um die Wohnadresse. */
+export function storeMapsLink(name: string, addr: string): string {
+  const q = `${name}${addr ? ' ' + addr : ' in der Nähe'}`;
+  return 'https://www.google.com/maps/search/' + encodeURIComponent(q);
+}
+
 export function fmtEUR(v: number): string { return v.toFixed(2).replace('.', ',') + ' €'; }
 
 // ═══ LIVE PRICE SYNC — Backend bevorzugt, Open Prices API als Fallback ═══

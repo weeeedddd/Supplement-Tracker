@@ -8,12 +8,14 @@
 import { S } from './storage';
 import { getBackendUrl } from './backend';
 import { timeoutSignal } from './storage';
+import { PRESET_DISHES } from './dishesData';
+import { equippedTitleName } from './engine';
 
 export interface Dish {
   id: number | string; name: string; category: string;
-  ingredients: string[]; prep_min: number;
+  ingredients: string[]; steps?: string[]; prep_min: number;
   kcal: number; prot: number; carb: number; fat: number;
-  equipment: string[]; icon: string; is_preset?: boolean; owner_uid?: string;
+  equipment: string[]; icon: string; image?: string; is_preset?: boolean; owner_uid?: string;
 }
 export interface Exercise { name: string; sets: number; reps: string; weight: string; rest: number; }
 export interface Workout {
@@ -25,28 +27,9 @@ export interface Buff { label: string; icon: string; desc: string; boosts: Recor
 const uid = () => (S.get<any>('auth')?.userId as string) || '#000';
 
 // ── Preset-Daten (Spiegel des Backends → funktioniert ohne Server) ───
-export const PRESET_DISHES: Dish[] = [
-  { id: 'p-cordon', name: 'Airfryer Cordon Bleu', category: 'main', prep_min: 20, kcal: 480, prot: 34, carb: 22, fat: 26, equipment: ['airfryer'], icon: '🍗', is_preset: true,
-    ingredients: ['2 Hähnchenschnitzel', '2 Scheiben Kochschinken', '2 Scheiben Käse', 'Semmelbrösel', '1 Ei', 'Salz, Pfeffer'] },
-  { id: 'p-fries', name: 'Airfryer Süßkartoffel-Pommes', category: 'main', prep_min: 18, kcal: 310, prot: 5, carb: 58, fat: 7, equipment: ['airfryer'], icon: '🍠', is_preset: true,
-    ingredients: ['1 große Süßkartoffel', '1 EL Olivenöl', 'Paprikapulver', 'Salz'] },
-  { id: 'p-lachs', name: 'Airfryer Lachs & Brokkoli', category: 'main', prep_min: 15, kcal: 420, prot: 38, carb: 12, fat: 24, equipment: ['airfryer'], icon: '🐟', is_preset: true,
-    ingredients: ['180g Lachsfilet', '150g Brokkoli', '1 EL Olivenöl', 'Zitrone, Salz'] },
-  { id: 'p-jollof', name: 'Reiskocher Jollof Rice', category: 'main', prep_min: 30, kcal: 520, prot: 22, carb: 78, fat: 12, equipment: ['ricecooker'], icon: '🍚', is_preset: true,
-    ingredients: ['200g Reis', '1 Dose Tomaten', '1 Zwiebel', '150g Hähnchen', 'Paprika, Gewürze'] },
-  { id: 'p-oats', name: 'Reiskocher Protein-Oats', category: 'breakfast', prep_min: 12, kcal: 390, prot: 30, carb: 52, fat: 8, equipment: ['ricecooker'], icon: '🥣', is_preset: true,
-    ingredients: ['80g Haferflocken', '1 Scoop Proteinpulver', '250ml Milch', '1 Banane', 'Zimt'] },
-  { id: 'p-congee', name: 'Reiskocher Hähnchen-Congee', category: 'main', prep_min: 35, kcal: 360, prot: 28, carb: 46, fat: 6, equipment: ['ricecooker'], icon: '🍲', is_preset: true,
-    ingredients: ['100g Reis', '150g Hähnchen', '1L Brühe', 'Ingwer, Frühlingszwiebel'] },
-  { id: 'p-quark', name: 'Magerquark-Bowl', category: 'breakfast', prep_min: 5, kcal: 320, prot: 40, carb: 30, fat: 4, equipment: ['none'], icon: '🥛', is_preset: true,
-    ingredients: ['250g Magerquark', '100g Beeren', '20g Nüsse', '1 TL Honig'] },
-  { id: 'p-pancakes', name: 'Protein-Pancakes', category: 'breakfast', prep_min: 15, kcal: 410, prot: 35, carb: 40, fat: 10, equipment: ['stove'], icon: '🥞', is_preset: true,
-    ingredients: ['1 Banane', '2 Eier', '1 Scoop Protein', '40g Haferflocken'] },
-  { id: 'p-brownie', name: 'Airfryer Protein-Brownie', category: 'dessert', prep_min: 20, kcal: 240, prot: 18, carb: 24, fat: 8, equipment: ['airfryer'], icon: '🍫', is_preset: true,
-    ingredients: ['1 Scoop Schoko-Protein', '1 Ei', '30g Haferflocken', '1 EL Kakao', 'Süßstoff'] },
-  { id: 'p-skyr', name: 'Skyr-Eiscreme', category: 'dessert', prep_min: 10, kcal: 180, prot: 22, carb: 18, fat: 2, equipment: ['none'], icon: '🍨', is_preset: true,
-    ingredients: ['300g Skyr', '1 Banane (gefroren)', 'Vanille', 'Süßstoff'] },
-];
+//   Der vollständige Katalog (100+ Gerichte mit Bild & Zubereitung) liegt in
+//   dishesData.ts und wird aus derselben Quelle wie das Backend generiert.
+export { PRESET_DISHES };
 
 const ex = (name: string, sets: number, reps: string, weight: string, rest: number): Exercise => ({ name, sets, reps, weight, rest });
 export const PRESET_WORKOUTS: Workout[] = [
@@ -181,4 +164,83 @@ export function fmtRemaining(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// ── Rezept-Sharing → Community-Chat ──────────────────────────────────
+export async function shareRecipeToChat(dish: Dish, room = 'global'): Promise<boolean> {
+  const base = getBackendUrl();
+  if (!base) return false;   // Chat ist backend-gebunden (offline-first)
+  const auth = S.get<any>('auth') || {};
+  const profile = S.get<any>('profile') || {};
+  const recipe = {
+    name: dish.name, icon: dish.icon, image: dish.image || '', category: dish.category,
+    prep_min: dish.prep_min, kcal: dish.kcal, prot: dish.prot, carb: dish.carb, fat: dish.fat,
+    equipment: dish.equipment, ingredients: dish.ingredients, steps: dish.steps || [],
+  };
+  try {
+    const res = await fetch(base + '/api/chat/share', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      signal: timeoutSignal(8000),
+      body: JSON.stringify({
+        room, user: profile.firstName || auth.username || 'Shadow',
+        uid: auth.userId || '#000', title: equippedTitleName(), recipe,
+      }),
+    });
+    return res.ok;
+  } catch { return false; }
+}
+
+// ── AI PROTOCOL BUILDER — dynamischer Trainingsplan-Generator ────────
+export type PlanLevel = 'beginner' | 'advanced' | 'elite';
+export type PlanGoal = 'muscle' | 'strength' | 'endurance' | 'definition';
+export type PlanFocus = 'push' | 'pull' | 'legs' | 'fullbody';
+export interface PlanParams { level: PlanLevel; goal: PlanGoal; focus: PlanFocus; days: number; }
+
+const EX_POOL: Record<PlanFocus, string[]> = {
+  push: ['Bankdrücken', 'Schrägbankdrücken', 'Schulterdrücken', 'Butterfly', 'Seitheben', 'Trizeps-Pushdown', 'Dips'],
+  pull: ['Klimmzüge', 'Langhantelrudern', 'Latzug', 'Kreuzheben', 'Face Pulls', 'Bizeps-Curls', 'Hammer-Curls'],
+  legs: ['Kniebeugen', 'Beinpresse', 'Rumänisches Kreuzheben', 'Ausfallschritte', 'Beinbeuger', 'Beinstrecker', 'Wadenheben'],
+  fullbody: ['Kniebeugen', 'Bankdrücken', 'Langhantelrudern', 'Schulterdrücken', 'Kreuzheben', 'Ausfallschritte', 'Plank'],
+};
+const GOAL_SCHEME: Record<PlanGoal, { reps: string; rest: number; setBias: number; de: string }> = {
+  strength:   { reps: '4-6',   rest: 150, setBias: 1,  de: 'Kraftaufbau' },
+  muscle:     { reps: '8-12',  rest: 90,  setBias: 0,  de: 'Muskelaufbau' },
+  definition: { reps: '12-15', rest: 60,  setBias: 0,  de: 'Definition' },
+  endurance:  { reps: '15-20', rest: 45,  setBias: -1, de: 'Ausdauer' },
+};
+const LEVEL_META: Record<PlanLevel, { count: number; sets: number; de: string }> = {
+  beginner: { count: 4, sets: 3, de: 'Anfänger' },
+  advanced: { count: 5, sets: 4, de: 'Fortgeschritten' },
+  elite:    { count: 6, sets: 4, de: 'Elite' },
+};
+const FOCUS_META: Record<PlanFocus, { icon: string; de: string; muscles: string }> = {
+  push:     { icon: '🏋', de: 'Push', muscles: 'Brust · Schultern · Trizeps' },
+  pull:     { icon: '🏋', de: 'Pull', muscles: 'Rücken · Bizeps' },
+  legs:     { icon: '🦵', de: 'Legs', muscles: 'Quads · Hamstrings · Waden' },
+  fullbody: { icon: '⚡', de: 'Ganzkörper', muscles: 'Kraft-Grundlagen' },
+};
+
+export function generatePlan(p: PlanParams): Omit<Workout, 'id' | 'is_preset'> {
+  const lvl = LEVEL_META[p.level] || LEVEL_META.beginner;
+  const gs = GOAL_SCHEME[p.goal] || GOAL_SCHEME.muscle;
+  const fm = FOCUS_META[p.focus] || FOCUS_META.fullbody;
+  const sets = Math.max(2, Math.min(6, lvl.sets + gs.setBias));
+  // mehr Tage/Woche → etwas weniger Volumen pro Einheit (sinnvolle Erholung)
+  const count = Math.max(3, Math.min(EX_POOL[p.focus].length, lvl.count - (p.days >= 5 ? 1 : 0)));
+  const names = EX_POOL[p.focus].slice(0, count);
+  const exercises: Exercise[] = names.map((name, i) => ({
+    name,
+    // Grundübung (erste) bei Kraft schwerer & wenige Reps, Isolation etwas höher
+    sets: i === 0 && p.goal === 'strength' ? sets + 1 : sets,
+    reps: name === 'Plank' ? '45s' : i >= count - 1 && p.goal !== 'strength' ? '12-15' : gs.reps,
+    weight: '—',
+    rest: name === 'Plank' ? 45 : i === 0 ? gs.rest + 30 : gs.rest,
+  }));
+  return {
+    name: `KI · ${fm.de} · ${gs.de}`,
+    kind: p.focus,
+    focus: `${fm.muscles} · ${lvl.de} · ${p.days}×/Woche`,
+    icon: fm.icon,
+    exercises,
+  };
 }

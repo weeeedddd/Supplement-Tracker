@@ -1,13 +1,15 @@
 // ═══════════════════════════════════════════════════════════════════
 //  ◈ MATERIA FUEL — Ernährungs-Hub (Gerichte, Makros, Rezept schmieden)
 //  Mobile-first, Glassmorphism, Neon-Makrobalken, Lucide-Icons.
+//  · Rezeptbilder + Schritt-für-Schritt-Zubereitung
+//  · Teilen-Button → Rezept-Card im Community-Chat
 // ═══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from 'react';
 import { t } from '../lib/i18n';
 import { refresh } from '../lib/store';
 import { S } from '../lib/storage';
 import { calcConsumed, type Macros } from '../lib/engine';
-import { fetchDishes, createDish, logMeal, type Dish } from '../lib/fitness';
+import { fetchDishes, createDish, logMeal, shareRecipeToChat, type Dish } from '../lib/fitness';
 
 const IconPot = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M3 12a9 9 0 0 0 18 0"/><path d="m7 8 1-4"/><path d="m12 8 .5-4"/><path d="m17 8-1-4"/></svg>;
 const IconPlus = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
@@ -16,8 +18,10 @@ const IconClock = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" st
 const IconZap = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconAir = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><circle cx="12" cy="14" r="3"/></svg>;
 const IconRice = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 18 0"/><rect x="2" y="12" width="20" height="8" rx="2"/><path d="M7 8v-.5"/><path d="M17 8v-.5"/></svg>;
+const IconShare = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>;
+const IconList = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
 
-const CATS = ['all', 'breakfast', 'main', 'dessert'];
+const CATS = ['all', 'breakfast', 'main', 'dessert', 'snack'];
 const EQUIP = [{ id: 'airfryer', icon: IconAir }, { id: 'ricecooker', icon: IconRice }];
 
 export function FuelScreen() {
@@ -42,12 +46,18 @@ export function FuelScreen() {
     { key: 'fat', label: t('m_fat'), cls: 'nb-fat', unit: 'g' },
   ];
 
+  const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3200); };
+
   const onLog = async (d: Dish) => {
     const buff = await logMeal({ name: d.name, prot: d.prot, kcal: d.kcal });
-    setToast(`${buff.icon} ${buff.label} · ${buff.desc}`);
     setDetail(null);
     refresh();
-    setTimeout(() => setToast(''), 3200);
+    flash(`${buff.icon} ${buff.label} · ${buff.desc}`);
+  };
+
+  const onShare = async (d: Dish) => {
+    const ok = await shareRecipeToChat(d);
+    flash(ok ? `${d.icon} ${t('fuel_shared')}` : t('fuel_share_offline'));
   };
 
   return (
@@ -94,8 +104,12 @@ export function FuelScreen() {
           {/* Gerichte-Grid */}
           <div className="dish-grid">
             {dishes.map(d => (
-              <button className="dish-card" key={String(d.id)} onClick={() => setDetail(d)}>
-                <div className="dish-ic">{d.icon}</div>
+              <div className="dish-card" key={String(d.id)} role="button" tabIndex={0}
+                onClick={() => setDetail(d)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetail(d); } }}>
+                {d.image
+                  ? <img className="dish-thumb" src={d.image} alt="" loading="lazy" />
+                  : <div className="dish-ic">{d.icon}</div>}
                 <div className="dish-body">
                   <div className="dish-name">{d.name}</div>
                   <div className="dish-meta">
@@ -105,26 +119,28 @@ export function FuelScreen() {
                   <div className="dish-macros">
                     <span className="dm dm-k">{d.kcal} kcal</span>
                     <span className="dm dm-p">{d.prot}g P</span>
-                    {d.equipment.filter(e => e !== 'none' && e !== 'stove').map(e => (
+                    {d.equipment.filter(e => e === 'airfryer' || e === 'ricecooker').map(e => (
                       <span className="dm dm-eq" key={e}>{e === 'airfryer' ? '♨' : '🍚'}</span>
                     ))}
                   </div>
                 </div>
-              </button>
+                <button className="dish-share" title={t('fuel_share')} aria-label={t('fuel_share')}
+                  onClick={e => { e.stopPropagation(); onShare(d); }}>{IconShare}</button>
+              </div>
             ))}
             {!dishes.length && <div className="ta-empty">{t('fuel_none')}</div>}
           </div>
         </div>
       </div>
 
-      {detail && <DishDetail dish={detail} onClose={() => setDetail(null)} onLog={() => onLog(detail)} />}
+      {detail && <DishDetail dish={detail} onClose={() => setDetail(null)} onLog={() => onLog(detail)} onShare={() => onShare(detail)} />}
       {creating && <DishCreator onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
       {toast && <div className="buff-toast">{IconZap}<span>{toast}</span></div>}
     </div>
   );
 }
 
-function DishDetail({ dish, onClose, onLog }: { dish: Dish; onClose: () => void; onLog: () => void }) {
+function DishDetail({ dish, onClose, onLog, onShare }: { dish: Dish; onClose: () => void; onLog: () => void; onShare: () => void }) {
   return (
     <div className="hub-modal open" onClick={onClose}>
       <div className="hub-box" onClick={e => e.stopPropagation()}>
@@ -133,17 +149,31 @@ function DishDetail({ dish, onClose, onLog }: { dish: Dish; onClose: () => void;
           <button className="modal-close" onClick={onClose}>{IconX}</button>
         </div>
         <div className="hub-box-body">
+          {dish.image && <img className="detail-hero" src={dish.image} alt={dish.name} loading="lazy" />}
           <div className="detail-macros">
             <div className="dmx"><b>{dish.kcal}</b><span>kcal</span></div>
             <div className="dmx"><b>{dish.prot}g</b><span>{t('m_prot')}</span></div>
             <div className="dmx"><b>{dish.carb}g</b><span>{t('m_carb')}</span></div>
             <div className="dmx"><b>{dish.fat}g</b><span>{t('m_fat')}</span></div>
           </div>
-          <div className="detail-sec">{t('fuel_ingredients')} · {IconClock} {dish.prep_min} min</div>
+          <div className="detail-sec">{IconList} {t('fuel_ingredients')} · {IconClock} {dish.prep_min} min</div>
           <ul className="ingredient-list">
             {dish.ingredients.map((ing, i) => <li key={i}>{ing}</li>)}
           </ul>
-          <button className="action-btn hub-log-btn" onClick={onLog}>{IconZap} {t('fuel_log')}</button>
+          {dish.steps && dish.steps.length > 0 && (
+            <>
+              <div className="detail-sec">{IconPot} {t('fuel_steps')}</div>
+              <ol className="step-list">
+                {dish.steps.map((s, i) => (
+                  <li key={i}><span className="step-num">{i + 1}</span><span>{s}</span></li>
+                ))}
+              </ol>
+            </>
+          )}
+          <div className="detail-actions">
+            <button className="action-btn hub-log-btn" onClick={onLog}>{IconZap} {t('fuel_log')}</button>
+            <button className="hub-share-btn" onClick={onShare}>{IconShare} {t('fuel_share')}</button>
+          </div>
         </div>
       </div>
     </div>
@@ -155,6 +185,7 @@ function DishCreator({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
   const [category, setCategory] = useState('main');
   const [prep, setPrep] = useState('');
   const [ing, setIng] = useState('');
+  const [steps, setSteps] = useState('');
   const [m, setM] = useState({ kcal: '', prot: '', carb: '', fat: '' });
   const [eq, setEq] = useState<string[]>([]);
   const num = (v: string) => parseInt(v, 10) || 0;
@@ -165,8 +196,9 @@ function DishCreator({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
     await createDish({
       name: name.trim(), category, prep_min: num(prep),
       ingredients: ing.split('\n').map(s => s.trim()).filter(Boolean),
+      steps: steps.split('\n').map(s => s.trim()).filter(Boolean),
       kcal: num(m.kcal), prot: num(m.prot), carb: num(m.carb), fat: num(m.fat),
-      equipment: eq.length ? eq : ['none'], icon: '🍳',
+      equipment: eq.length ? eq : ['none'], icon: '🍳', image: '',
     });
     onSaved();
   };
@@ -182,11 +214,12 @@ function DishCreator({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
           <input className="hub-input" placeholder={t('fuel_f_name')} value={name} onChange={e => setName(e.target.value)} />
           <div className="hub-row2">
             <select className="hub-input" value={category} onChange={e => setCategory(e.target.value)}>
-              {['breakfast', 'main', 'dessert'].map(x => <option key={x} value={x}>{t('cat_' + x)}</option>)}
+              {['breakfast', 'main', 'dessert', 'snack'].map(x => <option key={x} value={x}>{t('cat_' + x)}</option>)}
             </select>
             <input className="hub-input" type="number" inputMode="numeric" placeholder={t('fuel_f_prep')} value={prep} onChange={e => setPrep(e.target.value)} />
           </div>
           <textarea className="hub-input hub-area" placeholder={t('fuel_f_ing')} rows={3} value={ing} onChange={e => setIng(e.target.value)} />
+          <textarea className="hub-input hub-area" placeholder={t('fuel_f_steps')} rows={3} value={steps} onChange={e => setSteps(e.target.value)} />
           <div className="hub-macro-grid">
             {(['kcal', 'prot', 'carb', 'fat'] as const).map(k => (
               <div className="hub-mf" key={k}>

@@ -160,20 +160,31 @@
 /* ◈ Responsive Top-Bar (≤768px): 8 Einzel-Buttons → 2 Dropdowns,
    Nav/Logout als Icons, eine bündige Zeile ohne Scroll/Umbruch. */
 @media (max-width:768px){
-  .top-bar{padding:0 .6rem;overflow:visible}
-  .theme-switcher,.lang-switcher{display:none}   /* durch Dropdowns ersetzt */
-  .tb-compact{display:flex}
+  .top-bar{padding:0 .5rem;overflow:visible}
+  .theme-switcher,.lang-switcher{display:none}   /* durch ein Dropdown ersetzt */
+  .tb-compact{display:flex;gap:.25rem}
   .nav-btn .nav-label,.logout-btn .nav-label{display:none}
-  .nav-btn,.logout-btn{padding:.3rem .42rem;font-size:.78rem}
-  .tb-right{gap:.3rem;flex-wrap:nowrap;min-width:0}
+  .nav-btn,.logout-btn{padding:.3rem .34rem;font-size:.78rem}
+  .nav-btn svg,.logout-btn svg{width:17px;height:17px}
+  .tb-right{gap:.25rem;flex-wrap:nowrap;min-width:0}
   .tb-left{flex:0 1 auto;min-width:0}
-  .profile-chip{max-width:150px}
+  .profile-chip{max-width:132px;gap:.35rem}
 }
-@media (max-width:420px){
-  .profile-chip{max-width:40px;padding:.2rem}
+@media (max-width:430px){
+  .top-bar{padding:0 .4rem}
+  .profile-chip{max-width:34px;padding:.18rem;gap:0}
   .profile-chip .pt{display:none}
-  .tb-right{gap:.22rem}
-  .tb-menu-btn{padding:0 .4rem}
+  .av-sm{width:28px;height:28px}
+  .tb-right{gap:.16rem}
+  .tb-menu-btn{padding:0 .34rem;height:29px}
+  .nav-btn,.logout-btn{padding:.28rem .28rem}
+  .tb-lang-code{font-size:.62rem}
+}
+@media (max-width:360px){
+  .nav-btn,.logout-btn{padding:.26rem .2rem}
+  .nav-btn svg,.logout-btn svg{width:16px;height:16px}
+  .tb-right{gap:.1rem}
+  .tb-caret{display:none}   /* Platz sparen: Pfeil weg, Icon+Code reichen */
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -339,3 +350,144 @@
 .tx-del{background:none;border:none;color:var(--text3);cursor:pointer;padding:.2rem;display:inline-flex;transition:color .3s}
 .tx-del:hover{color:var(--danger)}
 .tx-add{align-self:flex-start}
+
+/* ═══════════════════════════════════════════════════════
+   ◈ REZEPT-BILDER · SCHRITTE · TEILEN · KI-BUILDER · STANDORT
+═══════════════════════════════════════════════════════ */
+/* Rezeptbild in der Karte + Teilen-Button */
+.dish-thumb{width:48px;height:48px;flex-shrink:0;border-radius:10px;object-fit:cover;
+  border:1px solid var(--border2);background:rgba(0,0,0,.3)}
+.dish-share{flex-shrink:0;width:32px;height:32px;border-radius:9px;cursor:pointer;
+  background:rgba(0,0,0,.3);border:1px solid var(--border);color:var(--text3);
+  display:inline-flex;align-items:center;justify-content:center;transition:all .3s}
+.dish-share:hover{border-color:var(--accent2);color:var(--accent3);
+  background:rgba(var(--glow-rgb),.16);box-shadow:0 0 10px rgba(var(--glow-rgb),.28)}
+
+/* Detail-Modal: Hero-Bild, Schritt-Liste, Aktions-Zeile */
+.detail-hero{width:100%;height:170px;object-fit:cover;border-radius:var(--r2);
+  border:1px solid var(--border);background:rgba(0,0,0,.3)}
+.detail-sec svg{opacity:.8;flex-shrink:0}
+.step-list{list-style:none;display:flex;flex-direction:column;gap:.45rem;counter-reset:none}
+.step-list li{display:flex;gap:.55rem;align-items:flex-start;font-size:.8rem;line-height:1.5;color:var(--text2)}
+.step-num{flex-shrink:0;width:20px;height:20px;border-radius:50%;margin-top:.05rem;
+  display:inline-flex;align-items:center;justify-content:center;font-size:.66rem;font-weight:700;
+  color:var(--accent3);background:rgba(var(--glow-rgb),.16);border:1px solid var(--border2)}
+.detail-actions{display:flex;gap:.5rem;margin-top:.4rem}
+.detail-actions .hub-log-btn{flex:1}
+.hub-share-btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;flex-shrink:0;
+  padding:0 1rem;border-radius:var(--r3);cursor:pointer;font-size:.78rem;font-weight:700;
+  background:rgba(var(--glow-rgb),.1);border:1px solid var(--border2);color:var(--accent3);transition:all .3s}
+.hub-share-btn:hover{background:rgba(var(--glow-rgb),.2);box-shadow:0 0 12px rgba(var(--glow-rgb),.3)}
+
+/* Rezept-Card im Chat */
+.chat-recipe-card{align-self:stretch;max-width:300px;width:100%;text-align:left;cursor:pointer;
+  display:flex;flex-direction:column;overflow:hidden;padding:0;
+  background:linear-gradient(160deg,rgba(var(--glow-rgb),.14),rgba(10,8,18,.6));
+  border:1px solid var(--border2);border-radius:14px;transition:all .3s}
+.chat-recipe-card:hover{border-color:var(--accent2);box-shadow:0 6px 22px rgba(var(--glow-rgb),.3);transform:translateY(-1px)}
+.crc-img{width:100%;height:118px;object-fit:cover;display:block;border-bottom:1px solid var(--border)}
+.crc-body{padding:.6rem .7rem;display:flex;flex-direction:column;gap:.35rem}
+.crc-badge{display:inline-flex;align-items:center;gap:.3rem;align-self:flex-start;
+  font-size:.54rem;font-weight:700;letter-spacing:.12em;color:var(--accent3);
+  background:rgba(var(--glow-rgb),.16);border:1px solid var(--border2);border-radius:99px;padding:.14rem .5rem}
+.crc-badge svg{width:12px;height:12px}
+.crc-name{font-size:.86rem;font-weight:700;color:var(--text);line-height:1.25}
+.crc-macros{display:flex;flex-wrap:wrap;gap:.3rem}
+.crc-macros span{font-size:.6rem;font-weight:700;padding:.1rem .4rem;border-radius:99px}
+.crc-k{background:rgba(249,200,70,.14);color:var(--gold);border:1px solid rgba(249,200,70,.3)}
+.crc-p{background:rgba(168,85,247,.14);color:var(--accent3);border:1px solid rgba(168,85,247,.3)}
+.crc-c{background:rgba(56,189,248,.12);color:#59c7f5;border:1px solid rgba(56,189,248,.3)}
+.crc-f{background:rgba(34,211,160,.12);color:var(--success);border:1px solid rgba(34,211,160,.3)}
+.crc-open{display:inline-flex;align-items:center;gap:.2rem;font-size:.64rem;font-weight:600;
+  color:var(--accent3);margin-top:.1rem}
+.crc-open svg{width:13px;height:13px}
+
+/* Glassmorphism-Vorschaufenster (Chat-Rezept) */
+.recipe-modal{position:fixed;inset:0;z-index:520;display:flex;align-items:center;justify-content:center;
+  padding:1.1rem;background:rgba(5,4,10,.72);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  animation:fadeIn .2s ease}
+.recipe-box{position:relative;width:100%;max-width:440px;max-height:86dvh;display:flex;flex-direction:column;
+  overflow:hidden;border-radius:20px;border:1px solid var(--border2);
+  background:rgba(14,11,24,.86);backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px);
+  box-shadow:0 24px 60px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06);
+  animation:hubUp .3s cubic-bezier(.4,0,.2,1)}
+.recipe-close{position:absolute;top:.7rem;right:.7rem;z-index:2;width:32px;height:32px;border-radius:50%;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer;
+  background:rgba(5,4,10,.6);border:1px solid var(--border2);color:var(--text);backdrop-filter:blur(6px);transition:all .3s}
+.recipe-close:hover{background:rgba(5,4,10,.85);border-color:var(--accent2)}
+.recipe-hero{width:100%;height:190px;object-fit:cover;flex-shrink:0}
+.recipe-scroll{overflow-y:auto;padding:1rem 1.1rem 1.3rem;display:flex;flex-direction:column;gap:.7rem}
+.recipe-title{font-size:1.05rem;font-weight:700;color:var(--text);line-height:1.2}
+.recipe-sub{display:flex;align-items:center;gap:.4rem;font-size:.66rem;color:var(--text3);flex-wrap:wrap}
+.recipe-sub svg{width:12px;height:12px;vertical-align:-2px}
+.recipe-dot{opacity:.5}
+.recipe-macros{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-top:.1rem}
+.rmx{background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:var(--r3);
+  padding:.55rem .3rem;text-align:center;display:flex;flex-direction:column;gap:.15rem}
+.rmx b{font-size:.92rem;color:var(--text)}
+.rmx span{font-size:.54rem;letter-spacing:.06em;color:var(--text3)}
+.recipe-sec{font-size:.62rem;font-weight:700;letter-spacing:.12em;color:var(--text3);margin-top:.2rem}
+
+/* Einkaufs-Kalkulator: klickbare Märkte + Standort-Chips */
+.cart-market-hd{width:100%;text-align:left;background:none;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:space-between;gap:.5rem;transition:color .2s}
+.cart-market-hd:hover{color:var(--accent3)}
+.cart-market-tap{display:inline-flex;color:var(--accent3);opacity:0;transition:opacity .2s}
+.cart-market-hd:hover .cart-market-tap{opacity:.9}
+.cart-dist-chip{display:inline-flex;align-items:center;gap:.25rem;cursor:pointer;
+  background:rgba(0,0,0,.28);border:1px solid var(--border);color:var(--text2);
+  font-size:.62rem;font-weight:600;padding:.22rem .5rem;border-radius:99px;transition:all .3s}
+.cart-dist-chip svg{width:11px;height:11px;opacity:.7}
+.cart-dist-chip:hover{border-color:var(--accent2);color:var(--accent3);background:rgba(var(--glow-rgb),.14)}
+
+/* Standort-Modal */
+.store-modal{align-items:center;padding:1.1rem}
+.store-box{width:100%;max-width:400px;border-radius:18px;border:1px solid var(--border2);
+  background:rgba(14,11,24,.9);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  box-shadow:0 22px 54px rgba(0,0,0,.6);display:flex;flex-direction:column;
+  animation:hubUp .28s cubic-bezier(.4,0,.2,1)}
+.store-body{padding:1rem;display:flex;flex-direction:column;gap:.7rem}
+.store-dist{display:flex;align-items:center;gap:.45rem;font-size:.74rem;color:var(--text2);
+  background:rgba(var(--glow-rgb),.1);border:1px solid var(--border2);border-radius:var(--r3);padding:.55rem .7rem}
+.store-dist svg{color:var(--accent3);flex-shrink:0}
+.store-facts{display:flex;flex-direction:column;gap:.5rem}
+.store-fact{display:flex;flex-direction:column;gap:.15rem}
+.store-fact span{font-size:.56rem;font-weight:700;letter-spacing:.1em;color:var(--text3)}
+.store-fact b{font-size:.76rem;font-weight:600;color:var(--text);line-height:1.4}
+.store-maps{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;text-decoration:none;margin-top:.2rem}
+
+/* AI Protocol Builder */
+.ai-cta{width:100%;display:flex;align-items:center;gap:.7rem;text-align:left;cursor:pointer;margin-bottom:.85rem;
+  padding:.8rem .85rem;border-radius:var(--r2);transition:all .3s;
+  background:linear-gradient(135deg,rgba(var(--glow-rgb),.18),rgba(var(--glow-rgb),.04));
+  border:1px solid var(--border2);box-shadow:0 0 0 rgba(var(--glow-rgb),0)}
+.ai-cta:hover{border-color:var(--accent2);box-shadow:0 0 20px rgba(var(--glow-rgb),.3)}
+.ai-cta-ic{flex-shrink:0;width:38px;height:38px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--accent3);background:rgba(var(--glow-rgb),.16);border:1px solid var(--border2)}
+.ai-cta-tx{flex:1;min-width:0;display:flex;flex-direction:column}
+.ai-cta-tx b{font-size:.86rem;font-weight:700;color:var(--text)}
+.ai-cta-tx span{font-size:.66rem;color:var(--text3)}
+.ai-cta-go{flex-shrink:0;color:var(--accent3);display:inline-flex}
+.ai-field{display:flex;flex-direction:column;gap:.4rem}
+.ai-label{font-size:.62rem;font-weight:700;letter-spacing:.08em;color:var(--text3)}
+.ai-days-val{color:var(--accent3)}
+.ai-seg{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem}
+.ai-seg:not(.ai-seg-2){grid-template-columns:repeat(auto-fit,minmax(48px,1fr))}
+.ai-seg-2{grid-template-columns:repeat(2,1fr)}
+.ai-opt{padding:.5rem .4rem;border-radius:var(--r3);cursor:pointer;font-size:.74rem;font-weight:600;
+  background:rgba(0,0,0,.3);border:1px solid var(--border);color:var(--text2);transition:all .3s}
+.ai-opt:hover{border-color:var(--border2);color:var(--text)}
+.ai-opt.sel{border-color:var(--accent2);background:rgba(var(--glow-rgb),.16);color:var(--accent3);
+  box-shadow:0 0 8px rgba(var(--glow-rgb),.24)}
+.ai-preview{background:rgba(0,0,0,.28);border:1px solid var(--border2);border-radius:var(--r2);padding:.75rem .8rem;
+  display:flex;flex-direction:column;gap:.5rem}
+.ai-preview-hd{display:flex;align-items:center;gap:.4rem;font-size:.82rem;font-weight:700;color:var(--accent3)}
+.ai-preview-hd svg{flex-shrink:0}
+.ai-preview-focus{font-size:.66rem;color:var(--text3);margin-top:-.2rem}
+.ai-preview-list{display:flex;flex-direction:column;gap:.3rem}
+.ai-preview-ex{display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+  font-size:.74rem;padding:.32rem .1rem;border-bottom:1px solid rgba(255,255,255,.04)}
+.ai-px-n{color:var(--text);font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ai-px-s{display:inline-flex;align-items:center;gap:.2rem;color:var(--text3);flex-shrink:0;font-variant-numeric:tabular-nums}
+.ai-px-s svg{margin-left:.1rem}
+.ai-gen-btn{display:flex;align-items:center;justify-content:center;gap:.45rem;margin-top:.2rem}

@@ -41,10 +41,17 @@ export function syncScanToBackend(entry: { name: string; kcal: number; prot: num
 // ── Chat ─────────────────────────────────────────────────────────────
 export interface RosterUser { uid: string; user: string; title: string; }
 
+export interface SharedRecipe {
+  name: string; icon: string; image: string; category: string; prep_min: number;
+  kcal: number; prot: number; carb: number; fat: number;
+  equipment: string[]; ingredients: string[]; steps: string[];
+}
+
 export interface ChatMsg {
   type: 'msg' | 'warning' | 'system' | 'history' | 'presence' | 'bot';
   room?: string; user?: string; uid?: string; title?: string;
   text?: string; media?: string | null; ts?: number;
+  recipe?: SharedRecipe | null;   // geteiltes Rezept → Card + Preview-Modal
   reason?: string; messages?: ChatMsg[];
   count?: number;                 // presence: aktuelle Nutzerzahl im Raum
   roster?: RosterUser[];          // presence: aktive User (für die Sidebar)

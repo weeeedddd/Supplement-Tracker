@@ -4,7 +4,10 @@
 import { useEffect, useState } from 'react';
 import { t } from '../lib/i18n';
 import { refresh } from '../lib/store';
-import { fetchWorkouts, createWorkout, logWorkout, type Workout, type Exercise } from '../lib/fitness';
+import {
+  fetchWorkouts, createWorkout, logWorkout, generatePlan,
+  type Workout, type Exercise, type PlanLevel, type PlanGoal, type PlanFocus,
+} from '../lib/fitness';
 
 const IconDumbbell = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>;
 const IconPlus = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
@@ -12,22 +15,32 @@ const IconX = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke
 const IconCheck = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
 const IconZap = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 const IconClock = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+const IconSpark = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>;
 
 export function TrainingScreen() {
   const [plans, setPlans] = useState<Workout[]>([]);
   const [active, setActive] = useState<Workout | null>(null);
   const [creating, setCreating] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [toast, setToast] = useState('');
 
   const load = () => { fetchWorkouts().then(setPlans); };
   useEffect(load, []);
 
+  const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3200); };
+
   const onFinish = async (w: Workout) => {
     const buff = await logWorkout({ name: w.name, kind: w.kind });
-    setToast(`${buff.icon} ${buff.label} · ${buff.desc}`);
     setActive(null);
     refresh();
-    setTimeout(() => setToast(''), 3200);
+    flash(`${buff.icon} ${buff.label} · ${buff.desc}`);
+  };
+
+  const onGenerated = (w: Workout) => {
+    setBuilding(false);
+    load();
+    setActive(w);   // direkt live tracken
+    flash(`${IconZapTxt} ${t('ai_created')}`);
   };
 
   return (
@@ -42,6 +55,11 @@ export function TrainingScreen() {
         </div>
 
         <div className="hub-scroll">
+          <button className="ai-cta" onClick={() => setBuilding(true)}>
+            <span className="ai-cta-ic">{IconSpark}</span>
+            <span className="ai-cta-tx"><b>{t('ai_title')}</b><span>{t('ai_sub')}</span></span>
+            <span className="ai-cta-go">{IconPlus}</span>
+          </button>
           <div className="hub-filters">
             <button className="chip chip-forge" onClick={() => setCreating(true)}>{IconPlus}{t('train_forge')}</button>
           </div>
@@ -62,10 +80,13 @@ export function TrainingScreen() {
 
       {active && <LiveTracker plan={active} onClose={() => setActive(null)} onFinish={() => onFinish(active)} />}
       {creating && <WorkoutCreator onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {building && <AIBuilder onClose={() => setBuilding(false)} onGenerated={onGenerated} />}
       {toast && <div className="buff-toast">{IconZap}<span>{toast}</span></div>}
     </div>
   );
 }
+
+const IconZapTxt = '⚡';
 
 function LiveTracker({ plan, onClose, onFinish }: { plan: Workout; onClose: () => void; onFinish: () => void }) {
   // pro Übung ein Array gecheckter Sätze
@@ -162,6 +183,90 @@ function WorkoutCreator({ onClose, onSaved }: { onClose: () => void; onSaved: ()
             <button className="chip chip-forge tx-add" onClick={addRow}>{IconPlus}{t('train_add_ex')}</button>
           </div>
           <button className="action-btn" onClick={save}>{t('train_f_save')}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AI PROTOCOL BUILDER — KI-gestützter Trainingsplan-Generator ──────
+function AIBuilder({ onClose, onGenerated }: { onClose: () => void; onGenerated: (w: Workout) => void }) {
+  const [level, setLevel] = useState<PlanLevel>('beginner');
+  const [goal, setGoal] = useState<PlanGoal>('muscle');
+  const [focus, setFocus] = useState<PlanFocus>('push');
+  const [days, setDays] = useState(3);
+  const [busy, setBusy] = useState(false);
+
+  const levels: PlanLevel[] = ['beginner', 'advanced', 'elite'];
+  const goals: PlanGoal[] = ['muscle', 'strength', 'endurance', 'definition'];
+  const focuses: PlanFocus[] = ['push', 'pull', 'legs', 'fullbody'];
+
+  const preview = generatePlan({ level, goal, focus, days });
+
+  const generate = async () => {
+    setBusy(true);
+    const saved = await createWorkout(preview);
+    onGenerated(saved);
+  };
+
+  return (
+    <div className="hub-modal open" onClick={onClose}>
+      <div className="hub-box hub-box-lg" onClick={e => e.stopPropagation()}>
+        <div className="hub-box-hd">
+          <span className="hub-box-title">{IconSpark} {t('ai_title')}</span>
+          <button className="modal-close" onClick={onClose}>{IconX}</button>
+        </div>
+        <div className="hub-box-body">
+          <div className="ai-field">
+            <label className="ai-label">{t('ai_level')}</label>
+            <div className="ai-seg">
+              {levels.map(l => (
+                <button key={l} className={`ai-opt${level === l ? ' sel' : ''}`} onClick={() => setLevel(l)}>{t('lvl_' + l)}</button>
+              ))}
+            </div>
+          </div>
+          <div className="ai-field">
+            <label className="ai-label">{t('ai_goal')}</label>
+            <div className="ai-seg ai-seg-2">
+              {goals.map(g => (
+                <button key={g} className={`ai-opt${goal === g ? ' sel' : ''}`} onClick={() => setGoal(g)}>{t('goal_' + g)}</button>
+              ))}
+            </div>
+          </div>
+          <div className="ai-field">
+            <label className="ai-label">{t('ai_focus')}</label>
+            <div className="ai-seg ai-seg-2">
+              {focuses.map(f => (
+                <button key={f} className={`ai-opt${focus === f ? ' sel' : ''}`} onClick={() => setFocus(f)}>{t('kind_' + f)}</button>
+              ))}
+            </div>
+          </div>
+          <div className="ai-field">
+            <label className="ai-label">{t('ai_days')}: <b className="ai-days-val">{days}×</b></label>
+            <div className="ai-seg">
+              {[2, 3, 4, 5, 6].map(d => (
+                <button key={d} className={`ai-opt${days === d ? ' sel' : ''}`} onClick={() => setDays(d)}>{d}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Live-Vorschau des generierten Protokolls */}
+          <div className="ai-preview">
+            <div className="ai-preview-hd">{IconSpark}<span>{preview.name}</span></div>
+            <div className="ai-preview-focus">{preview.focus}</div>
+            <div className="ai-preview-list">
+              {preview.exercises.map((ex, i) => (
+                <div className="ai-preview-ex" key={i}>
+                  <span className="ai-px-n">{ex.name}</span>
+                  <span className="ai-px-s">{ex.sets}×{ex.reps} · {IconClock}{ex.rest}s</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button className="action-btn ai-gen-btn" onClick={generate} disabled={busy}>
+            {IconSpark} {busy ? '…' : t('ai_generate')}
+          </button>
         </div>
       </div>
     </div>

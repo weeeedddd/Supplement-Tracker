@@ -11,7 +11,7 @@ import {
   type FoodEntry, type Macros, type ProtocolItem, type Profile,
 } from '../lib/engine';
 import { analyzeImageLocally, analyzeTextLocally } from '../lib/scanner';
-import { syncLivePrices, priceSyncState, runSmartCart, fmtEUR, LIVE_PRICES, MARKET_DB, type CartResult } from '../lib/cart';
+import { syncLivePrices, priceSyncState, runSmartCart, fmtEUR, LIVE_PRICES, MARKET_DB, MARKET_LOCATIONS, storeMapsLink, type CartResult } from '../lib/cart';
 import { syncScanToBackend } from '../lib/backend';
 import { getActiveBuffs, fmtRemaining } from '../lib/fitness';
 
@@ -30,6 +30,8 @@ const IconScroll = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" s
 const IconRefresh = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>;
 const IconStore = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0v0a2 2 0 0 1-2-2V7"/></svg>;
 const IconMapPin = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>;
+const IconExternal = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>;
+const IconXstore = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 const IconCheck = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
 const IconPlus = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
 const IconInfo = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
@@ -365,6 +367,12 @@ function SmartCartWidget() {
   const [budget, setBudget] = useState<number>(cfg.budget || 20);
   const [addr, setAddr] = useState<string>(cfg.addr || '');
   const [result, setResult] = useState<CartResult | null>(null);
+  const [store, setStore] = useState<{ id: string; name: string; dist?: number } | null>(null);
+
+  const openStore = (id: string, name: string) => {
+    const dist = result?.dists?.find(d => d.id === id)?.dist;
+    setStore({ id, name, dist });
+  };
 
   const calc = () => {
     const goal = (S.get<Profile>('profile') || {}).goal || 'bulk';
@@ -420,7 +428,8 @@ function SmartCartWidget() {
                 <div className="cart-dist">{IconMapPin} <span>{t('cart_nearest')}: <b>{result.cheapest.name}</b> · {String(cd.dist).replace('.', ',')} km · ~{Math.round(cd.dist * 12)} min 🚶</span></div>
                 <div className="cart-dist-list">
                   {result.dists.slice().sort((a, b) => a.dist - b.dist).map(d => (
-                    <span className="cart-dist-chip" key={d.id}>{d.name} · {String(d.dist).replace('.', ',')} km</span>
+                    <button className="cart-dist-chip" key={d.id} onClick={() => openStore(d.id, d.name)}
+                      title={t('store_open')}>{IconMapPin}{d.name} · {String(d.dist).replace('.', ',')} km</button>
                   ))}
                 </div>
               </>
@@ -430,7 +439,10 @@ function SmartCartWidget() {
               const sub = list.reduce((a, i) => a + i.price * i.qty, 0);
               return (
                 <div className="cart-market" key={mid}>
-                  <div className="cart-market-hd"><span>{IconStore} {m.name}</span><small>{list.length} · {fmtEUR(sub)}</small></div>
+                  <button className="cart-market-hd" onClick={() => openStore(mid, m.name)} title={t('store_open')}>
+                    <span>{IconStore} {m.name} <span className="cart-market-tap">{IconMapPin}</span></span>
+                    <small>{list.length} · {fmtEUR(sub)}</small>
+                  </button>
                   {list.map(i => (
                     <div className="cart-item" key={i.product.id}>
                       <span className="cart-item-ic">{i.product.icon}</span>
@@ -447,6 +459,37 @@ function SmartCartWidget() {
             <div className="cart-hint">{t('cart_hint')}</div>
           </>
         )}
+      </div>
+      {store && <StoreModal store={store} addr={addr} onClose={() => setStore(null)} />}
+    </div>
+  );
+}
+
+// ── Standort-Vorschau je Supermarkt ──────────────────────────────────
+function StoreModal({ store, addr, onClose }: { store: { id: string; name: string; dist?: number }; addr: string; onClose: () => void }) {
+  const info = MARKET_LOCATIONS[store.id];
+  return (
+    <div className="hub-modal open store-modal" onClick={onClose}>
+      <div className="store-box" onClick={e => e.stopPropagation()}>
+        <div className="hub-box-hd">
+          <span className="hub-box-title">{IconStore} {store.name}</span>
+          <button className="modal-close" onClick={onClose}>{IconXstore}</button>
+        </div>
+        <div className="store-body">
+          {store.dist != null && (
+            <div className="store-dist">{IconMapPin}<span>{t('store_nearest')} · <b>{String(store.dist).replace('.', ',')} km</b> · ~{Math.round(store.dist * 12)} min 🚶</span></div>
+          )}
+          {info && (
+            <div className="store-facts">
+              <div className="store-fact"><span>{t('store_region')}</span><b>{info.region}</b></div>
+              <div className="store-fact"><span>{t('store_hours')}</span><b>{info.hours}</b></div>
+              <div className="store-fact"><span>{t('store_note')}</span><b>{info.note}</b></div>
+            </div>
+          )}
+          <a className="action-btn store-maps" href={storeMapsLink(store.name, addr)} target="_blank" rel="noopener noreferrer">
+            {IconExternal} {t('store_maps')}
+          </a>
+        </div>
       </div>
     </div>
   );

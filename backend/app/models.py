@@ -61,6 +61,7 @@ class ChatMessage(Base):
     uid_tag: Mapped[str] = mapped_column(String(16), default="#000")
     text: Mapped[str] = mapped_column(Text, default="")
     media: Mapped[str] = mapped_column(String(512), default="")    # /media/<datei> oder ""
+    meta: Mapped[str] = mapped_column(Text, default="")            # JSON-Payload (z. B. geteiltes Rezept)
     ts: Mapped[float] = mapped_column(Float, default=now, index=True)
 
 
@@ -102,6 +103,7 @@ class Dish(Base):
     name: Mapped[str] = mapped_column(String(120), index=True)
     category: Mapped[str] = mapped_column(String(24), default="main")    # breakfast|main|dessert|snack
     ingredients: Mapped[str] = mapped_column(Text, default="")           # eine Zutat pro Zeile
+    steps: Mapped[str] = mapped_column(Text, default="")                 # ein Zubereitungsschritt pro Zeile
     prep_min: Mapped[int] = mapped_column(Integer, default=0)
     kcal: Mapped[int] = mapped_column(Integer, default=0)
     prot: Mapped[int] = mapped_column(Integer, default=0)
@@ -109,6 +111,7 @@ class Dish(Base):
     fat: Mapped[int] = mapped_column(Integer, default=0)
     equipment: Mapped[str] = mapped_column(String(64), default="")       # csv: airfryer,ricecooker,stove,none
     icon: Mapped[str] = mapped_column(String(8), default="🍽")
+    image: Mapped[str] = mapped_column(String(512), default="")          # Rezeptbild (Unsplash / URL)
     is_preset: Mapped[int] = mapped_column(Integer, default=0)
     owner_uid: Mapped[str] = mapped_column(String(16), default="", index=True)
     ts: Mapped[float] = mapped_column(Float, default=now)

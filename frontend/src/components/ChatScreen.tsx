@@ -16,7 +16,7 @@ import { buildStatsSnapshot, equippedTitleName, getXPRankData } from '../lib/eng
 import { renderMarkdown } from '../lib/markdown';
 import {
   getBackendUrl, setBackendUrl, backendHealth, chatSocketUrl, uploadChatMedia,
-  syncProfileToBackend, type ChatMsg, type RosterUser,
+  syncProfileToBackend, type ChatMsg, type RosterUser, type SharedRecipe,
 } from '../lib/backend';
 
 const IconGroup = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
@@ -24,6 +24,10 @@ const IconSend = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" str
 const IconCamera = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>;
 const IconWifiOff = <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.56 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>;
 const IconUsers = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>;
+const IconClock = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
+const IconChevron = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>;
+const IconXsm = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+const IconPot = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M3 12a9 9 0 0 0 18 0"/><path d="m7 8 1-4"/><path d="m12 8 .5-4"/><path d="m17 8-1-4"/></svg>;
 
 const LANG_ROOM_LABEL: Record<string, string> = { de: '🇩🇪 Deutsch', en: '🇬🇧 English', ja: '🇯🇵 日本語', ko: '🇰🇷 한국어', es: '🇪🇸 Español' };
 
@@ -38,6 +42,7 @@ export function ChatScreen() {
   const [online, setOnline] = useState(0);
   const [roster, setRoster] = useState<RosterUser[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [preview, setPreview] = useState<SharedRecipe | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -186,6 +191,18 @@ export function ChatScreen() {
                     return <div className="chat-sys" key={i}>◈ {m.text}</div>;
                   }
                   const mine = m.uid === uid && m.user === user;
+                  if (m.recipe) {
+                    return (
+                      <div className={`ki-msg ${mine ? 'user' : 'ai'}`} key={i}>
+                        <RecipeCard recipe={m.recipe} onOpen={() => setPreview(m.recipe!)} />
+                        <div className="ki-msg-ts">
+                          {mine ? t('ki_you') : <>{m.user} {m.uid || ''}</>}
+                          {!mine && m.title && <span className="msg-title"> · {m.title}</span>}
+                          {' · '}{m.ts ? new Date(m.ts * 1000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : ''}
+                        </div>
+                      </div>
+                    );
+                  }
                   return (
                     <div className={`ki-msg ${mine ? 'user' : 'ai'}`} key={i}>
                       <div className="ki-msg-bubble">
@@ -236,6 +253,71 @@ export function ChatScreen() {
             {sidebarOpen && <div className="chat-sidebar-scrim" onClick={() => setSidebarOpen(false)} />}
           </div>
         )}
+      </div>
+      {preview && <RecipePreview recipe={preview} onClose={() => setPreview(null)} />}
+    </div>
+  );
+}
+
+// ── Rezept-Card im Chat (auffällig, klickbar → Preview) ──────────────
+function RecipeCard({ recipe, onOpen }: { recipe: SharedRecipe; onOpen: () => void }) {
+  return (
+    <button className="chat-recipe-card" onClick={onOpen}>
+      {recipe.image && <img className="crc-img" src={recipe.image} alt="" loading="lazy" />}
+      <div className="crc-body">
+        <div className="crc-badge">{IconPot} {t('fuel_shared_badge')}</div>
+        <div className="crc-name">{recipe.icon} {recipe.name}</div>
+        <div className="crc-macros">
+          <span className="crc-k">{recipe.kcal} kcal</span>
+          <span className="crc-p">{recipe.prot}g P</span>
+          <span className="crc-c">{recipe.carb}g C</span>
+          <span className="crc-f">{recipe.fat}g F</span>
+        </div>
+        <div className="crc-open">{t('recipe_open')} {IconChevron}</div>
+      </div>
+    </button>
+  );
+}
+
+// ── Interaktives Glassmorphism-Vorschaufenster ───────────────────────
+function RecipePreview({ recipe, onClose }: { recipe: SharedRecipe; onClose: () => void }) {
+  return (
+    <div className="recipe-modal" onClick={onClose}>
+      <div className="recipe-box" onClick={e => e.stopPropagation()}>
+        <button className="recipe-close" onClick={onClose} aria-label="close">{IconXsm}</button>
+        {recipe.image && <img className="recipe-hero" src={recipe.image} alt={recipe.name} loading="lazy" />}
+        <div className="recipe-scroll">
+          <div className="recipe-title">{recipe.icon} {recipe.name}</div>
+          <div className="recipe-sub">
+            <span>{t('cat_' + recipe.category)}</span>
+            <span className="recipe-dot">·</span>
+            <span>{IconClock} {recipe.prep_min} min</span>
+          </div>
+          <div className="recipe-macros">
+            <div className="rmx"><b>{recipe.kcal}</b><span>kcal</span></div>
+            <div className="rmx"><b>{recipe.prot}g</b><span>{t('m_prot')}</span></div>
+            <div className="rmx"><b>{recipe.carb}g</b><span>{t('m_carb')}</span></div>
+            <div className="rmx"><b>{recipe.fat}g</b><span>{t('m_fat')}</span></div>
+          </div>
+          {recipe.ingredients?.length > 0 && (
+            <>
+              <div className="recipe-sec">{t('fuel_ingredients')}</div>
+              <ul className="ingredient-list">
+                {recipe.ingredients.map((ing, i) => <li key={i}>{ing}</li>)}
+              </ul>
+            </>
+          )}
+          {recipe.steps?.length > 0 && (
+            <>
+              <div className="recipe-sec">{t('fuel_steps')}</div>
+              <ol className="step-list">
+                {recipe.steps.map((s, i) => (
+                  <li key={i}><span className="step-num">{i + 1}</span><span>{s}</span></li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

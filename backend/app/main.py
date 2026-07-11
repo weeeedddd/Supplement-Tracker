@@ -53,9 +53,25 @@ os.makedirs(MEDIA_DIR, exist_ok=True)
 app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 
 
+def _migrate_columns() -> None:
+    """Leichte Additiv-Migration für bestehende SQLite-DBs: fehlende Spalten
+    nachrüsten (create_all legt neue Tabellen an, ändert aber keine alten)."""
+    wanted = {
+        "dishes": [("steps", "TEXT DEFAULT ''"), ("image", "VARCHAR(512) DEFAULT ''")],
+        "chat_messages": [("meta", "TEXT DEFAULT ''")],
+    }
+    with engine.begin() as conn:
+        for table, cols in wanted.items():
+            existing = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+            for name, ddl in cols:
+                if name not in existing:
+                    conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+
+
 @app.on_event("startup")
 def _init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _migrate_columns()
     db = SessionLocal()
     try:
         seed_fitness(db)   # Preset-Gerichte & -Trainingspläne (idempotent)
@@ -254,9 +270,10 @@ def _dish_out(d: Dish) -> dict:
     return {
         "id": d.id, "name": d.name, "category": d.category,
         "ingredients": [ln for ln in (d.ingredients or "").split("\n") if ln.strip()],
+        "steps": [ln for ln in (d.steps or "").split("\n") if ln.strip()],
         "prep_min": d.prep_min, "kcal": d.kcal, "prot": d.prot, "carb": d.carb, "fat": d.fat,
         "equipment": [e for e in (d.equipment or "").split(",") if e], "icon": d.icon,
-        "is_preset": bool(d.is_preset), "owner_uid": d.owner_uid,
+        "image": d.image or "", "is_preset": bool(d.is_preset), "owner_uid": d.owner_uid,
     }
 
 
@@ -287,6 +304,7 @@ class DishIn(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     category: str = Field(default="main", max_length=24)
     ingredients: list[str] = Field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
     prep_min: int = 0
     kcal: int = 0
     prot: int = 0
@@ -294,6 +312,7 @@ class DishIn(BaseModel):
     fat: int = 0
     equipment: list[str] = Field(default_factory=list)
     icon: str = Field(default="🍽", max_length=8)
+    image: str = Field(default="", max_length=512)
     owner_uid: str = Field(default="", max_length=16)
 
 
@@ -301,10 +320,11 @@ class DishIn(BaseModel):
 def create_dish(body: DishIn, db: Session = Depends(get_db)):
     d = Dish(
         name=body.name, category=body.category,
-        ingredients="\n".join(body.ingredients), prep_min=body.prep_min,
+        ingredients="\n".join(body.ingredients), steps="\n".join(body.steps),
+        prep_min=body.prep_min,
         kcal=body.kcal, prot=body.prot, carb=body.carb, fat=body.fat,
         equipment=",".join(body.equipment), icon=body.icon or "🍽",
-        is_preset=0, owner_uid=body.owner_uid,
+        image=body.image or "", is_preset=0, owner_uid=body.owner_uid,
     )
     db.add(d)
     db.commit()
@@ -566,6 +586,7 @@ async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#0
         history = [{
             "type": "msg", "room": room, "user": r.user, "uid": r.uid_tag,
             "text": r.text, "media": r.media or None, "ts": r.ts,
+            "recipe": json.loads(r.meta) if getattr(r, "meta", "") else None,
         } for r in reversed(rows)]
         await ws.send_text(json.dumps({"type": "history", "messages": history}))
     finally:
@@ -623,3 +644,48 @@ async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#0
             await hub.presence(room)   # sofortiges Roster-Update bei Disconnect
         except Exception:
             pass
+
+
+# ═══ REZEPT-SHARING — geteiltes Rezept als Chat-Card ═════════════════
+class ShareRecipeIn(BaseModel):
+    room: str = Field(default="global", max_length=24)
+    user: str = Field(default="Shadow", max_length=40)
+    uid: str = Field(default="#000", max_length=16)
+    title: str = Field(default="", max_length=48)
+    recipe: dict = Field(default_factory=dict)
+
+
+@app.post("/api/chat/share")
+async def share_recipe(body: ShareRecipeIn):
+    """Postet ein Rezept als spezielle Card in einen Chat-Raum: persistiert
+    (mit JSON-Payload in meta) und broadcastet live an alle Verbundenen."""
+    room = body.room if body.room in ROOMS else "global"
+    r = body.recipe or {}
+    name = str(r.get("name") or "Rezept")[:120]
+    # kompakte, sanitisierte Payload für die Card
+    recipe = {
+        "name": name, "icon": str(r.get("icon") or "🍽")[:8],
+        "image": str(r.get("image") or "")[:512], "category": str(r.get("category") or "main")[:24],
+        "prep_min": int(r.get("prep_min") or 0),
+        "kcal": int(r.get("kcal") or 0), "prot": int(r.get("prot") or 0),
+        "carb": int(r.get("carb") or 0), "fat": int(r.get("fat") or 0),
+        "equipment": [str(e)[:16] for e in (r.get("equipment") or [])][:4],
+        "ingredients": [str(x)[:120] for x in (r.get("ingredients") or [])][:30],
+        "steps": [str(x)[:400] for x in (r.get("steps") or [])][:15],
+    }
+    user = body.user.strip()[:40] or "Shadow"
+    uid = body.uid.strip()[:16] or "#000"
+    ts = time.time()
+    text = f"◈ Rezept geteilt: {name}"
+    db = SessionLocal()
+    try:
+        db.add(ChatMessage(room=room, user=user, uid_tag=uid, text=text,
+                           media="", meta=json.dumps(recipe, ensure_ascii=False)))
+        db.commit()
+    finally:
+        db.close()
+    await hub.broadcast(room, {
+        "type": "msg", "room": room, "user": user, "uid": uid, "title": body.title.strip()[:48],
+        "text": text, "media": None, "recipe": recipe, "ts": ts,
+    })
+    return {"ok": True, "room": room}
