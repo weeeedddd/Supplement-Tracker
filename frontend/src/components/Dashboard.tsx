@@ -13,6 +13,9 @@ import {
 import { analyzeImageLocally, analyzeTextLocally } from '../lib/scanner';
 import { syncLivePrices, priceSyncState, runSmartCart, fmtEUR, LIVE_PRICES, MARKET_DB, type CartResult } from '../lib/cart';
 import { syncScanToBackend } from '../lib/backend';
+import { getActiveBuffs, fmtRemaining } from '../lib/fitness';
+
+const IconZapBuff = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
 
 const IconFlame = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>;
 const IconWater = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>;
@@ -98,12 +101,40 @@ export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
             </div>
           </div>
         </div>
+        <BuffWidget />
         <MacroWidget />
         <ScannerWidget />
         <PhaseCards protocol={protocol} checked={checked} toggle={toggle} />
         <SmartCartWidget />
         <ManaWidget />
         <MissionLog />
+      </div>
+    </div>
+  );
+}
+
+// ═══ STAT-BUFF-WIDGET (Mega-Feature: temporäre Attribut-Boosts) ══════
+function BuffWidget() {
+  useAppState();
+  const [, tick] = useState(0);
+  // Countdown jede Minute aktualisieren + abgelaufene Buffs entfernen
+  useEffect(() => { const id = setInterval(() => tick(x => x + 1), 60000); return () => clearInterval(id); }, []);
+  const buffs = getActiveBuffs();
+  if (!buffs.length) return null;
+  return (
+    <div className="widget buff-widget">
+      <div className="w-title">{IconZapBuff} {t('buff_active')}</div>
+      <div className="buff-list">
+        {buffs.map((b, i) => (
+          <div className="buff-item" key={i}>
+            <span className="buff-ic">{b.icon}</span>
+            <div className="buff-meta">
+              <div className="buff-label">{b.label}</div>
+              <div className="buff-desc">{b.desc}</div>
+            </div>
+            <span className="buff-timer">{fmtRemaining(b.expires_at - Date.now())}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

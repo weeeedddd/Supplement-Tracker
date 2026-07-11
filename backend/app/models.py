@@ -87,3 +87,57 @@ class UserStats(Base):
     equipped_title: Mapped[str] = mapped_column(String(48), default="")
     streak: Mapped[int] = mapped_column(Integer, default=0)
     ts: Mapped[float] = mapped_column(Float, default=now)
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  ◈ AGENT TRAINING PROTOCOLS & MATERIA FUEL
+#  Ernährungs-DB (Gerichte + User-Rezepte), Trainingspläne mit
+#  Übungen, und temporäre Stat-Buffs (Mega-Feature).
+# ═══════════════════════════════════════════════════════════════════
+class Dish(Base):
+    """Gericht mit exakten Nährwerten. is_preset=1 → mitgeliefert,
+    sonst User-Rezept (owner_uid gesetzt)."""
+    __tablename__ = "dishes"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    category: Mapped[str] = mapped_column(String(24), default="main")    # breakfast|main|dessert|snack
+    ingredients: Mapped[str] = mapped_column(Text, default="")           # eine Zutat pro Zeile
+    prep_min: Mapped[int] = mapped_column(Integer, default=0)
+    kcal: Mapped[int] = mapped_column(Integer, default=0)
+    prot: Mapped[int] = mapped_column(Integer, default=0)
+    carb: Mapped[int] = mapped_column(Integer, default=0)
+    fat: Mapped[int] = mapped_column(Integer, default=0)
+    equipment: Mapped[str] = mapped_column(String(64), default="")       # csv: airfryer,ricecooker,stove,none
+    icon: Mapped[str] = mapped_column(String(8), default="🍽")
+    is_preset: Mapped[int] = mapped_column(Integer, default=0)
+    owner_uid: Mapped[str] = mapped_column(String(16), default="", index=True)
+    ts: Mapped[float] = mapped_column(Float, default=now)
+
+
+class WorkoutPlan(Base):
+    """Trainingsplan (Split / Ganzkörper). Übungen als JSON-Liste
+    [{name,sets,reps,weight,rest}] — kompakt & flexibel."""
+    __tablename__ = "workout_plans"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), index=True)
+    kind: Mapped[str] = mapped_column(String(24), default="split")       # split|fullbody|push|pull|legs
+    focus: Mapped[str] = mapped_column(String(80), default="")
+    exercises_json: Mapped[str] = mapped_column(Text, default="[]")
+    icon: Mapped[str] = mapped_column(String(8), default="🏋")
+    is_preset: Mapped[int] = mapped_column(Integer, default=0)
+    owner_uid: Mapped[str] = mapped_column(String(16), default="", index=True)
+    ts: Mapped[float] = mapped_column(Float, default=now)
+
+
+class StatBuff(Base):
+    """Temporärer Attribut-Boost, ausgelöst durch geloggte Mahlzeit
+    oder Workout. Läuft nach expires_at ab."""
+    __tablename__ = "stat_buffs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    uid_tag: Mapped[str] = mapped_column(String(16), index=True)
+    source: Mapped[str] = mapped_column(String(16), default="meal")      # meal|workout
+    label: Mapped[str] = mapped_column(String(80), default="")
+    icon: Mapped[str] = mapped_column(String(8), default="⚡")
+    boosts_json: Mapped[str] = mapped_column(Text, default="{}")         # {STR:+10,VIT:+10}
+    created: Mapped[float] = mapped_column(Float, default=now)
+    expires_at: Mapped[float] = mapped_column(Float, default=now, index=True)

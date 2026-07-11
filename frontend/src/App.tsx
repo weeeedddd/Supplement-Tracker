@@ -9,6 +9,8 @@ import { KiScreen } from './components/KiScreen';
 import { Dashboard } from './components/Dashboard';
 import { ProfileOverlay, CompleteOverlay, BriefingModal } from './components/Overlays';
 import { ChatScreen } from './components/ChatScreen';
+import { FuelScreen } from './components/FuelScreen';
+import { TrainingScreen } from './components/TrainingScreen';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const IconLogout = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
@@ -24,6 +26,8 @@ const IconShield = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" s
 const IconGlobe = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>;
 const IconPower = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>;
 const IconEyeOff = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></svg>;
+const IconFuel = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M3 12a9 9 0 0 0 18 0"/><path d="m7 8 1-4"/><path d="m12 8 .5-4"/><path d="m17 8-1-4"/></svg>;
+const IconTrain = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>;
 
 const AV = ['◈', '◉', '◊'];
 
@@ -101,7 +105,7 @@ export default function App() {
   const auth = S.get<any>('auth');
   const profile = S.get<any>('profile');
   const sess = S.get('session');
-  const onApp = screen === 'dashboard' || screen === 'chat';
+  const onApp = screen === 'dashboard' || screen === 'chat' || screen === 'fuel' || screen === 'training';
 
   const logout = () => {
     S.del('session');
@@ -131,6 +135,14 @@ export default function App() {
               <button className={`nav-btn${screen === 'dashboard' ? ' active' : ''}`} onClick={() => showScreen('dashboard')} title={t('nav_dash')}>
                 {IconDashboard}
                 <span className="nav-label">{t('nav_dash').split(' ').slice(1).join(' ')}</span>
+              </button>
+              <button className={`nav-btn${screen === 'fuel' ? ' active' : ''}`} onClick={() => showScreen('fuel')} title={t('nav_fuel')}>
+                {IconFuel}
+                <span className="nav-label">{t('nav_fuel')}</span>
+              </button>
+              <button className={`nav-btn${screen === 'training' ? ' active' : ''}`} onClick={() => showScreen('training')} title={t('nav_train')}>
+                {IconTrain}
+                <span className="nav-label">{t('nav_train')}</span>
               </button>
               <button className={`nav-btn${screen === 'chat' ? ' active' : ''}`} onClick={() => showScreen('chat')} title={t('nav_chat')}>
                 {IconMessage}
@@ -203,6 +215,8 @@ export default function App() {
         {screen === 'ki' && <KiScreen />}
         {screen === 'dashboard' && <Dashboard onComplete={n => setCompleteStreak(n)} />}
         {screen === 'chat' && <ChatScreen />}
+        {screen === 'fuel' && <FuelScreen />}
+        {screen === 'training' && <TrainingScreen />}
       </ErrorBoundary>
 
       {screen === 'dashboard' && (

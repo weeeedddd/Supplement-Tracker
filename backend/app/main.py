@@ -25,7 +25,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import Base, SessionLocal, engine, get_db
-from .models import AuthToken, ChatMessage, ScanEntry, User, UserStats
+from .models import AuthToken, ChatMessage, Dish, ScanEntry, User, UserStats, WorkoutPlan
+from .services.fitness import (
+    active_buffs, add_buff, buff_for_meal, buff_for_workout, seed_fitness,
+)
 from .services.food import analyze_barcode, analyze_text
 from .services.loadout import find_loadout, format_loadout, loadout_names
 from .services.prices import get_live_prices_cached
@@ -53,6 +56,11 @@ app.mount("/media", StaticFiles(directory=MEDIA_DIR), name="media")
 @app.on_event("startup")
 def _init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    db = SessionLocal()
+    try:
+        seed_fitness(db)   # Preset-Gerichte & -Trainingspläne (idempotent)
+    finally:
+        db.close()
 
 
 # ═══ HEALTH ═══════════════════════════════════════════════════════════
@@ -239,6 +247,164 @@ def profile_sync(body: StatsIn, db: Session = Depends(get_db)):
     row.ts = time.time()
     db.commit()
     return {"ok": True}
+
+
+# ═══ MATERIA FUEL — Gerichte & User-Rezepte ══════════════════════════
+def _dish_out(d: Dish) -> dict:
+    return {
+        "id": d.id, "name": d.name, "category": d.category,
+        "ingredients": [ln for ln in (d.ingredients or "").split("\n") if ln.strip()],
+        "prep_min": d.prep_min, "kcal": d.kcal, "prot": d.prot, "carb": d.carb, "fat": d.fat,
+        "equipment": [e for e in (d.equipment or "").split(",") if e], "icon": d.icon,
+        "is_preset": bool(d.is_preset), "owner_uid": d.owner_uid,
+    }
+
+
+@app.get("/api/dishes")
+def list_dishes(category: str | None = None, equipment: str | None = None,
+                owner: str | None = None, db: Session = Depends(get_db)):
+    stmt = select(Dish)
+    if category:
+        stmt = stmt.where(Dish.category == category)
+    if owner:
+        stmt = stmt.where((Dish.is_preset == 1) | (Dish.owner_uid == owner))
+    rows = db.scalars(stmt.order_by(Dish.is_preset.desc(), Dish.name)).all()
+    out = [_dish_out(d) for d in rows]
+    if equipment:  # csv-Feld enthält den Filterwert
+        out = [d for d in out if equipment in d["equipment"]]
+    return {"dishes": out}
+
+
+@app.get("/api/dishes/{dish_id}")
+def get_dish(dish_id: int, db: Session = Depends(get_db)):
+    d = db.get(Dish, dish_id)
+    if not d:
+        raise HTTPException(404, "dish not found")
+    return _dish_out(d)
+
+
+class DishIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    category: str = Field(default="main", max_length=24)
+    ingredients: list[str] = Field(default_factory=list)
+    prep_min: int = 0
+    kcal: int = 0
+    prot: int = 0
+    carb: int = 0
+    fat: int = 0
+    equipment: list[str] = Field(default_factory=list)
+    icon: str = Field(default="🍽", max_length=8)
+    owner_uid: str = Field(default="", max_length=16)
+
+
+@app.post("/api/dishes")
+def create_dish(body: DishIn, db: Session = Depends(get_db)):
+    d = Dish(
+        name=body.name, category=body.category,
+        ingredients="\n".join(body.ingredients), prep_min=body.prep_min,
+        kcal=body.kcal, prot=body.prot, carb=body.carb, fat=body.fat,
+        equipment=",".join(body.equipment), icon=body.icon or "🍽",
+        is_preset=0, owner_uid=body.owner_uid,
+    )
+    db.add(d)
+    db.commit()
+    return _dish_out(d)
+
+
+# ═══ PROTOCOL TRAINING — Trainingspläne ══════════════════════════════
+def _plan_out(w: WorkoutPlan) -> dict:
+    return {
+        "id": w.id, "name": w.name, "kind": w.kind, "focus": w.focus,
+        "exercises": json.loads(w.exercises_json or "[]"), "icon": w.icon,
+        "is_preset": bool(w.is_preset), "owner_uid": w.owner_uid,
+    }
+
+
+@app.get("/api/workouts")
+def list_workouts(owner: str | None = None, db: Session = Depends(get_db)):
+    stmt = select(WorkoutPlan)
+    if owner:
+        stmt = stmt.where((WorkoutPlan.is_preset == 1) | (WorkoutPlan.owner_uid == owner))
+    rows = db.scalars(stmt.order_by(WorkoutPlan.is_preset.desc(), WorkoutPlan.name)).all()
+    return {"workouts": [_plan_out(w) for w in rows]}
+
+
+@app.get("/api/workouts/{plan_id}")
+def get_workout(plan_id: int, db: Session = Depends(get_db)):
+    w = db.get(WorkoutPlan, plan_id)
+    if not w:
+        raise HTTPException(404, "workout not found")
+    return _plan_out(w)
+
+
+class ExerciseIn(BaseModel):
+    name: str = Field(max_length=80)
+    sets: int = 3
+    reps: str = Field(default="10", max_length=16)
+    weight: str = Field(default="", max_length=16)
+    rest: int = 60
+
+
+class WorkoutIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    kind: str = Field(default="split", max_length=24)
+    focus: str = Field(default="", max_length=80)
+    exercises: list[ExerciseIn] = Field(default_factory=list)
+    icon: str = Field(default="🏋", max_length=8)
+    owner_uid: str = Field(default="", max_length=16)
+
+
+@app.post("/api/workouts")
+def create_workout(body: WorkoutIn, db: Session = Depends(get_db)):
+    w = WorkoutPlan(
+        name=body.name, kind=body.kind, focus=body.focus,
+        exercises_json=json.dumps([e.model_dump() for e in body.exercises]),
+        icon=body.icon or "🏋", is_preset=0, owner_uid=body.owner_uid,
+    )
+    db.add(w)
+    db.commit()
+    return _plan_out(w)
+
+
+# ═══ MEGA-FEATURE: STAT BUFFS (Log → temporärer Attribut-Boost) ══════
+class LogMealIn(BaseModel):
+    uid: str = Field(max_length=16)
+    name: str = Field(default="", max_length=120)
+    prot: int = 0
+    kcal: int = 0
+
+
+class LogWorkoutIn(BaseModel):
+    uid: str = Field(max_length=16)
+    name: str = Field(default="", max_length=120)
+    kind: str = Field(default="fullbody", max_length=24)
+
+
+@app.post("/api/log/meal")
+def log_meal(body: LogMealIn, db: Session = Depends(get_db)):
+    spec = buff_for_meal(body.prot, body.kcal)
+    row = add_buff(db, body.uid, "meal", spec)
+    return {"ok": True, "buff": {
+        "label": row.label, "icon": row.icon, "desc": spec["desc"],
+        "boosts": spec["boosts"], "expires_at": row.expires_at,
+        "remaining": int(row.expires_at - time.time()),
+    }}
+
+
+@app.post("/api/log/workout")
+def log_workout(body: LogWorkoutIn, db: Session = Depends(get_db)):
+    spec = buff_for_workout(body.kind)
+    row = add_buff(db, body.uid, "workout", spec)
+    return {"ok": True, "buff": {
+        "label": row.label, "icon": row.icon, "desc": spec["desc"],
+        "boosts": spec["boosts"], "expires_at": row.expires_at,
+        "remaining": int(row.expires_at - time.time()),
+    }}
+
+
+@app.get("/api/buffs/{uid}")
+def get_buffs(uid: str, db: Session = Depends(get_db)):
+    return {"buffs": active_buffs(db, uid)}
 
 
 # ═══ CHAT: MEDIA-UPLOAD ═══════════════════════════════════════════════
