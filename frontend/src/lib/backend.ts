@@ -39,18 +39,38 @@ export function syncScanToBackend(entry: { name: string; kcal: number; prot: num
 }
 
 // ── Chat ─────────────────────────────────────────────────────────────
+export interface RosterUser { uid: string; user: string; title: string; }
+
 export interface ChatMsg {
-  type: 'msg' | 'warning' | 'system' | 'history' | 'presence';
-  room?: string; user?: string; uid?: string;
+  type: 'msg' | 'warning' | 'system' | 'history' | 'presence' | 'bot';
+  room?: string; user?: string; uid?: string; title?: string;
   text?: string; media?: string | null; ts?: number;
   reason?: string; messages?: ChatMsg[];
-  count?: number;   // presence: aktuelle Nutzerzahl im Raum
+  count?: number;                 // presence: aktuelle Nutzerzahl im Raum
+  roster?: RosterUser[];          // presence: aktive User (für die Sidebar)
 }
 
-export function chatSocketUrl(room: string, user: string, uid: string): string {
+export function chatSocketUrl(room: string, user: string, uid: string, title = ''): string {
   const base = getBackendUrl();
   const ws = base.replace(/^http/, 'ws');
-  return `${ws}/ws/chat/${encodeURIComponent(room)}?user=${encodeURIComponent(user)}&uid=${encodeURIComponent(uid)}`;
+  return `${ws}/ws/chat/${encodeURIComponent(room)}`
+    + `?user=${encodeURIComponent(user)}&uid=${encodeURIComponent(uid)}&title=${encodeURIComponent(title)}`;
+}
+
+// RPG-Snapshot ans Backend spiegeln, damit der Shadow Bot !profile lesen kann
+export function syncProfileToBackend(stats: {
+  uid: string; name: string; rank: string; xp: number; level: number;
+  attrs: Record<string, number>; achievements: number; titles: number;
+  equipped_title: string; streak: number;
+}): void {
+  const base = getBackendUrl();
+  if (!base) return;
+  fetch(`${base}/api/profile/sync`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(stats),
+    signal: timeoutSignal(6000),
+  }).catch(() => { /* Backend offline — Chat läuft ohne Sync weiter */ });
 }
 
 export async function uploadChatMedia(file: File): Promise<string | null> {

@@ -166,6 +166,25 @@ export function getEquippedTitle(): string { return S.get('title_equipped') || '
 export function equipTitle(id: string): void {
   if (getUnlockedAchievements().includes(id)) S.set('title_equipped', id);
 }
+// Anzeigename des aktuell ausgerüsteten Titels (für Chat/Sidebar/Bot)
+export function equippedTitleName(): string {
+  return ACHIEVE_DEFS[getEquippedTitle()]?.name || 'Shadow Novice';
+}
+
+// RPG-Snapshot für den Backend-Sync (Shadow Bot !profile / !stats)
+export function buildStatsSnapshot(uid: string, name: string, rank: string) {
+  const xp = getXPRankData();
+  const unlocked = getUnlockedAchievements();
+  return {
+    uid, name, rank,
+    xp: xp.xp, level: xp.idx + 1,
+    attrs: calcRPGStats(),
+    achievements: unlocked.length,
+    titles: unlocked.length,
+    equipped_title: equippedTitleName(),
+    streak: getStreak().count,
+  };
+}
 
 export function getAllFoodEntries(): FoodEntry[] {
   const all: FoodEntry[] = [];

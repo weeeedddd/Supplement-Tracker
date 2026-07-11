@@ -69,3 +69,21 @@ class PriceCache(Base):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)  # z. B. "live_prices"
     payload: Mapped[str] = mapped_column(Text, default="{}")
     ts: Mapped[float] = mapped_column(Float, default=now)
+
+
+class UserStats(Base):
+    """RPG-Snapshot pro Chat-User (Level, Attribute, Titel, Streak).
+    Client-seitig berechnet und via /api/profile/sync gespiegelt — der
+    Shadow Bot liest hieraus für !profile / !stats."""
+    __tablename__ = "user_stats"
+    uid_tag: Mapped[str] = mapped_column(String(16), primary_key=True)   # #001 …
+    name: Mapped[str] = mapped_column(String(80), default="")
+    rank: Mapped[str] = mapped_column(String(48), default="Shadow Novice")
+    xp: Mapped[int] = mapped_column(Integer, default=0)
+    level: Mapped[int] = mapped_column(Integer, default=1)
+    attrs_json: Mapped[str] = mapped_column(Text, default="{}")          # {STR,VIT,AGI,INT,MAG}
+    achievements: Mapped[int] = mapped_column(Integer, default=0)
+    titles: Mapped[int] = mapped_column(Integer, default=0)
+    equipped_title: Mapped[str] = mapped_column(String(48), default="")
+    streak: Mapped[int] = mapped_column(Integer, default=0)
+    ts: Mapped[float] = mapped_column(Float, default=now)

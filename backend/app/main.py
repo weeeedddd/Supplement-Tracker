@@ -25,11 +25,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .db import Base, SessionLocal, engine, get_db
-from .models import AuthToken, ChatMessage, ScanEntry, User
+from .models import AuthToken, ChatMessage, ScanEntry, User, UserStats
 from .services.food import analyze_barcode, analyze_text
+from .services.loadout import find_loadout, format_loadout, loadout_names
 from .services.prices import get_live_prices_cached
 from .services.vision import MAX_IMAGE_BYTES, capabilities, decode_barcode, ocr_text
-from .shadow_bot import WARNINGS, moderate
+from .shadow_bot import (
+    WARNINGS, command_on_cooldown, format_profile, moderate, parse_command,
+)
 
 app = FastAPI(title="SHADOW~1 Backend", version="2.0.0")
 
@@ -204,6 +207,40 @@ def list_scans(uid: str, limit: int = 50, db: Session = Depends(get_db)):
     } for r in rows]}
 
 
+# ═══ RPG-STATS-SYNC (für den Shadow Bot: !profile / !stats) ═══════════
+class StatsIn(BaseModel):
+    uid: str = Field(max_length=16)
+    name: str = Field(default="", max_length=80)
+    rank: str = Field(default="Shadow Novice", max_length=48)
+    xp: int = 0
+    level: int = 1
+    attrs: dict[str, int] = Field(default_factory=dict)
+    achievements: int = 0
+    titles: int = 0
+    equipped_title: str = Field(default="", max_length=48)
+    streak: int = 0
+
+
+@app.post("/api/profile/sync")
+def profile_sync(body: StatsIn, db: Session = Depends(get_db)):
+    row = db.get(UserStats, body.uid)
+    if not row:
+        row = UserStats(uid_tag=body.uid)
+        db.add(row)
+    row.name = body.name
+    row.rank = body.rank
+    row.xp = body.xp
+    row.level = body.level
+    row.attrs_json = json.dumps({k: int(v) for k, v in (body.attrs or {}).items()})
+    row.achievements = body.achievements
+    row.titles = body.titles
+    row.equipped_title = body.equipped_title
+    row.streak = body.streak
+    row.ts = time.time()
+    db.commit()
+    return {"ok": True}
+
+
 # ═══ CHAT: MEDIA-UPLOAD ═══════════════════════════════════════════════
 ALLOWED_IMG = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif"}
 MAX_UPLOAD = 3 * 1024 * 1024  # 3 MB
@@ -239,17 +276,22 @@ MAX_TEXT_LEN = 800
 
 
 class Hub:
-    """Verbindungs-Verwaltung pro Raum + Broadcast + Live-Präsenz."""
+    """Verbindungs-Verwaltung pro Raum + Broadcast + Live-Präsenz.
+    Pro Socket wird {uid, user, title} gehalten, damit die Präsenz eine
+    vollständige Roster-Liste (für die Sidebar) senden kann."""
 
     def __init__(self) -> None:
         self.rooms: dict[str, set[WebSocket]] = {r: set() for r in ROOMS}
+        self.meta: dict[WebSocket, dict] = {}
 
-    async def join(self, room: str, ws: WebSocket) -> None:
+    async def join(self, room: str, ws: WebSocket, meta: dict) -> None:
         await ws.accept()
         self.rooms[room].add(ws)
+        self.meta[ws] = meta
 
     def leave(self, room: str, ws: WebSocket) -> None:
         self.rooms[room].discard(ws)
+        self.meta.pop(ws, None)
 
     async def broadcast(self, room: str, payload: dict) -> None:
         dead = []
@@ -259,29 +301,95 @@ class Hub:
             except Exception:
                 dead.append(ws)
         for ws in dead:
-            self.rooms[room].discard(ws)
+            self.leave(room, ws)
+
+    async def send_to(self, ws: WebSocket, payload: dict) -> None:
+        try:
+            await ws.send_text(json.dumps(payload))
+        except Exception:
+            pass
+
+    def roster(self, room: str) -> list[dict]:
+        """Aktive User im Raum, nach Name sortiert (dedupliziert per uid)."""
+        seen: dict[str, dict] = {}
+        for ws in self.rooms[room]:
+            m = self.meta.get(ws)
+            if m:
+                seen[m["uid"]] = {"uid": m["uid"], "user": m["user"], "title": m.get("title", "")}
+        return sorted(seen.values(), key=lambda x: x["user"].lower())
 
     async def presence(self, room: str) -> None:
-        """Live-Zähler an alle im Raum — bei Join und Leave."""
+        """Live-Roster + Zähler an alle im Raum — bei Join und Leave."""
+        roster = self.roster(room)
         await self.broadcast(room, {
             "type": "presence", "room": room,
-            "count": len(self.rooms[room]), "ts": time.time(),
+            "count": len(roster), "roster": roster, "ts": time.time(),
         })
 
 
 hub = Hub()
 
 
+def _bot_msg(text: str) -> dict:
+    return {"type": "bot", "user": "SHADOW BOT", "uid": "◈", "text": text, "ts": time.time()}
+
+
+async def _handle_command(ws: WebSocket, room: str, uid: str, user: str, cmd: str, arg: str) -> None:
+    """Bot-Befehle: !profile/!stats (privat) · !loadout/!help (im Raum)."""
+    if cmd in ("profile", "stats"):
+        db = SessionLocal()
+        try:
+            row = db.get(UserStats, uid)
+        finally:
+            db.close()
+        if not row:
+            await hub.send_to(ws, _bot_msg(
+                f"◈ Noch keine Akte für `{uid}` gespeichert, {user}. "
+                "Öffne einmal dein Profil im Terminal, damit die Schatten deine Werte lesen."))
+            return
+        stats = {
+            "name": row.name or user, "uid_tag": row.uid_tag, "rank": row.rank,
+            "xp": row.xp, "streak": row.streak, "achievements": row.achievements,
+            "equipped_title": row.equipped_title,
+            "attrs": json.loads(row.attrs_json or "{}"),
+        }
+        await hub.send_to(ws, _bot_msg(format_profile(stats)))   # privat an den Absender
+        return
+
+    if cmd == "loadout":
+        found = find_loadout(arg)
+        if not found:
+            await hub.send_to(ws, _bot_msg(
+                f"◈ Kein Loadout für „{arg or '—'}" + "\" gefunden.\n▸ Verfügbar: "
+                + ", ".join(loadout_names())))
+            return
+        name, data = found
+        await hub.broadcast(room, _bot_msg(format_loadout(name, data)))   # im Raum sichtbar
+        return
+
+    if cmd == "help":
+        await hub.send_to(ws, _bot_msg(
+            "◈ **SHADOW BOT — Befehle**\n"
+            "▸ **!profile** / **!stats** — deine RPG-Akte\n"
+            "▸ **!loadout <Name>** — optimiertes Setup (z. B. `!loadout Fennec`)\n"
+            "▸ **!help** — diese Übersicht"))
+        return
+
+    # Unbekannter Befehl → dezenter Hinweis, nur an den Absender
+    await hub.send_to(ws, _bot_msg(f"◈ Unbekannter Befehl `!{cmd}`. Versuch **!help**."))
+
+
 @app.websocket("/ws/chat/{room}")
-async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#000"):
+async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#000", title: str = ""):
     if room not in ROOMS:
         await ws.close(code=4404)
         return
     user = user.strip()[:40] or "Shadow"
     uid = uid.strip()[:8] or "#000"
+    title = title.strip()[:48]
     sender_key = f"{uid}:{user}"
 
-    await hub.join(room, ws)
+    await hub.join(room, ws, {"uid": uid, "user": user, "title": title})
     # Historie aus der SQL-DB (letzte 50 Nachrichten)
     db: Session = SessionLocal()
     try:
@@ -297,7 +405,7 @@ async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#0
     finally:
         db.close()
 
-    await hub.presence(room)   # Live-Präsenz: alle sehen den neuen Zähler
+    await hub.presence(room)   # Live-Präsenz: alle sehen das neue Roster
 
     try:
         while True:
@@ -312,6 +420,13 @@ async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#0
             media = data.get("media")
             media = str(media)[:512] if media else None
             if not text and not media:
+                continue
+
+            # ── SHADOW BOT: Befehle (!profile / !loadout …) VOR Moderation ──
+            cmd = parse_command(text)
+            if cmd:
+                if not command_on_cooldown(sender_key):
+                    await _handle_command(ws, room, uid, user, cmd[0], cmd[1])
                 continue
 
             # ── SHADOW BOT: Moderation VOR Persistenz & Broadcast ──
@@ -331,7 +446,7 @@ async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#0
             finally:
                 db.close()
             await hub.broadcast(room, {
-                "type": "msg", "room": room, "user": user, "uid": uid,
+                "type": "msg", "room": room, "user": user, "uid": uid, "title": title,
                 "text": text, "media": media, "ts": ts,
             })
     except WebSocketDisconnect:
@@ -339,6 +454,6 @@ async def chat_ws(ws: WebSocket, room: str, user: str = "Shadow", uid: str = "#0
     finally:
         hub.leave(room, ws)
         try:
-            await hub.presence(room)
+            await hub.presence(room)   # sofortiges Roster-Update bei Disconnect
         except Exception:
             pass

@@ -51,6 +51,29 @@ Geblockte Nachrichten werden **nicht** gespeichert; der Absender erhält eine
 mystische Verwarnung im Stil der App (das Frontend lokalisiert den
 `reason`-Code in alle 5 Sprachen).
 
+### Bot-Befehle
+
+Nachrichten, die mit `!` beginnen, fängt der Bot ab (2 s Cooldown pro User):
+
+| Befehl | Wirkung |
+|---|---|
+| `!profile` / `!stats` | Liest die RPG-Akte des Absenders aus `user_stats` (Rang, XP, Attribut-Balken, Streak, Titel) und schickt sie **privat** zurück |
+| `!loadout <Name>` | Gibt ein optimiertes Waffen-Setup **im Raum** aus (z. B. `!loadout Fennec`, `!loadout WSP-9`); Daten in `services/loadout.py`, tolerante Namensauflösung |
+| `!help` | Befehls-Übersicht (privat) |
+
+Die RPG-Daten für `!profile` werden client-seitig berechnet und via
+`POST /api/profile/sync` in die Tabelle `user_stats` gespiegelt (beim
+Betreten des Chats). Bot-Antworten kommen als `bot`-Nachrichtentyp und
+unterstützen Markdown.
+
+## Live-Präsenz
+
+Der WebSocket-Hub sendet bei Join **und** Disconnect ein `presence`-Frame mit
+`count` und einem `roster` (`[{uid, user, title}]`) an alle im Raum — das
+Frontend rendert daraus die einklappbare Präsenz-Sidebar. Tab-Schließen löst
+client-seitig (`pagehide`) ein sofortiges Schließen des Sockets aus, damit das
+Roster ohne Verzögerung aktualisiert.
+
 ## Hinweise
 
 - CORS: für produktives Hosting `CORS_ORIGINS` auf die Pages-Domain begrenzen.
