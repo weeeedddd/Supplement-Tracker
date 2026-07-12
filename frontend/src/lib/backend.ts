@@ -45,6 +45,7 @@ export interface SharedRecipe {
   name: string; icon: string; image: string; category: string; prep_min: number;
   kcal: number; prot: number; carb: number; fat: number;
   equipment: string[]; ingredients: string[]; steps: string[];
+  i18n?: Record<string, { name: string; ingredients: string[]; steps: string[] }>;
 }
 
 export interface ChatMsg {

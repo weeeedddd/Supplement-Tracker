@@ -55,46 +55,30 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
 
         <div className="po-grid">
           <div className="po-stat"><div className="po-stat-l">{t('po_age')}</div><div className="po-stat-v">{profile.age || '–'}</div></div>
-          <div className="po-stat"><div className="po-stat-l">{t('po_height')}</div><div className="po-stat-v">{profile.height || '–'} cm</div></div>
-          <div className="po-stat"><div className="po-stat-l">{t('po_weight')}</div><div className="po-stat-v">{profile.weight || '–'} kg</div></div>
+          <div className="po-stat"><div className="po-stat-l">{t('po_height')}</div><div className="po-stat-v">{profile.height || '–'}<em>cm</em></div></div>
+          <div className="po-stat"><div className="po-stat-l">{t('po_weight')}</div><div className="po-stat-v">{profile.weight || '–'}<em>kg</em></div></div>
           <div className="po-stat"><div className="po-stat-l">{t('po_gender')}</div><div className="po-stat-v">{gMap[profile.gender] || '–'}</div></div>
           <div className="po-stat"><div className="po-stat-l">{t('po_goal')}</div><div className="po-stat-v">{goalMap[profile.goal] || '–'}</div></div>
           <div className="po-stat"><div className="po-stat-l">{t('po_bmi')}</div><div className="po-stat-v">{bmi ? bmi.toFixed(1) : '–'}</div></div>
         </div>
 
-        <div className="po-sec-title">◈ ATTRIBUT-MATRIX</div>
-        <div className="rpg-radar-wrap">
-          <div dangerouslySetInnerHTML={{ __html: buildRadarSVG(stats, attrs) }} />
+        {/* ── Attribut-Matrix + Makros als zusammenhängender Block ── */}
+        <div className="po-sec-title">◈ {t('po_matrix')}</div>
+        <div className="po-matrix">
+          <div className="rpg-radar-wrap">
+            <div dangerouslySetInnerHTML={{ __html: buildRadarSVG(stats, attrs) }} />
+          </div>
+          <div className="rpg-attrs">
+            {attrs.map((k: string, i: number) => (
+              <div className="attr-row" key={k}>
+                <div className="attr-label"><span>{k}</span><span className="av">{attrVals[i]}</span></div>
+                <div className="attr-track"><div className="attr-fill" style={{ width: attrVals[i] + '%' }} /></div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="rpg-attrs">
-          {attrs.map((k: string, i: number) => (
-            <div className="attr-row" key={k}>
-              <div className="attr-label"><span>{k}</span><span className="av">{attrVals[i]}</span></div>
-              <div className="attr-track"><div className="attr-fill" style={{ width: attrVals[i] + '%' }} /></div>
-            </div>
-          ))}
-        </div>
-
-        <div className="po-sec-title">⚡ GEFÄSS-STATUS</div>
-        <div className="po-status-grid">
-          {[...debuffs.map(d => ({ ...d, cls: 'debuff' })), ...buffs.map(b => ({ ...b, cls: 'buff' }))].map((s, i) => (
-            <div className={`status-badge ${s.cls}`} key={i}>
-              <span className="status-icon">{s.icon}</span>
-              <div><div className="status-name">{s.name}</div><div className="status-desc">{s.desc}</div></div>
-            </div>
-          ))}
-          {!buffs.length && !debuffs.length && (
-            <div className="status-badge neutral">
-              <span className="status-icon">◈</span>
-              <div><div className="status-name">Keine aktiven Statuseffekte</div>
-                <div className="status-desc">Supplements abhaken für Buff-Aktivierung.</div></div>
-            </div>
-          )}
-        </div>
-
-        <div className="po-sec-title">{t('po_macros')}</div>
-        <div className="po-macro-grid">
+        <div className="po-macro-grid po-macro-tight">
           {macros ? (
             <>
               <div className="po-macro-item"><div className="po-macro-l">{t('m_kcal')}</div><div className="po-macro-v">{macros.kcal}</div></div>
@@ -106,29 +90,40 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
           ) : <div style={{ fontSize: '.75rem', color: 'var(--text3)' }}>–</div>}
         </div>
 
+        <div className="po-sec-title">⚡ {t('po_status')}</div>
+        <div className="po-status-grid">
+          {[...debuffs.map(d => ({ ...d, cls: 'debuff' })), ...buffs.map(b => ({ ...b, cls: 'buff' }))].map((s, i) => (
+            <div className={`status-badge ${s.cls}`} key={i}>
+              <span className="status-icon">{s.icon}</span>
+              <div><div className="status-name">{s.name}</div><div className="status-desc">{s.desc}</div></div>
+            </div>
+          ))}
+          {!buffs.length && !debuffs.length && (
+            <div className="status-badge neutral">
+              <span className="status-icon">◈</span>
+              <div><div className="status-name">{t('po_status_none')}</div>
+                <div className="status-desc">{t('po_status_hint')}</div></div>
+            </div>
+          )}
+        </div>
+
         <div className="po-sec-title">{t('po_protocol')}</div>
         <div className="po-supp-tags">
           {protocol.map(s => SDEFS[s.id] ? <span className="po-stag" key={s.id}>{t(SDEFS[s.id].nk)}</span> : null)}
         </div>
 
-        <div className="po-sec-title">◈ TITEL AUSRÜSTEN</div>
-        <div className="po-title-chips">
-          {Object.entries(ACHIEVE_DEFS).map(([id, def]) => {
-            const isUnlocked = unlocked.includes(id);
-            const cls = equipped === id ? 'equipped' : isUnlocked ? '' : 'locked';
-            return (
-              <span key={id} className={`title-chip ${cls}`}
-                onClick={isUnlocked ? () => { equipTitle(id); refresh(); } : undefined}>{def.name}</span>
-            );
-          })}
-        </div>
-
-        <div className="po-sec-title">🏆 ERRUNGENSCHAFTEN</div>
+        {/* ── Errungenschaften: freigeschaltete Karte = Titel ausrüsten (klick) ── */}
+        <div className="po-sec-title">🏆 {t('po_achieve')} <span className="po-sec-hint">· {t('po_equip_hint')}</span></div>
         <div className="po-achieve-grid">
           {Object.entries(ACHIEVE_DEFS).map(([id, def]) => {
             const isUnlocked = unlocked.includes(id);
+            const isEquipped = equipped === id;
             return (
-              <div className={`achieve-card ${isUnlocked ? 'unlocked' : ''}`} key={id}>
+              <div className={`achieve-card${isUnlocked ? ' unlocked' : ''}${isEquipped ? ' equipped' : ''}`} key={id}
+                role={isUnlocked ? 'button' : undefined} tabIndex={isUnlocked ? 0 : undefined}
+                onClick={isUnlocked ? () => { equipTitle(id); refresh(); } : undefined}
+                onKeyDown={isUnlocked ? (e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); equipTitle(id); refresh(); } }) : undefined}>
+                {isEquipped && <span className="achieve-eq">{t('po_equipped')}</span>}
                 <div className="achieve-icon">{def.icon}</div>
                 <div className="achieve-name">{def.name}</div>
                 <div className="achieve-desc">{def.desc}{isUnlocked ? '' : <em> (+{def.xp} XP)</em>}</div>

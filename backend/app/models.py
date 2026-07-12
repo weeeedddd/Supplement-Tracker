@@ -112,6 +112,7 @@ class Dish(Base):
     equipment: Mapped[str] = mapped_column(String(64), default="")       # csv: airfryer,ricecooker,stove,none
     icon: Mapped[str] = mapped_column(String(8), default="🍽")
     image: Mapped[str] = mapped_column(String(512), default="")          # Rezeptbild (Unsplash / URL)
+    i18n: Mapped[str] = mapped_column(Text, default="{}")                # JSON: {en:{name,ingredients,steps}, tr:{…}}
     is_preset: Mapped[int] = mapped_column(Integer, default=0)
     owner_uid: Mapped[str] = mapped_column(String(16), default="", index=True)
     ts: Mapped[float] = mapped_column(Float, default=now)

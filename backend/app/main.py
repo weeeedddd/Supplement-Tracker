@@ -57,7 +57,8 @@ def _migrate_columns() -> None:
     """Leichte Additiv-Migration für bestehende SQLite-DBs: fehlende Spalten
     nachrüsten (create_all legt neue Tabellen an, ändert aber keine alten)."""
     wanted = {
-        "dishes": [("steps", "TEXT DEFAULT ''"), ("image", "VARCHAR(512) DEFAULT ''")],
+        "dishes": [("steps", "TEXT DEFAULT ''"), ("image", "VARCHAR(512) DEFAULT ''"),
+                   ("i18n", "TEXT DEFAULT '{}'")],
         "chat_messages": [("meta", "TEXT DEFAULT ''")],
     }
     with engine.begin() as conn:
@@ -273,7 +274,8 @@ def _dish_out(d: Dish) -> dict:
         "steps": [ln for ln in (d.steps or "").split("\n") if ln.strip()],
         "prep_min": d.prep_min, "kcal": d.kcal, "prot": d.prot, "carb": d.carb, "fat": d.fat,
         "equipment": [e for e in (d.equipment or "").split(",") if e], "icon": d.icon,
-        "image": d.image or "", "is_preset": bool(d.is_preset), "owner_uid": d.owner_uid,
+        "image": d.image or "", "i18n": json.loads(getattr(d, "i18n", None) or "{}"),
+        "is_preset": bool(d.is_preset), "owner_uid": d.owner_uid,
     }
 
 
@@ -313,6 +315,7 @@ class DishIn(BaseModel):
     equipment: list[str] = Field(default_factory=list)
     icon: str = Field(default="🍽", max_length=8)
     image: str = Field(default="", max_length=512)
+    i18n: dict = Field(default_factory=dict)
     owner_uid: str = Field(default="", max_length=16)
 
 
@@ -324,7 +327,8 @@ def create_dish(body: DishIn, db: Session = Depends(get_db)):
         prep_min=body.prep_min,
         kcal=body.kcal, prot=body.prot, carb=body.carb, fat=body.fat,
         equipment=",".join(body.equipment), icon=body.icon or "🍽",
-        image=body.image or "", is_preset=0, owner_uid=body.owner_uid,
+        image=body.image or "", i18n=json.dumps(body.i18n or {}),
+        is_preset=0, owner_uid=body.owner_uid,
     )
     db.add(d)
     db.commit()
@@ -673,6 +677,18 @@ async def share_recipe(body: ShareRecipeIn):
         "ingredients": [str(x)[:120] for x in (r.get("ingredients") or [])][:30],
         "steps": [str(x)[:400] for x in (r.get("steps") or [])][:15],
     }
+    # Übersetzungen (en/tr) unverändert durchreichen, damit die Card in jeder
+    # Sprache angezeigt werden kann
+    i18n_in = r.get("i18n") or {}
+    if isinstance(i18n_in, dict):
+        recipe["i18n"] = {
+            lg: {
+                "name": str(v.get("name") or "")[:120],
+                "ingredients": [str(x)[:120] for x in (v.get("ingredients") or [])][:30],
+                "steps": [str(x)[:400] for x in (v.get("steps") or [])][:15],
+            }
+            for lg, v in list(i18n_in.items())[:5] if isinstance(v, dict)
+        }
     user = body.user.strip()[:40] or "Shadow"
     uid = body.uid.strip()[:16] or "#000"
     ts = time.time()

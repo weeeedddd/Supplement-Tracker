@@ -9,7 +9,7 @@ import { t } from '../lib/i18n';
 import { refresh } from '../lib/store';
 import { S } from '../lib/storage';
 import { calcConsumed, type Macros } from '../lib/engine';
-import { fetchDishes, createDish, logMeal, shareRecipeToChat, type Dish } from '../lib/fitness';
+import { fetchDishes, createDish, logMeal, shareRecipeToChat, locDish, type Dish } from '../lib/fitness';
 
 const IconPot = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M3 12a9 9 0 0 0 18 0"/><path d="m7 8 1-4"/><path d="m12 8 .5-4"/><path d="m17 8-1-4"/></svg>;
 const IconPlus = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
@@ -103,31 +103,34 @@ export function FuelScreen() {
 
           {/* Gerichte-Grid */}
           <div className="dish-grid">
-            {dishes.map(d => (
-              <div className="dish-card" key={String(d.id)} role="button" tabIndex={0}
-                onClick={() => setDetail(d)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetail(d); } }}>
-                {d.image
-                  ? <img className="dish-thumb" src={d.image} alt="" loading="lazy" />
-                  : <div className="dish-ic">{d.icon}</div>}
-                <div className="dish-body">
-                  <div className="dish-name">{d.name}</div>
-                  <div className="dish-meta">
-                    <span className="dish-cat">{t('cat_' + d.category)}</span>
-                    <span className="dish-time">{IconClock}{d.prep_min}′</span>
+            {dishes.map(d0 => {
+              const d = locDish(d0);
+              return (
+                <div className="dish-card" key={String(d0.id)} role="button" tabIndex={0}
+                  onClick={() => setDetail(d0)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetail(d0); } }}>
+                  {d.image
+                    ? <img className="dish-thumb" src={d.image} alt="" loading="lazy" />
+                    : <div className="dish-ic">{d.icon}</div>}
+                  <div className="dish-body">
+                    <div className="dish-name">{d.name}</div>
+                    <div className="dish-meta">
+                      <span className="dish-cat">{t('cat_' + d.category)}</span>
+                      <span className="dish-time">{IconClock}{d.prep_min}′</span>
+                    </div>
+                    <div className="dish-macros">
+                      <span className="dm dm-k">{d.kcal} kcal</span>
+                      <span className="dm dm-p">{d.prot}g P</span>
+                      {d.equipment.filter(e => e === 'airfryer' || e === 'ricecooker').map(e => (
+                        <span className="dm dm-eq" key={e}>{e === 'airfryer' ? '♨' : '🍚'}</span>
+                      ))}
+                    </div>
                   </div>
-                  <div className="dish-macros">
-                    <span className="dm dm-k">{d.kcal} kcal</span>
-                    <span className="dm dm-p">{d.prot}g P</span>
-                    {d.equipment.filter(e => e === 'airfryer' || e === 'ricecooker').map(e => (
-                      <span className="dm dm-eq" key={e}>{e === 'airfryer' ? '♨' : '🍚'}</span>
-                    ))}
-                  </div>
+                  <button className="dish-share" title={t('fuel_share')} aria-label={t('fuel_share')}
+                    onClick={e => { e.stopPropagation(); onShare(d0); }}>{IconShare}</button>
                 </div>
-                <button className="dish-share" title={t('fuel_share')} aria-label={t('fuel_share')}
-                  onClick={e => { e.stopPropagation(); onShare(d); }}>{IconShare}</button>
-              </div>
-            ))}
+              );
+            })}
             {!dishes.length && <div className="ta-empty">{t('fuel_none')}</div>}
           </div>
         </div>
@@ -140,7 +143,8 @@ export function FuelScreen() {
   );
 }
 
-function DishDetail({ dish, onClose, onLog, onShare }: { dish: Dish; onClose: () => void; onLog: () => void; onShare: () => void }) {
+function DishDetail({ dish: dish0, onClose, onLog, onShare }: { dish: Dish; onClose: () => void; onLog: () => void; onShare: () => void }) {
+  const dish = locDish(dish0);
   return (
     <div className="hub-modal open" onClick={onClose}>
       <div className="hub-box" onClick={e => e.stopPropagation()}>

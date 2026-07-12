@@ -10,12 +10,27 @@ import { getBackendUrl } from './backend';
 import { timeoutSignal } from './storage';
 import { PRESET_DISHES } from './dishesData';
 import { equippedTitleName } from './engine';
+import { lang } from './i18n';
 
+export interface DishLoc { name: string; ingredients: string[]; steps: string[]; }
 export interface Dish {
   id: number | string; name: string; category: string;
   ingredients: string[]; steps?: string[]; prep_min: number;
   kcal: number; prot: number; carb: number; fat: number;
   equipment: string[]; icon: string; image?: string; is_preset?: boolean; owner_uid?: string;
+  i18n?: Record<string, DishLoc>;
+}
+
+/** Lokalisierte Sicht auf ein Gericht je nach aktiver Sprache (de = Basis). */
+export function locDish(d: Dish): Dish {
+  const loc = d.i18n?.[lang];
+  if (!loc) return d;
+  return {
+    ...d,
+    name: loc.name || d.name,
+    ingredients: loc.ingredients?.length ? loc.ingredients : d.ingredients,
+    steps: loc.steps?.length ? loc.steps : d.steps,
+  };
 }
 export interface Exercise { name: string; sets: number; reps: string; weight: string; rest: number; }
 export interface Workout {
@@ -176,6 +191,7 @@ export async function shareRecipeToChat(dish: Dish, room = 'global'): Promise<bo
     name: dish.name, icon: dish.icon, image: dish.image || '', category: dish.category,
     prep_min: dish.prep_min, kcal: dish.kcal, prot: dish.prot, carb: dish.carb, fat: dish.fat,
     equipment: dish.equipment, ingredients: dish.ingredients, steps: dish.steps || [],
+    i18n: dish.i18n || {},
   };
   try {
     const res = await fetch(base + '/api/chat/share', {

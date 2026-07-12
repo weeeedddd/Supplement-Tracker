@@ -69,11 +69,14 @@ def seed_fitness(db: Session) -> None:
         row = by_name.get(d["name"])
         if row is None:
             db.add(Dish(is_preset=1, **d))
-        elif not (row.image or "").strip():
-            # Legacy-Preset (vor steps/image geseedet) → mit Katalogdaten anreichern
-            row.image = d["image"]
-            if not (row.steps or "").strip():
-                row.steps = d["steps"]
+            continue
+        # Legacy-Presets (vor steps/image/i18n geseedet) mit Katalogdaten anreichern
+        if not (row.image or "").strip():
+            row.image = d.get("image", "")
+        if not (row.steps or "").strip():
+            row.steps = d.get("steps", "")
+        if not (getattr(row, "i18n", "") or "").strip() or row.i18n == "{}":
+            row.i18n = d.get("i18n", "{}")
 
     existing_plans = set(db.scalars(select(WorkoutPlan.name).where(WorkoutPlan.is_preset == 1)).all())
     for w in PRESET_WORKOUTS:
