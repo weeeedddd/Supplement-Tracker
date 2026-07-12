@@ -29,7 +29,7 @@ const IconChevron = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" 
 const IconXsm = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
 const IconPot = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M3 12a9 9 0 0 0 18 0"/><path d="m7 8 1-4"/><path d="m12 8 .5-4"/><path d="m17 8-1-4"/></svg>;
 
-const LANG_ROOM_LABEL: Record<string, string> = { de: '🇩🇪 Deutsch', en: '🇬🇧 English', tr: '🇹🇷 Türkçe' };
+const LANG_ROOM_LABEL: Record<string, string> = { de: '🇩🇪 Deutsch', en: '🇬🇧 English', ja: '🇯🇵 日本語', ko: '🇰🇷 한국어', es: '🇪🇸 Español', tr: '🇹🇷 Türkçe' };
 
 /** Lokalisierte Sicht auf ein geteiltes Rezept je nach aktiver Sprache. */
 function locRec(r: SharedRecipe): SharedRecipe {

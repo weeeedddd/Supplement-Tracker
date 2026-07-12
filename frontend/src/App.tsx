@@ -39,7 +39,7 @@ const THEME_BTNS = [
 
 // Flaggen-Labels für das kompakte Sprach-Dropdown (mobil)
 const LANG_LABEL: Record<string, string> = {
-  de: '🇩🇪 Deutsch', en: '🇬🇧 English', tr: '🇹🇷 Türkçe',
+  de: '🇩🇪 Deutsch', en: '🇬🇧 English', ja: '🇯🇵 日本語', ko: '🇰🇷 한국어', es: '🇪🇸 Español', tr: '🇹🇷 Türkçe',
 };
 
 function ParticleCanvas() {

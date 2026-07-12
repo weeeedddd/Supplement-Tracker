@@ -460,7 +460,7 @@ async def chat_upload(file: UploadFile = File(...)):
 
 
 # ═══ CHAT: WEBSOCKET-RÄUME + SHADOW BOT ═══════════════════════════════
-ROOMS = {"global", "de", "en", "ja", "ko", "es"}
+ROOMS = {"global", "de", "en", "ja", "ko", "es", "tr"}
 HISTORY_LIMIT = 50
 MAX_TEXT_LEN = 800
 

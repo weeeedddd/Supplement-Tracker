@@ -7,10 +7,10 @@ import { refresh } from './store';
 export const I18N: Record<string, Record<string, string>> = {};
 for (const lg of Object.keys(BASE)) I18N[lg] = { ...BASE[lg], ...(I18N_EXTRA[lg] || {}) };
 
-const SUPPORTED = ['de', 'en', 'tr'];
+const SUPPORTED = ['de', 'en', 'ja', 'ko', 'es', 'tr'];
 export let lang: string = (() => {
   const stored = S.get<string>('lang') || 'de';
-  return SUPPORTED.includes(stored) ? stored : 'de';   // veraltete Sprache (ja/ko/es) → de
+  return SUPPORTED.includes(stored) ? stored : 'de';
 })();
 
 export function t(k: string): string {
@@ -23,8 +23,8 @@ export function setLang(l: string): void {
   refresh();
 }
 
-export const LANGS = ['de', 'en', 'tr'] as const;
+export const LANGS = ['de', 'en', 'ja', 'ko', 'es', 'tr'] as const;
 
 export const LANG_NAMES: Record<string, string> = {
-  de: 'Deutsch', en: 'English', tr: 'Türkçe',
+  de: 'Deutsch', en: 'English', ja: '日本語', ko: '한국어', es: 'Español', tr: 'Türkçe',
 };
