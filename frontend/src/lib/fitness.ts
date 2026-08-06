@@ -9,17 +9,21 @@ import { S } from './storage';
 import { getBackendUrl } from './backend';
 import { timeoutSignal } from './storage';
 import { PRESET_DISHES } from './dishesData';
-import { equippedTitleName } from './engine';
+import { equippedTitleName, getFoodLog, saveFoodLog, type FoodEntry } from './engine';
 import { lang } from './i18n';
+import { CURATED_RECIPES, recipeToDish } from './recipes';
 
 export interface DishLoc { name: string; ingredients: string[]; steps: string[]; }
 export interface Dish {
   id: number | string; name: string; category: string;
   ingredients: string[]; steps?: string[]; prep_min: number;
-  kcal: number; prot: number; carb: number; fat: number;
+  kcal: number; prot: number; carb: number; fat: number; sug?: number;
   equipment: string[]; icon: string; image?: string; is_preset?: boolean; owner_uid?: string;
   i18n?: Record<string, DishLoc>;
 }
+export interface Nutrition { kcal: number; prot: number; carb: number; fat: number; sug: number; }
+export type NutritionInput = Partial<Nutrition>;
+export interface NutritionIssue { field: keyof Nutrition; code: 'not-finite' | 'negative' | 'sugar-exceeds-carbs' | 'zero-calories'; }
 
 /** Lokalisierte Sicht auf ein Gericht je nach aktiver Sprache (de = Basis). */
 export function locDish(d: Dish): Dish {
@@ -36,8 +40,40 @@ export interface Exercise { name: string; sets: number; reps: string; weight: st
 export interface Workout {
   id: number | string; name: string; kind: string; focus: string;
   exercises: Exercise[]; icon: string; is_preset?: boolean;
+  source?: 'preset' | 'manual' | 'generated' | 'daily';
 }
 export interface Buff { label: string; icon: string; desc: string; boosts: Record<string, number>; expires_at: number; source?: string; }
+export interface WorkoutLogInput {
+  name: string;
+  kind: string;
+  sessionId?: string;
+  completedSets?: number;
+  totalSets?: number;
+}
+export type CompletedSetMap = Record<number, boolean[]>;
+export interface WorkoutDraft {
+  sessionId: string;
+  workoutId: string;
+  startedAt: number;
+  updatedAt: number;
+  completedSets: CompletedSetMap;
+}
+export interface WorkoutSession {
+  id: string;
+  workoutId: string;
+  name: string;
+  kind: string;
+  startedAt: number;
+  completedAt: number;
+  completedSets: number;
+  totalSets: number;
+  setState: CompletedSetMap;
+}
+export interface WorkoutCompletion {
+  status: 'completed' | 'incomplete' | 'invalid' | 'already-completed';
+  buff: Buff | null;
+  session?: WorkoutSession;
+}
 
 const uid = () => (S.get<any>('auth')?.userId as string) || '#000';
 
@@ -45,6 +81,7 @@ const uid = () => (S.get<any>('auth')?.userId as string) || '#000';
 //   Der vollständige Katalog (100+ Gerichte mit Bild & Zubereitung) liegt in
 //   dishesData.ts und wird aus derselben Quelle wie das Backend generiert.
 export { PRESET_DISHES };
+export const CURATED_DISHES: Dish[] = CURATED_RECIPES.map(recipe => recipeToDish(recipe));
 
 const ex = (name: string, sets: number, reps: string, weight: string, rest: number): Exercise => ({ name, sets, reps, weight, rest });
 export const PRESET_WORKOUTS: Workout[] = [
@@ -74,7 +111,55 @@ async function api<T>(path: string, init?: RequestInit): Promise<T | null> {
 }
 
 // ── Gerichte ─────────────────────────────────────────────────────────
-function localDishes(): Dish[] { return [...PRESET_DISHES, ...(S.get<Dish[]>('fuel_user_dishes') || [])]; }
+const NUTRIENT_KEYS: (keyof Nutrition)[] = ['kcal', 'prot', 'carb', 'fat', 'sug'];
+
+const rounded = (value: number): number => Math.round(value * 10) / 10;
+
+export function estimateCaloriesFromMacros(input: Pick<Nutrition, 'prot' | 'carb' | 'fat' | 'sug'>): number {
+  // Sugar is already part of total carbohydrate and must not be counted twice.
+  return Math.round(input.prot * 4 + input.carb * 4 + input.fat * 9);
+}
+
+export function normalizeNutrition(input: NutritionInput): Nutrition {
+  const value = (key: keyof Nutrition) => {
+    const parsed = Number(input[key] ?? 0);
+    return Number.isFinite(parsed) ? rounded(parsed) : 0;
+  };
+  const normalized: Nutrition = {
+    kcal: value('kcal'),
+    prot: value('prot'),
+    carb: value('carb'),
+    fat: value('fat'),
+    sug: value('sug'),
+  };
+  if (normalized.kcal === 0) normalized.kcal = estimateCaloriesFromMacros(normalized);
+  return normalized;
+}
+
+export function validateNutrition(input: NutritionInput): NutritionIssue[] {
+  const issues: NutritionIssue[] = [];
+  for (const field of NUTRIENT_KEYS) {
+    const value = Number(input[field] ?? 0);
+    if (!Number.isFinite(value)) issues.push({ field, code: 'not-finite' });
+    else if (value < 0) issues.push({ field, code: 'negative' });
+  }
+  const carb = Number(input.carb ?? 0);
+  const sugar = Number(input.sug ?? 0);
+  if (Number.isFinite(carb) && Number.isFinite(sugar) && sugar > carb) {
+    issues.push({ field: 'sug', code: 'sugar-exceeds-carbs' });
+  }
+  if (normalizeNutrition(input).kcal <= 0) issues.push({ field: 'kcal', code: 'zero-calories' });
+  return issues;
+}
+
+export function nutritionFromDish(dish: Dish): Nutrition {
+  return normalizeNutrition(dish);
+}
+
+function localDishes(): Dish[] {
+  const dishes = [...CURATED_DISHES, ...PRESET_DISHES, ...(S.get<Dish[]>('fuel_user_dishes') || [])];
+  return [...new Map(dishes.map(dish => [String(dish.id), dish])).values()];
+}
 
 export async function fetchDishes(category?: string, equipment?: string): Promise<Dish[]> {
   const qs = new URLSearchParams({ owner: uid() });
@@ -90,12 +175,16 @@ export async function fetchDishes(category?: string, equipment?: string): Promis
 }
 
 export async function createDish(input: Omit<Dish, 'id' | 'is_preset'>): Promise<Dish> {
+  const nutrition = normalizeNutrition(input);
+  const issues = validateNutrition(nutrition);
+  if (issues.length) throw new Error(`Invalid nutrition: ${issues.map(issue => issue.code).join(', ')}`);
+  const normalizedInput = { ...input, ...nutrition };
   const r = await api<Dish>('/api/dishes', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...input, owner_uid: uid() }),
+    body: JSON.stringify({ ...normalizedInput, owner_uid: uid() }),
   });
   if (r) return r;
-  const local: Dish = { ...input, id: 'u-' + Date.now(), is_preset: false, owner_uid: uid() };
+  const local: Dish = { ...normalizedInput, id: 'u-' + Date.now(), is_preset: false, owner_uid: uid() };
   S.set('fuel_user_dishes', [...(S.get<Dish[]>('fuel_user_dishes') || []), local]);
   return local;
 }
@@ -117,6 +206,138 @@ export async function createWorkout(input: Omit<Workout, 'id' | 'is_preset'>): P
   const local: Workout = { ...input, id: 'u-' + Date.now(), is_preset: false };
   S.set('train_user_plans', [...(S.get<Workout[]>('train_user_plans') || []), local]);
   return local;
+}
+
+const DRAFTS_KEY = 'train_session_drafts';
+const SESSIONS_KEY = 'train_sessions';
+
+function workoutKey(workout: Workout): string { return String(workout.id); }
+
+function dateStamp(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function newSessionId(workout: Workout, now = Date.now()): string {
+  const random = Math.random().toString(36).slice(2, 8);
+  return `session-${workoutKey(workout)}-${now}-${random}`;
+}
+
+export function normalizeCompletedSets(workout: Workout, input: CompletedSetMap = {}): CompletedSetMap {
+  return Object.fromEntries(workout.exercises.map((exercise, index) => {
+    const saved = Array.isArray(input[index]) ? input[index] : [];
+    const setCount = Math.max(0, Math.floor(Number(exercise.sets) || 0));
+    return [index, Array.from({ length: setCount }, (_, setIndex) => saved[setIndex] === true)];
+  }));
+}
+
+function workoutSetCounts(workout: Workout, completedSets: CompletedSetMap): { total: number; completed: number } {
+  const normalized = normalizeCompletedSets(workout, completedSets);
+  const total = workout.exercises.reduce((sum, exercise) => sum + Math.max(0, Math.floor(Number(exercise.sets) || 0)), 0);
+  const completed = Object.values(normalized).reduce((sum, sets) => sum + sets.filter(Boolean).length, 0);
+  return { total, completed };
+}
+
+export function loadWorkoutDraft(workout: Workout): WorkoutDraft {
+  const drafts = S.get<Record<string, WorkoutDraft>>(DRAFTS_KEY) || {};
+  const key = workoutKey(workout);
+  const saved = drafts[key];
+  const now = Date.now();
+  const draft: WorkoutDraft = saved
+    ? { ...saved, workoutId: key, completedSets: normalizeCompletedSets(workout, saved.completedSets) }
+    : {
+      sessionId: newSessionId(workout, now),
+      workoutId: key,
+      startedAt: now,
+      updatedAt: now,
+      completedSets: normalizeCompletedSets(workout),
+    };
+  drafts[key] = draft;
+  S.set(DRAFTS_KEY, drafts);
+  return draft;
+}
+
+export function saveWorkoutProgress(
+  workout: Workout,
+  sessionId: string,
+  completedSets: CompletedSetMap,
+  startedAt = Date.now(),
+): WorkoutDraft {
+  const drafts = S.get<Record<string, WorkoutDraft>>(DRAFTS_KEY) || {};
+  const key = workoutKey(workout);
+  const draft: WorkoutDraft = {
+    sessionId,
+    workoutId: key,
+    startedAt,
+    updatedAt: Date.now(),
+    completedSets: normalizeCompletedSets(workout, completedSets),
+  };
+  drafts[key] = draft;
+  S.set(DRAFTS_KEY, drafts);
+  return draft;
+}
+
+export function getWorkoutSessions(): WorkoutSession[] {
+  return (S.get<WorkoutSession[]>(SESSIONS_KEY) || [])
+    .filter(session => session && typeof session.id === 'string')
+    .sort((a, b) => b.completedAt - a.completedAt);
+}
+
+function clearWorkoutDraft(workout: Workout, sessionId: string): void {
+  const drafts = S.get<Record<string, WorkoutDraft>>(DRAFTS_KEY) || {};
+  const key = workoutKey(workout);
+  if (drafts[key]?.sessionId === sessionId) {
+    delete drafts[key];
+    S.set(DRAFTS_KEY, drafts);
+  }
+}
+
+export async function completeWorkoutSession(workout: Workout, draft: WorkoutDraft): Promise<WorkoutCompletion> {
+  const completedSets = normalizeCompletedSets(workout, draft.completedSets);
+  const counts = workoutSetCounts(workout, completedSets);
+  if (counts.total <= 0) return { status: 'invalid', buff: null };
+  if (counts.completed < counts.total) return { status: 'incomplete', buff: null };
+
+  const sessions = getWorkoutSessions();
+  if (sessions.some(session => session.id === draft.sessionId)) return { status: 'already-completed', buff: null };
+  const buff = await logWorkout({
+    name: workout.name,
+    kind: workout.kind,
+    sessionId: draft.sessionId,
+    completedSets: counts.completed,
+    totalSets: counts.total,
+  });
+  if (!buff) return { status: 'already-completed', buff: null };
+
+  const session: WorkoutSession = {
+    id: draft.sessionId,
+    workoutId: workoutKey(workout),
+    name: workout.name,
+    kind: workout.kind,
+    startedAt: draft.startedAt,
+    completedAt: Date.now(),
+    completedSets: counts.completed,
+    totalSets: counts.total,
+    setState: completedSets,
+  };
+  S.set(SESSIONS_KEY, [session, ...sessions].slice(0, 100));
+  clearWorkoutDraft(workout, draft.sessionId);
+  return { status: 'completed', buff, session };
+}
+
+export function createDailyWorkout(
+  input: Omit<Workout, 'id' | 'is_preset' | 'source'>,
+  now = new Date(),
+): Workout {
+  return {
+    ...input,
+    id: `daily-${dateStamp(now)}-${now.getTime()}`,
+    exercises: input.exercises.map(exercise => ({ ...exercise })),
+    is_preset: false,
+    source: 'daily',
+  };
 }
 
 // ── MEGA-FEATURE: Stat-Buffs ─────────────────────────────────────────
@@ -155,22 +376,48 @@ export function buffTotals(buffs: Buff[] = getActiveBuffs()): Record<string, num
   return tot;
 }
 
-export async function logMeal(d: { name: string; prot: number; kcal: number }): Promise<Buff> {
-  const buff = computeMealBuff(d.prot, d.kcal);
+export async function logMeal(d: { name: string } & NutritionInput): Promise<Buff> {
+  const nutrition = normalizeNutrition(d);
+  const issues = validateNutrition(nutrition);
+  if (issues.length) throw new Error(`Invalid nutrition: ${issues.map(issue => issue.code).join(', ')}`);
+  const now = Date.now();
+  const entry: FoodEntry = { id: now, name: d.name, ts: now, ...nutrition };
+  saveFoodLog([...getFoodLog(), entry]);
+
+  const buff = computeMealBuff(nutrition.prot, nutrition.kcal);
   pushLocalBuff(buff);   // sofort lokal → Dashboard reagiert direkt
   api('/api/log/meal', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uid: uid(), name: d.name, prot: d.prot, kcal: d.kcal }),
+    body: JSON.stringify({ uid: uid(), name: d.name, ...nutrition }),
   });
   return buff;
 }
 
-export async function logWorkout(w: { name: string; kind: string }): Promise<Buff> {
+export async function logWorkout(w: WorkoutLogInput): Promise<Buff | null> {
+  if (w.totalSets != null || w.completedSets != null) {
+    const total = Number(w.totalSets);
+    const completed = Number(w.completedSets);
+    if (!Number.isFinite(total) || !Number.isFinite(completed) || total <= 0 || completed < total) return null;
+  }
+
+  if (w.sessionId) {
+    const rewarded = S.get<Record<string, number>>('train_rewarded_sessions') || {};
+    if (rewarded[w.sessionId]) return null;
+    rewarded[w.sessionId] = Date.now();
+    const recent = Object.entries(rewarded)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 200);
+    S.set('train_rewarded_sessions', Object.fromEntries(recent));
+  }
+
   const buff = computeWorkoutBuff(w.kind);
   pushLocalBuff(buff);
   api('/api/log/workout', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uid: uid(), name: w.name, kind: w.kind }),
+    body: JSON.stringify({
+      uid: uid(), name: w.name, kind: w.kind, session_id: w.sessionId,
+      completed_sets: w.completedSets, total_sets: w.totalSets,
+    }),
   });
   return buff;
 }
@@ -253,7 +500,7 @@ export function generatePlan(p: PlanParams): Omit<Workout, 'id' | 'is_preset'> {
     rest: name === 'Plank' ? 45 : i === 0 ? gs.rest + 30 : gs.rest,
   }));
   return {
-    name: `KI · ${fm.de} · ${gs.de}`,
+    name: `Local · ${fm.de} · ${gs.de}`,
     kind: p.focus,
     focus: `${fm.muscles} · ${lvl.de} · ${p.days}×/Woche`,
     icon: fm.icon,

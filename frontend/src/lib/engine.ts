@@ -36,6 +36,16 @@ export const SDEFS: Record<string, { nk: string; dk: string; ok: string | null }
   citrullin:  { nk: 'supp_citrullin', dk: 'supp_citrullin_dose', ok: 'supp_citrullin_note' },
 };
 
+// Automatic suggestions are deliberately limited to the lower-risk choices also
+// supported by the optional tracking flow. Cards expose names only: no generated
+// dose, schedule, or outcome claim is presented as personal guidance.
+const SAFE_AUTOMATIC_TRACKING_IDS = new Set(['omega', 'kreatin', 'protein', 'vitd', 'magnesium']);
+
+export function getSafeProtocolDisplay(id: string): { nameKey: string } | null {
+  const definition = SDEFS[id];
+  return definition ? { nameKey: definition.nk } : null;
+}
+
 // ═══ MAKRO-BERECHNUNG (Mifflin-St. Jeor, geschlechts- & ziel-spezifisch) ═══
 export function calcMacros(age: number, heightCm: number, weightKg: number,
   training: string, nutrition: string, sleep: string, gender?: string, goal?: string): Macros {
@@ -101,7 +111,9 @@ export function generateSmartProtocol(profile: Partial<Profile>, answers: Record
   if (bmi >= 30 && goal !== 'bulk') { add('greentea', 'alpha', 3, 'why_cut'); add('lcarnitin', 'beta', 2, 'why_cut'); }
 
   const THRESHOLD = 3;
-  const picked = C.filter(c => c.score >= THRESHOLD && SDEFS[c.id]).sort((a, b) => b.score - a.score);
+  const picked = C
+    .filter(c => c.score >= THRESHOLD && SDEFS[c.id] && SAFE_AUTOMATIC_TRACKING_IDS.has(c.id))
+    .sort((a, b) => b.score - a.score);
   const perPhase: Record<string, number> = { alpha: 0, beta: 0, gamma: 0 };
   const out: ProtocolItem[] = [];
   for (const c of picked) {
@@ -109,7 +121,7 @@ export function generateSmartProtocol(profile: Partial<Profile>, answers: Record
     perPhase[c.phase]++;
     out.push({ id: c.id, phase: c.phase, wk: c.wk });
   }
-  if (!out.length) out.push({ id: 'multi', phase: 'alpha', wk: 'why_base' }, { id: 'magnesium', phase: 'gamma', wk: 'why_base' });
+  if (!out.length) out.push({ id: 'magnesium', phase: 'gamma' });
   const ord: Record<string, number> = { alpha: 0, beta: 1, gamma: 2 };
   return out.sort((a, b) => ord[a.phase] - ord[b.phase]);
 }
@@ -130,15 +142,27 @@ export function finaliseStreak(): number {
 
 // ═══ XP / RANK / ACHIEVEMENTS ════════════════════════════════════════
 export const XP_RANKS = [
-  { min: 0, label: 'Shadow Novice' },
-  { min: 100, label: 'Shadow Initiate' },
-  { min: 300, label: 'Seven Shadows Elite' },
-  { min: 700, label: 'Eminence in Shadow' },
+  { min: 0, label: 'Consistency Starter' },
+  { min: 100, label: 'Routine Builder' },
+  { min: 300, label: 'Training Regular' },
+  { min: 700, label: 'Consistency Leader' },
 ];
 const XP_THRESHOLDS = [100, 300, 700, Infinity];
 
 export function getXP(): number { return S.get<number>('xp') || 0; }
 export function gainXP(amount: number): void { if (amount > 0) S.set('xp', getXP() + amount); }
+export function creditDailySupplementXP(id: string, amount = 5, now: Date = new Date()): boolean {
+  if (!id || !Number.isFinite(amount) || amount <= 0) return false;
+  const storageKey = 'supplement_xp_' + dateKey(now);
+  const stored = S.get<unknown>(storageKey);
+  const credited = Array.isArray(stored)
+    ? stored.filter((value): value is string => typeof value === 'string')
+    : [];
+  if (credited.includes(id)) return false;
+  S.set(storageKey, [...credited, id]);
+  gainXP(amount);
+  return true;
+}
 export function getXPRankData() {
   const xp = getXP();
   let idx = 0;
@@ -150,12 +174,12 @@ export function getXPRankData() {
 }
 
 export const ACHIEVE_DEFS: Record<string, { icon: string; name: string; desc: string; xp: number }> = {
-  novice:     { icon: '◈', name: 'Shadow Novice', desc: 'Erste Schritte in die Void', xp: 0 },
-  servant:    { icon: '⚔', name: 'Diener der Schatten', desc: '7 Tage perfektes Tracking', xp: 50 },
-  nightWalk:  { icon: '🌙', name: 'Nachtwandler', desc: 'Nahrung nach 23:00 Uhr gescannt', xp: 15 },
-  sustenance: { icon: '🍖', name: 'Lord of Sustenance', desc: '10 Mahlzeiten dokumentiert', xp: 20 },
-  airfryer:   { icon: '🔥', name: 'Meister des Airfryers', desc: '5× Cordon Bleu eingetragen', xp: 30 },
-  alchemist:  { icon: '⚗', name: 'Protokoll-Alchemist', desc: '3× Supplements vollständig', xp: 25 },
+  novice:     { icon: '◈', name: 'Getting Started', desc: 'Set up your first routine', xp: 0 },
+  servant:    { icon: '⚔', name: 'Seven-Day Rhythm', desc: 'Complete your routine for 7 days', xp: 50 },
+  nightWalk:  { icon: '🌙', name: 'Late Log', desc: 'Log a meal after 23:00', xp: 15 },
+  sustenance: { icon: '🍖', name: 'Nutrition Logger', desc: 'Document 10 meals', xp: 20 },
+  airfryer:   { icon: '🔥', name: 'Repeat Meal', desc: 'Log Cordon Bleu 5 times', xp: 30 },
+  alchemist:  { icon: '⚗', name: 'Routine Regular', desc: 'Complete your supplement routine 3 times', xp: 25 },
 };
 
 // Härtung: Storage-Werte können korrupt sein (Nicht-Array) — nie durchreichen
@@ -168,7 +192,7 @@ export function equipTitle(id: string): void {
 }
 // Anzeigename des aktuell ausgerüsteten Titels (für Chat/Sidebar/Bot)
 export function equippedTitleName(): string {
-  return ACHIEVE_DEFS[getEquippedTitle()]?.name || 'Shadow Novice';
+  return ACHIEVE_DEFS[getEquippedTitle()]?.name || 'Getting Started';
 }
 
 // RPG-Snapshot für den Backend-Sync (Shadow Bot !profile / !stats)
@@ -292,8 +316,39 @@ export function calcBuffsDebuffs(th: any) {
 }
 
 // ═══ FOOD LOG ════════════════════════════════════════════════════════
-export function getFoodLog(): FoodEntry[] { return asArray<FoodEntry>(S.get('food_' + dateKey())); }
-export function saveFoodLog(log: FoodEntry[]): void { S.set('food_' + dateKey(), log); }
+export function sanitizeFoodNumber(value: unknown): number {
+  const numeric = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : Number.NaN;
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+}
+
+export function normalizeFoodEntry(value: unknown): FoodEntry | null {
+  if (!value || typeof value !== 'object') return null;
+  const entry = value as Partial<FoodEntry>;
+  if (typeof entry.name !== 'string' || !Number.isFinite(entry.id) || !Number.isFinite(entry.ts)) return null;
+  return {
+    id: entry.id as number,
+    name: entry.name,
+    ts: entry.ts as number,
+    kcal: sanitizeFoodNumber(entry.kcal),
+    prot: sanitizeFoodNumber(entry.prot),
+    carb: sanitizeFoodNumber(entry.carb),
+    fat: sanitizeFoodNumber(entry.fat),
+    sug: sanitizeFoodNumber(entry.sug),
+  };
+}
+
+function normalizeFoodLog(value: unknown): FoodEntry[] {
+  return asArray<unknown>(value)
+    .map(normalizeFoodEntry)
+    .filter((entry): entry is FoodEntry => entry !== null);
+}
+
+export function getFoodLog(): FoodEntry[] { return normalizeFoodLog(S.get('food_' + dateKey())); }
+export function saveFoodLog(log: FoodEntry[]): void { S.set('food_' + dateKey(), normalizeFoodLog(log)); }
 export function calcConsumed(): Macros {
   return getFoodLog().reduce((a, e) => ({
     kcal: a.kcal + (e.kcal || 0), prot: a.prot + (e.prot || 0),

@@ -5,7 +5,6 @@
 //  Facts (funktioniert auch auf GitHub Pages). Nie werfende Fallbacks.
 // ═══════════════════════════════════════════════════════════════════
 import { S, timeoutSignal } from './storage';
-import { t } from './i18n';
 import { getBackendUrl } from './backend';
 import type { Macros } from './engine';
 
@@ -318,30 +317,9 @@ export function keywordFoodEstimate(text: string): ScanResult {
   return { name: text, macros: base };
 }
 
-// ── Vision-Hash-Simulation (letztes Netz für Fotos ohne Barcode/Hint) ─
-const MEAL_VISION_DB: ({ name: string } & Macros)[] = [
-  { name: 'Protein Bowl', kcal: 520, prot: 38, carb: 52, fat: 16, sug: 9 },
-  { name: 'Hähnchen mit Reis', kcal: 560, prot: 42, carb: 64, fat: 12, sug: 3 },
-  { name: 'Lachs mit Gemüse', kcal: 480, prot: 36, carb: 18, fat: 28, sug: 6 },
-  { name: 'Pasta Bolognese', kcal: 640, prot: 28, carb: 78, fat: 22, sug: 8 },
-  { name: 'Gemischter Salat + Ei', kcal: 290, prot: 16, carb: 14, fat: 18, sug: 6 },
-  { name: 'Wrap mit Hähnchen', kcal: 450, prot: 30, carb: 44, fat: 16, sug: 5 },
-  { name: 'Ofenkartoffeln + Quark', kcal: 410, prot: 22, carb: 58, fat: 9, sug: 4 },
-  { name: 'Rührei mit Brot', kcal: 380, prot: 24, carb: 28, fat: 18, sug: 3 },
-  { name: 'Curry mit Reis', kcal: 590, prot: 20, carb: 74, fat: 21, sug: 9 },
-  { name: 'Burrito Bowl', kcal: 610, prot: 32, carb: 66, fat: 22, sug: 7 },
-];
-
-export function simulateVisionScan(imageB64: string): ScanResult {
-  let h = 5381;
-  for (let i = 0; i < imageB64.length; i += 13) h = (((h << 5) + h) + imageB64.charCodeAt(i)) >>> 0;
-  const meal = MEAL_VISION_DB[h % MEAL_VISION_DB.length];
-  const jitter = (v: number) => Math.round(v * (0.92 + ((h >>> 8) % 17) / 100));
-  return {
-    name: '📷 ' + meal.name + ' (' + t('scan_detected') + ')',
-    macros: { kcal: jitter(meal.kcal), prot: jitter(meal.prot), carb: jitter(meal.carb), fat: jitter(meal.fat), sug: jitter(meal.sug) },
-  };
-}
+// Retained as a compatibility shim for older callers. A failed image analysis
+// must be represented honestly instead of mapping image bytes to canned meals.
+export function simulateVisionScan(_imageB64: string): ScanResult | null { return null; }
 
 // ── Backend-Analyse (bevorzugt, wenn konfiguriert) ───────────────────
 async function backendAnalyze(params: Record<string, string>): Promise<ScanResult | null> {

@@ -9,7 +9,12 @@ import { t } from '../lib/i18n';
 import { refresh } from '../lib/store';
 import { S } from '../lib/storage';
 import { calcConsumed, type Macros } from '../lib/engine';
-import { fetchDishes, createDish, logMeal, shareRecipeToChat, locDish, type Dish } from '../lib/fitness';
+import {
+  fetchDishes, createDish, logMeal, shareRecipeToChat, locDish,
+  estimateCaloriesFromMacros, normalizeNutrition, nutritionFromDish, validateNutrition,
+  type Dish,
+} from '../lib/fitness';
+import '../fuel.css';
 
 const IconPot = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M3 12a9 9 0 0 0 18 0"/><path d="m7 8 1-4"/><path d="m12 8 .5-4"/><path d="m17 8-1-4"/></svg>;
 const IconPlus = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
@@ -44,12 +49,13 @@ export function FuelScreen() {
     { key: 'prot', label: t('m_prot'), cls: 'nb-prot', unit: 'g' },
     { key: 'carb', label: t('m_carb'), cls: 'nb-carb', unit: 'g' },
     { key: 'fat', label: t('m_fat'), cls: 'nb-fat', unit: 'g' },
+    { key: 'sug', label: t('m_sug'), cls: 'nb-sug', unit: 'g' },
   ];
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3200); };
 
   const onLog = async (d: Dish) => {
-    const buff = await logMeal({ name: d.name, prot: d.prot, kcal: d.kcal });
+    const buff = await logMeal({ name: d.name, ...nutritionFromDish(d) });
     setDetail(null);
     refresh();
     flash(`${buff.icon} ${buff.label} · ${buff.desc}`);
@@ -66,8 +72,8 @@ export function FuelScreen() {
         <div className="ki-chat-hd">
           <div className="ki-sigil-sm">{IconPot}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="ki-chat-hd-title">{t('fuel_title')}</div>
-            <div className="ki-chat-hd-sub">{t('fuel_sub')}</div>
+            <div className="ki-chat-hd-title">Nutrition</div>
+            <div className="ki-chat-hd-sub">Log meals, review targets, and keep recipes close.</div>
           </div>
         </div>
 
@@ -159,6 +165,7 @@ function DishDetail({ dish: dish0, onClose, onLog, onShare }: { dish: Dish; onCl
             <div className="dmx"><b>{dish.prot}g</b><span>{t('m_prot')}</span></div>
             <div className="dmx"><b>{dish.carb}g</b><span>{t('m_carb')}</span></div>
             <div className="dmx"><b>{dish.fat}g</b><span>{t('m_fat')}</span></div>
+            <div className="dmx"><b>{dish.sug || 0}g</b><span>{t('m_sug')}</span></div>
           </div>
           <div className="detail-sec">{IconList} {t('fuel_ingredients')} · {IconClock} {dish.prep_min} min</div>
           <ul className="ingredient-list">
@@ -190,21 +197,36 @@ function DishCreator({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
   const [prep, setPrep] = useState('');
   const [ing, setIng] = useState('');
   const [steps, setSteps] = useState('');
-  const [m, setM] = useState({ kcal: '', prot: '', carb: '', fat: '' });
+  const [m, setM] = useState({ kcal: '', prot: '', carb: '', fat: '', sug: '' });
   const [eq, setEq] = useState<string[]>([]);
-  const num = (v: string) => parseInt(v, 10) || 0;
+  const [error, setError] = useState('');
+  const num = (v: string) => Number.parseFloat(v) || 0;
   const toggleEq = (x: string) => setEq(eq.includes(x) ? eq.filter(e => e !== x) : [...eq, x]);
 
   const save = async () => {
-    if (!name.trim()) return;
-    await createDish({
+    setError('');
+    const nutrition = normalizeNutrition({
+      kcal: num(m.kcal), prot: num(m.prot), carb: num(m.carb), fat: num(m.fat), sug: num(m.sug),
+    });
+    const issues = validateNutrition(nutrition);
+    if (!name.trim() || !ing.trim() || num(prep) <= 0 || issues.length) {
+      setError(issues.some(issue => issue.code === 'sugar-exceeds-carbs')
+        ? `${t('m_sug')} ≤ ${t('m_carb')}`
+        : 'Name, Zutaten, Zeit und gültige Nährwerte sind erforderlich.');
+      return;
+    }
+    try {
+      await createDish({
       name: name.trim(), category, prep_min: num(prep),
       ingredients: ing.split('\n').map(s => s.trim()).filter(Boolean),
       steps: steps.split('\n').map(s => s.trim()).filter(Boolean),
-      kcal: num(m.kcal), prot: num(m.prot), carb: num(m.carb), fat: num(m.fat),
+      ...nutrition,
       equipment: eq.length ? eq : ['none'], icon: '🍳', image: '',
-    });
-    onSaved();
+      });
+      onSaved();
+    } catch {
+      setError('Die Nährwerte konnten nicht gespeichert werden.');
+    }
   };
 
   return (
@@ -224,14 +246,19 @@ function DishCreator({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
           </div>
           <textarea className="hub-input hub-area" placeholder={t('fuel_f_ing')} rows={3} value={ing} onChange={e => setIng(e.target.value)} />
           <textarea className="hub-input hub-area" placeholder={t('fuel_f_steps')} rows={3} value={steps} onChange={e => setSteps(e.target.value)} />
-          <div className="hub-macro-grid">
-            {(['kcal', 'prot', 'carb', 'fat'] as const).map(k => (
+          <div className="hub-macro-grid hub-macro-grid-five">
+            {(['kcal', 'prot', 'carb', 'fat', 'sug'] as const).map(k => (
               <div className="hub-mf" key={k}>
                 <label>{t('m_' + (k === 'kcal' ? 'kcal' : k))}</label>
-                <input type="number" inputMode="numeric" value={m[k]} onChange={e => setM({ ...m, [k]: e.target.value })} />
+                <input type="number" inputMode="decimal" min="0" step="0.1" value={m[k]}
+                  aria-invalid={Boolean(error)} onChange={e => setM({ ...m, [k]: e.target.value })} />
               </div>
             ))}
           </div>
+          <div className="nutrition-estimate">
+            ≈ {estimateCaloriesFromMacros({ prot: num(m.prot), carb: num(m.carb), fat: num(m.fat), sug: num(m.sug) })} kcal aus Makros
+          </div>
+          {error && <div className="fuel-form-error" role="alert">{error}</div>}
           <div className="hub-eq-row">
             <button className={`chip chip-eq${eq.includes('airfryer') ? ' sel' : ''}`} onClick={() => toggleEq('airfryer')}>{IconAir}{t('eq_airfryer')}</button>
             <button className={`chip chip-eq${eq.includes('ricecooker') ? ' sel' : ''}`} onClick={() => toggleEq('ricecooker')}>{IconRice}{t('eq_ricecooker')}</button>

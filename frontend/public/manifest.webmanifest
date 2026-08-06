@@ -1,0 +1,20 @@
+{
+  "name": "CORELINE · Daily performance log",
+  "short_name": "CORELINE",
+  "description": "Offline-first supplement, nutrition, and training tracking.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#05070c",
+  "theme_color": "#0b8f83",
+  "icons": [
+    {
+      "src": "icons/coreline.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

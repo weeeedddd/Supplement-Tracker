@@ -9,8 +9,8 @@ for (const lg of Object.keys(BASE)) I18N[lg] = { ...BASE[lg], ...(I18N_EXTRA[lg]
 
 const SUPPORTED = ['de', 'en', 'ja', 'ko', 'es', 'tr'];
 export let lang: string = (() => {
-  const stored = S.get<string>('lang') || 'de';
-  return SUPPORTED.includes(stored) ? stored : 'de';
+  const stored = S.get<string>('lang') || 'en';
+  return SUPPORTED.includes(stored) ? stored : 'en';
 })();
 
 export function t(k: string): string {
@@ -18,9 +18,14 @@ export function t(k: string): string {
 }
 
 export function setLang(l: string): void {
-  lang = l;
-  S.set('lang', l);
+  lang = SUPPORTED.includes(l) ? l : 'en';
+  S.set('lang', lang);
+  if (typeof document !== 'undefined') document.documentElement.lang = lang;
   refresh();
+}
+
+export function applyDocumentLanguage(): void {
+  if (typeof document !== 'undefined') document.documentElement.lang = lang;
 }
 
 export const LANGS = ['de', 'en', 'ja', 'ko', 'es', 'tr'] as const;

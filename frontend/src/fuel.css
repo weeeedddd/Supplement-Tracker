@@ -1,0 +1,42 @@
+.nb-sug {
+  background: linear-gradient(90deg, #f472b6, #fb7185);
+  box-shadow: 0 0 10px rgba(244, 114, 182, .5);
+}
+
+.detail-macros {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.hub-macro-grid-five {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.nutrition-estimate {
+  padding: .5rem .65rem;
+  color: var(--text3);
+  background: rgba(255, 255, 255, .025);
+  border: 1px solid var(--border);
+  border-radius: var(--r3);
+  font-size: .66rem;
+  line-height: 1.45;
+}
+
+.fuel-form-error {
+  padding: .55rem .65rem;
+  color: #ffc2cc;
+  background: rgba(232, 58, 90, .08);
+  border: 1px solid rgba(232, 58, 90, .35);
+  border-radius: var(--r3);
+  font-size: .72rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 430px) {
+  .detail-macros {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hub-macro-grid-five {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

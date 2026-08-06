@@ -4,11 +4,11 @@
 //    re-rendern über refresh().
 import { useSyncExternalStore } from 'react';
 
-type Screen = 'login' | 'verify' | 'onboard' | 'ki' | 'dashboard' | 'chat' | 'fuel' | 'training';
+export type Screen = 'onboard' | 'ki' | 'dashboard' | 'fuel' | 'training';
 
 const listeners = new Set<() => void>();
 let version = 0;
-let currentScreen: Screen = 'login';
+let currentScreen: Screen = 'onboard';
 
 export function refresh(): void {
   version++;

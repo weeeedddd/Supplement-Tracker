@@ -6,8 +6,9 @@ import { t } from '../lib/i18n';
 import { refresh, useAppState } from '../lib/store';
 import { theme, getCurrentTheme } from '../lib/themes';
 import {
-  SDEFS, gainXP, checkAchievements, getStreak, finaliseStreak, completedToday,
-  getXPRankData, calcConsumed, getFoodLog, saveFoodLog, updateDynamicGlow, playSound, asArray,
+  gainXP, creditDailySupplementXP, checkAchievements, getStreak, finaliseStreak, completedToday,
+  getXPRankData, calcConsumed, getFoodLog, saveFoodLog, normalizeFoodEntry, sanitizeFoodNumber,
+  getSafeProtocolDisplay, updateDynamicGlow, playSound, asArray,
   type FoodEntry, type Macros, type ProtocolItem, type Profile,
 } from '../lib/engine';
 import { analyzeImageLocally, analyzeTextLocally } from '../lib/scanner';
@@ -39,7 +40,7 @@ const IconTarget = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" s
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-function getChecked(): string[] { return S.get('day_' + dateKey()) || []; }
+function getChecked(): string[] { return asArray<string>(S.get('day_' + dateKey())); }
 
 export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
   useAppState();
@@ -47,7 +48,6 @@ export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
   const protocol = asArray<ProtocolItem>(S.get('protocol'));
   const checked = getChecked();
 
-  useEffect(() => { syncLivePrices(); }, []);
   useEffect(() => { updateDynamicGlow(getChecked()); });
 
   const toggle = (id: string) => {
@@ -58,7 +58,7 @@ export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
     const adding = i === -1;
     if (i > -1) cur.splice(i, 1); else cur.push(id);
     S.set('day_' + dateKey(), cur);
-    if (adding) gainXP(5);
+    if (adding) creditDailySupplementXP(id);
     if (ids.every(pid => cur.includes(pid)) && !completedToday()) {
       gainXP(20);
       S.set('complete_days_count', (S.get<number>('complete_days_count') || 0) + 1);
@@ -80,7 +80,7 @@ export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
   return (
     <div className="screen active" id="screen-dashboard">
       <div className="status-bar">
-        <span>{th?.sigil ?? '◈ SHADOW~1'}</span>
+        <span>{th?.sigil ?? '◇ CORELINE'}</span>
         <span className="sb-rank">{rankName}</span>
         <span className="sb-streak">{IconFlame} {getStreak().count}</span>
       </div>
@@ -107,7 +107,6 @@ export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
         <MacroWidget />
         <ScannerWidget />
         <PhaseCards protocol={protocol} checked={checked} toggle={toggle} />
-        <SmartCartWidget />
         <ManaWidget />
         <MissionLog />
       </div>
@@ -215,7 +214,11 @@ function ScannerWidget() {
         setScanErr(t('scan_fail'));
         return;
       }
-      const entry: FoodEntry = { id: Date.now(), name: result.name || q || '📷 Scan', ...result.macros, ts: Date.now() };
+      const entry = normalizeFoodEntry({ id: Date.now(), name: result.name || q || '📷 Scan', ...result.macros, ts: Date.now() });
+      if (!entry) {
+        setScanErr(t('scan_fail'));
+        return;
+      }
       const l = getFoodLog(); l.push(entry); saveFoodLog(l);
       syncScanToBackend({ name: entry.name, kcal: entry.kcal, prot: entry.prot, carb: entry.carb, fat: entry.fat, sug: entry.sug });
       setTxt(''); clearImage();
@@ -234,7 +237,7 @@ function ScannerWidget() {
 
   return (
     <div className="widget" id="scanner-widget">
-      <div className="w-title">{t('w_scanner')}</div>
+      <div className="w-title">Nutrition entry</div>
       <div className="scanner-row">
         <input type="text" className="scanner-input" value={txt} placeholder={t('scanner_ph')}
           onChange={e => setTxt(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
@@ -254,8 +257,7 @@ function ScannerWidget() {
         </div>
       )}
       <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-        <button className="scan-btn" disabled={busy} onClick={submit}>{t('scan_btn')}</button>
-        {busy && <span className="scan-loading" style={{ display: 'block' }}>{t('scan_loading')}</span>}
+        <button className="scan-btn" disabled={busy} onClick={submit}>{busy ? 'Analyzing entry…' : 'Analyze entry'}</button>
       </div>
       {scanErr && <div className="terminal-err" style={{ display: 'block' }}>{scanErr}</div>}
       <div className="tages-akte">
@@ -289,18 +291,18 @@ function ScannerWidget() {
 
 function EditFoodModal({ entry, onSave, onClose }: { entry: FoodEntry; onSave: (e: FoodEntry) => void; onClose: () => void }) {
   const [e, setE] = useState({ ...entry });
-  const num = (v: string) => parseFloat(v) || 0;
+  const num = (v: string) => sanitizeFoodNumber(v);
   return (
     <div className="edit-modal open">
       <div className="edit-box">
         <h3>{t('edit_title')}</h3>
         <input className="edit-name-input" value={e.name} onChange={ev => setE({ ...e, name: ev.target.value })} />
         <div className="edit-macro-grid">
-          <div className="edit-field"><label>KCAL</label><input type="number" value={e.kcal} onChange={ev => setE({ ...e, kcal: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>PROTEIN (g)</label><input type="number" value={e.prot} onChange={ev => setE({ ...e, prot: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>CARBS (g)</label><input type="number" value={e.carb} onChange={ev => setE({ ...e, carb: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>FETT (g)</label><input type="number" value={e.fat} onChange={ev => setE({ ...e, fat: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>ZUCKER (g)</label><input type="number" value={e.sug} onChange={ev => setE({ ...e, sug: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>KCAL</label><input type="number" min="0" value={e.kcal} onChange={ev => setE({ ...e, kcal: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>PROTEIN (g)</label><input type="number" min="0" value={e.prot} onChange={ev => setE({ ...e, prot: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>CARBS (g)</label><input type="number" min="0" value={e.carb} onChange={ev => setE({ ...e, carb: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>FETT (g)</label><input type="number" min="0" value={e.fat} onChange={ev => setE({ ...e, fat: num(ev.target.value) })} /></div>
+          <div className="edit-field"><label>ZUCKER (g)</label><input type="number" min="0" value={e.sug} onChange={ev => setE({ ...e, sug: num(ev.target.value) })} /></div>
         </div>
         <div className="edit-actions">
           <button className="edit-cancel" onClick={onClose}>{t('edit_cancel')}</button>
@@ -311,16 +313,18 @@ function EditFoodModal({ entry, onSave, onClose }: { entry: FoodEntry; onSave: (
   );
 }
 
-// ═══ PHASE-CARDS mit Info-Icons ══════════════════════════════════════
+// ═══ PHASE-CARDS ═════════════════════════════════════════════════════
 function PhaseCards({ protocol, checked, toggle }: { protocol: ProtocolItem[]; checked: string[]; toggle: (id: string) => void }) {
-  const [openInfo, setOpenInfo] = useState<string | null>(null);
   const phConf = {
-    alpha: { cls: 'alpha', nk: 'phase_alpha', tk: 'phase_alpha_time' },
-    beta: { cls: 'beta', nk: 'phase_beta', tk: 'phase_beta_time' },
-    gamma: { cls: 'gamma', nk: 'phase_gamma', tk: 'phase_gamma_time' },
+    alpha: { cls: 'alpha', nk: 'phase_alpha' },
+    beta: { cls: 'beta', nk: 'phase_beta' },
+    gamma: { cls: 'gamma', nk: 'phase_gamma' },
   } as const;
   return (
     <div id="phase-cards">
+      <div className="sc-note" role="note">
+        Track only products you already use or reviewed with a qualified clinician. Follow the product label; CORELINE does not prescribe doses.
+      </div>
       {(['alpha', 'beta', 'gamma'] as const).map(ph => {
         const items = protocol.filter(s => s.phase === ph);
         if (!items.length) return null;
@@ -329,28 +333,18 @@ function PhaseCards({ protocol, checked, toggle }: { protocol: ProtocolItem[]; c
           <div className="phase-section" key={ph}>
             <div className="phase-header">
               <span className={`phase-badge ${pc.cls}`}>{t(pc.nk)}</span>
-              <span className="phase-time">{t(pc.tk)}</span>
             </div>
             {items.map(s => {
-              const d = SDEFS[s.id]; if (!d) return null;
+              const display = getSafeProtocolDisplay(s.id); if (!display) return null;
               const done = checked.includes(s.id);
-              const infoTxt = t(d.nk + '_info');
-              const hasInfo = infoTxt !== d.nk + '_info';
               return (
-                <div className={`supp-card${done ? ' done' : ''}`} key={s.id} onClick={() => toggle(s.id)}>
+                <button type="button" className={`supp-card${done ? ' done' : ''}`} key={s.id}
+                  aria-pressed={done} onClick={() => toggle(s.id)}>
                   <div className="sc-chk">{done ? IconCheck : IconPlus}</div>
                   <div className="sc-info">
-                    <div className="sc-name">{t(d.nk)}</div>
-                    <div className="sc-dose">{t(d.dk)}</div>
-                    {d.ok && <div className="sc-note">{t(d.ok)}</div>}
-                    {s.wk && <div className="sc-note">◈ {t(s.wk)}</div>}
-                    {hasInfo && <div className={`sc-infobox${openInfo === s.id ? ' open' : ''}`}>◈ {infoTxt}</div>}
+                    <div className="sc-name">{t(display.nameKey)}</div>
                   </div>
-                  {hasInfo && (
-                    <button className="sc-ib" aria-label="Info" title={infoTxt}
-                      onClick={ev => { ev.stopPropagation(); setOpenInfo(openInfo === s.id ? null : s.id); }}>{IconInfo}</button>
-                  )}
-                </div>
+                </button>
               );
             })}
           </div>
@@ -506,13 +500,15 @@ function ManaWidget() {
   };
   return (
     <div className="widget">
-      <div className="w-title">{t('w_mana')}</div>
+      <div className="w-title">Hydration</div>
       <div className="mana-drops">
         {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className={`drop${i < count ? ' filled' : ''}`} title={`${i + 1}/8`} onClick={() => setCount(i)}>{IconWater}</div>
+          <button type="button" key={i} className={`drop${i < count ? ' filled' : ''}`}
+            aria-label={`Set hydration to ${i + 1} of 8 glasses`} aria-pressed={i < count}
+            onClick={() => setCount(i)}>{IconWater}</button>
         ))}
       </div>
-      <div className="mana-count">{count} / 8 {t('mana_label')}</div>
+      <div className="mana-count">{count} / 8 glasses</div>
     </div>
   );
 }
@@ -521,8 +517,8 @@ function MissionLog() {
   const [note, setNote] = useState<string>(() => S.get<string>('note_' + dateKey()) || '');
   return (
     <div className="widget">
-      <div className="w-title">{t('w_mission')}</div>
-      <textarea className="mission-log" rows={4} value={note} placeholder={t('mission_ph')}
+      <div className="w-title">Daily notes</div>
+      <textarea className="mission-log" rows={4} value={note} placeholder="Notes for today…"
         onChange={e => { setNote(e.target.value); S.set('note_' + dateKey(), e.target.value); }} />
     </div>
   );

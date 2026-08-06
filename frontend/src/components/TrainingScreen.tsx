@@ -5,9 +5,12 @@ import { useEffect, useState } from 'react';
 import { t } from '../lib/i18n';
 import { refresh } from '../lib/store';
 import {
-  fetchWorkouts, createWorkout, logWorkout, generatePlan,
+  fetchWorkouts, createWorkout, generatePlan, completeWorkoutSession,
+  createDailyWorkout, getWorkoutSessions, loadWorkoutDraft, saveWorkoutProgress,
   type Workout, type Exercise, type PlanLevel, type PlanGoal, type PlanFocus,
+  type WorkoutCompletion, type WorkoutDraft, type WorkoutSession,
 } from '../lib/fitness';
+import '../training.css';
 
 const IconDumbbell = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>;
 const IconPlus = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
@@ -17,11 +20,18 @@ const IconZap = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stro
 const IconClock = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 const IconSpark = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>;
 
+const copy = (key: string, fallback: string) => {
+  const value = t(key);
+  return value === key ? fallback : value;
+};
+
 export function TrainingScreen() {
   const [plans, setPlans] = useState<Workout[]>([]);
   const [active, setActive] = useState<Workout | null>(null);
   const [creating, setCreating] = useState(false);
+  const [manualDaily, setManualDaily] = useState(false);
   const [building, setBuilding] = useState(false);
+  const [sessions, setSessions] = useState<WorkoutSession[]>(() => getWorkoutSessions());
   const [toast, setToast] = useState('');
 
   const load = () => { fetchWorkouts().then(setPlans); };
@@ -29,18 +39,27 @@ export function TrainingScreen() {
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3200); };
 
-  const onFinish = async (w: Workout) => {
-    const buff = await logWorkout({ name: w.name, kind: w.kind });
-    setActive(null);
-    refresh();
-    flash(`${buff.icon} ${buff.label} · ${buff.desc}`);
+  const onFinish = async (w: Workout, draft: WorkoutDraft): Promise<WorkoutCompletion> => {
+    const result = await completeWorkoutSession(w, draft);
+    if (result.status === 'completed' && result.buff) {
+      setActive(null);
+      setSessions(getWorkoutSessions());
+      refresh();
+      flash(`${result.buff.icon} ${result.buff.label} · ${result.buff.desc}`);
+    } else if (result.status === 'already-completed') {
+      setActive(null);
+      flash(copy('train_already_logged', 'Diese Einheit wurde bereits gespeichert.'));
+    } else {
+      flash(copy('train_complete_sets', 'Schließe zuerst alle Sätze ab.'));
+    }
+    return result;
   };
 
   const onGenerated = (w: Workout) => {
     setBuilding(false);
     load();
     setActive(w);   // direkt live tracken
-    flash(`${IconZapTxt} ${t('ai_created')}`);
+    flash(`${IconZapTxt} Local plan ready`);
   };
 
   return (
@@ -49,18 +68,21 @@ export function TrainingScreen() {
         <div className="ki-chat-hd">
           <div className="ki-sigil-sm">{IconDumbbell}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="ki-chat-hd-title">{t('train_title')}</div>
-            <div className="ki-chat-hd-sub">{t('train_sub')}</div>
+            <div className="ki-chat-hd-title">Training</div>
+            <div className="ki-chat-hd-sub">Build manually or start a saved local plan.</div>
           </div>
         </div>
 
         <div className="hub-scroll">
           <button className="ai-cta" onClick={() => setBuilding(true)}>
             <span className="ai-cta-ic">{IconSpark}</span>
-            <span className="ai-cta-tx"><b>{t('ai_title')}</b><span>{t('ai_sub')}</span></span>
+            <span className="ai-cta-tx"><b>Local plan builder</b><span>Build from transparent training rules</span></span>
             <span className="ai-cta-go">{IconPlus}</span>
           </button>
           <div className="hub-filters">
+            <button className="chip chip-daily" onClick={() => setManualDaily(true)}>
+              {IconDumbbell}{copy('train_manual_today', 'Tagestraining starten')}
+            </button>
             <button className="chip chip-forge" onClick={() => setCreating(true)}>{IconPlus}{t('train_forge')}</button>
           </div>
           <div className="plan-list">
@@ -75,73 +97,125 @@ export function TrainingScreen() {
               </button>
             ))}
           </div>
+          {sessions.length > 0 && (
+            <section className="training-history" aria-labelledby="training-history-title">
+              <h2 id="training-history-title">{copy('train_history', 'Letzte Einheiten')}</h2>
+              {sessions.slice(0, 3).map(session => (
+                <div className="training-history-row" key={session.id}>
+                  <span>{session.name}</span>
+                  <span>{session.completedSets}/{session.totalSets} · {new Date(session.completedAt).toLocaleDateString()}</span>
+                </div>
+              ))}
+            </section>
+          )}
         </div>
       </div>
 
-      {active && <LiveTracker plan={active} onClose={() => setActive(null)} onFinish={() => onFinish(active)} />}
-      {creating && <WorkoutCreator onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {active && <LiveTracker plan={active} onClose={() => setActive(null)} onFinish={draft => onFinish(active, draft)} />}
+      {creating && <WorkoutCreator mode="plan" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
+      {manualDaily && <WorkoutCreator mode="daily" onClose={() => setManualDaily(false)} onStarted={workout => {
+        setManualDaily(false);
+        setActive(workout);
+      }} />}
       {building && <AIBuilder onClose={() => setBuilding(false)} onGenerated={onGenerated} />}
-      {toast && <div className="buff-toast">{IconZap}<span>{toast}</span></div>}
+      {toast && <div className="buff-toast" role="status" aria-live="polite">{IconZap}<span>{toast}</span></div>}
     </div>
   );
 }
 
 const IconZapTxt = '⚡';
 
-function LiveTracker({ plan, onClose, onFinish }: { plan: Workout; onClose: () => void; onFinish: () => void }) {
-  // pro Übung ein Array gecheckter Sätze
-  const [done, setDone] = useState<Record<number, boolean[]>>(() =>
-    Object.fromEntries(plan.exercises.map((e, i) => [i, Array(e.sets).fill(false)])));
+function LiveTracker({
+  plan,
+  onClose,
+  onFinish,
+}: {
+  plan: Workout;
+  onClose: () => void;
+  onFinish: (draft: WorkoutDraft) => Promise<WorkoutCompletion>;
+}) {
+  const [draft, setDraft] = useState<WorkoutDraft>(() => loadWorkoutDraft(plan));
+  const [done, setDone] = useState(() => draft.completedSets);
+  const [finishing, setFinishing] = useState(false);
 
-  const toggle = (ei: number, si: number) => {
-    setDone(prev => {
-      const next = { ...prev, [ei]: [...prev[ei]] };
-      next[ei][si] = !next[ei][si];
+  const toggle = (exerciseIndex: number, setIndex: number) => {
+    if (finishing) return;
+    setDone(previous => {
+      const next = { ...previous, [exerciseIndex]: [...(previous[exerciseIndex] || [])] };
+      next[exerciseIndex][setIndex] = !next[exerciseIndex][setIndex];
+      setDraft(saveWorkoutProgress(plan, draft.sessionId, next, draft.startedAt));
       return next;
     });
   };
-  const total = plan.exercises.reduce((a, e) => a + e.sets, 0);
-  const checked = Object.values(done).reduce((a, arr) => a + arr.filter(Boolean).length, 0);
+  const total = plan.exercises.reduce((sum, exercise) => sum + Math.max(0, exercise.sets), 0);
+  const checked = Object.values(done).reduce((sum, sets) => sum + sets.filter(Boolean).length, 0);
+  const canFinish = total > 0 && checked === total && !finishing;
+
+  const finish = async () => {
+    if (!canFinish) return;
+    setFinishing(true);
+    const result = await onFinish({ ...draft, completedSets: done, updatedAt: Date.now() });
+    if (result.status !== 'completed' && result.status !== 'already-completed') setFinishing(false);
+  };
 
   return (
     <div className="hub-modal open" onClick={onClose}>
-      <div className="hub-box hub-box-lg" onClick={e => e.stopPropagation()}>
+      <div className="hub-box hub-box-lg" role="dialog" aria-modal="true" aria-labelledby="tracker-title" onClick={e => e.stopPropagation()}>
         <div className="hub-box-hd">
-          <span className="hub-box-title">{plan.icon} {plan.name}</span>
-          <button className="modal-close" onClick={onClose}>{IconX}</button>
+          <span className="hub-box-title" id="tracker-title">{plan.icon} {plan.name}</span>
+          <button className="modal-close" onClick={onClose} aria-label={copy('close', 'Schließen')}>{IconX}</button>
         </div>
         <div className="tracker-prog">
-          <div className="tracker-prog-bar"><div style={{ width: (total ? checked / total * 100 : 0) + '%' }} /></div>
+          <div className="tracker-prog-bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={checked}>
+            <div style={{ width: (total ? checked / total * 100 : 0) + '%' }} />
+          </div>
           <span>{checked}/{total} {t('train_sets')}</span>
         </div>
         <div className="hub-box-body">
-          {plan.exercises.map((e: Exercise, ei) => (
-            <div className="tx-exercise" key={ei}>
+          {plan.exercises.map((exercise: Exercise, exerciseIndex) => (
+            <div className="tx-exercise" key={`${exercise.name}-${exerciseIndex}`}>
               <div className="tx-head">
-                <span className="tx-name">{e.name}</span>
-                <span className="tx-spec">{e.reps} × {e.weight} · {IconClock}{e.rest}s</span>
+                <span className="tx-name">{exercise.name}</span>
+                <span className="tx-spec">{exercise.reps} × {exercise.weight} · {IconClock}{exercise.rest}s</span>
               </div>
               <div className="tx-sets">
-                {done[ei].map((ok, si) => (
-                  <button key={si} className={`tx-set${ok ? ' done' : ''}`} onClick={() => toggle(ei, si)}
-                    title={`Satz ${si + 1}`}>
-                    {ok ? IconCheck : si + 1}
+                {(done[exerciseIndex] || []).map((isDone, setIndex) => (
+                  <button key={setIndex} className={`tx-set${isDone ? ' done' : ''}`}
+                    onClick={() => toggle(exerciseIndex, setIndex)}
+                    aria-pressed={isDone}
+                    aria-label={`${exercise.name}, ${copy('train_set', 'Satz')} ${setIndex + 1}`}>
+                    {isDone ? IconCheck : setIndex + 1}
                   </button>
                 ))}
               </div>
             </div>
           ))}
-          <button className="action-btn hub-log-btn" onClick={onFinish}>{IconZap} {t('train_finish')}</button>
+          {!canFinish && !finishing && (
+            <p className="tracker-hint" role="status">{copy('train_complete_sets', 'Schließe alle Sätze ab, um das Training zu speichern.')}</p>
+          )}
+          <button className="action-btn hub-log-btn" onClick={finish} disabled={!canFinish}>
+            {IconZap} {finishing ? '…' : t('train_finish')}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function WorkoutCreator({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [name, setName] = useState('');
+function WorkoutCreator({
+  mode,
+  onClose,
+  onSaved,
+  onStarted,
+}: {
+  mode: 'plan' | 'daily';
+  onClose: () => void;
+  onSaved?: () => void;
+  onStarted?: (workout: Workout) => void;
+}) {
+  const [name, setName] = useState(mode === 'daily' ? copy('train_manual_today', 'Tagestraining') : '');
   const [kind, setKind] = useState('split');
-  const [focus, setFocus] = useState('');
+  const [focus, setFocus] = useState(mode === 'daily' ? copy('train_today', 'Heute') : '');
   const [rows, setRows] = useState<Exercise[]>([{ name: '', sets: 3, reps: '10', weight: '', rest: 60 }]);
 
   const setRow = (i: number, patch: Partial<Exercise>) => setRows(rows.map((r, j) => j === i ? { ...r, ...patch } : r));
@@ -151,8 +225,13 @@ function WorkoutCreator({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   const save = async () => {
     const ex = rows.filter(r => r.name.trim());
     if (!name.trim() || !ex.length) return;
-    await createWorkout({ name: name.trim(), kind, focus: focus.trim(), exercises: ex, icon: '🏋' });
-    onSaved();
+    const input = { name: name.trim(), kind, focus: focus.trim(), exercises: ex, icon: '🏋', source: 'manual' as const };
+    if (mode === 'daily') {
+      onStarted?.(createDailyWorkout(input));
+      return;
+    }
+    await createWorkout(input);
+    onSaved?.();
   };
 
   return (
@@ -182,7 +261,9 @@ function WorkoutCreator({ onClose, onSaved }: { onClose: () => void; onSaved: ()
             ))}
             <button className="chip chip-forge tx-add" onClick={addRow}>{IconPlus}{t('train_add_ex')}</button>
           </div>
-          <button className="action-btn" onClick={save}>{t('train_f_save')}</button>
+          <button className="action-btn" onClick={save}>
+            {mode === 'daily' ? copy('train_start', 'Training starten') : t('train_f_save')}
+          </button>
         </div>
       </div>
     </div>
@@ -213,7 +294,7 @@ function AIBuilder({ onClose, onGenerated }: { onClose: () => void; onGenerated:
     <div className="hub-modal open" onClick={onClose}>
       <div className="hub-box hub-box-lg" onClick={e => e.stopPropagation()}>
         <div className="hub-box-hd">
-          <span className="hub-box-title">{IconSpark} {t('ai_title')}</span>
+          <span className="hub-box-title">{IconSpark} Local plan builder</span>
           <button className="modal-close" onClick={onClose}>{IconX}</button>
         </div>
         <div className="hub-box-body">
@@ -265,7 +346,7 @@ function AIBuilder({ onClose, onGenerated }: { onClose: () => void; onGenerated:
           </div>
 
           <button className="action-btn ai-gen-btn" onClick={generate} disabled={busy}>
-            {IconSpark} {busy ? '…' : t('ai_generate')}
+            {IconSpark} {busy ? '…' : 'Save generated plan'}
           </button>
         </div>
       </div>

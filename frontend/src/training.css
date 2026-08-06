@@ -1,0 +1,67 @@
+.chip-daily {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border-color: rgba(34, 211, 160, .45);
+  color: var(--success);
+}
+
+.chip-daily svg {
+  width: 15px;
+  height: 15px;
+}
+
+.tracker-hint {
+  margin: 0;
+  color: var(--text3);
+  font-size: .68rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.hub-log-btn:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+  box-shadow: none;
+}
+
+.training-history {
+  margin-top: 1rem;
+  padding: .75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  background: rgba(0, 0, 0, .2);
+}
+
+.training-history h2 {
+  margin: 0 0 .55rem;
+  color: var(--text3);
+  font-size: .62rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.training-history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .35rem 0;
+  color: var(--text2);
+  font-size: .7rem;
+}
+
+.training-history-row + .training-history-row {
+  border-top: 1px solid rgba(255, 255, 255, .04);
+}
+
+.training-history-row span:last-child {
+  color: var(--text3);
+  white-space: nowrap;
+}
+
+@media (max-width: 380px) {
+  .training-history-row {
+    flex-direction: column;
+    gap: .15rem;
+  }
+}
