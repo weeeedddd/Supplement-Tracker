@@ -4,7 +4,7 @@
 //    re-rendern über refresh().
 import { useSyncExternalStore } from 'react';
 
-export type Screen = 'onboard' | 'ki' | 'dashboard' | 'fuel' | 'training';
+export type Screen = 'onboard' | 'ki' | 'dashboard' | 'fuel' | 'training' | 'profile' | 'shopping';
 
 const listeners = new Set<() => void>();
 let version = 0;

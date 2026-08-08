@@ -3,9 +3,22 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { applyDocumentLanguage } from './lib/i18n';
+import '@fontsource/barlow-condensed/latin-400.css';
+import '@fontsource/barlow-condensed/latin-ext-400.css';
+import '@fontsource/barlow-condensed/latin-600.css';
+import '@fontsource/barlow-condensed/latin-ext-600.css';
+import '@fontsource/barlow-condensed/latin-700.css';
+import '@fontsource/barlow-condensed/latin-ext-700.css';
+import '@fontsource/manrope/latin-400.css';
+import '@fontsource/manrope/latin-ext-400.css';
+import '@fontsource/manrope/latin-600.css';
+import '@fontsource/manrope/latin-ext-600.css';
+import '@fontsource/manrope/latin-700.css';
+import '@fontsource/manrope/latin-ext-700.css';
 import './legacy.css';
 import './app.css';
 import './product-shell.css';
+import './coreline-system.css';
 
 applyDocumentLanguage();
 

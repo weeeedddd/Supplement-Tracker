@@ -9,8 +9,10 @@ for (const lg of Object.keys(BASE)) I18N[lg] = { ...BASE[lg], ...(I18N_EXTRA[lg]
 
 const SUPPORTED = ['de', 'en', 'ja', 'ko', 'es', 'tr'];
 export let lang: string = (() => {
-  const stored = S.get<string>('lang') || 'en';
-  return SUPPORTED.includes(stored) ? stored : 'en';
+  const stored = S.get<string>('lang');
+  if (stored && SUPPORTED.includes(stored)) return stored;
+  const browserLanguage = typeof navigator !== 'undefined' ? navigator.language.slice(0, 2).toLowerCase() : '';
+  return SUPPORTED.includes(browserLanguage) ? browserLanguage : 'de';
 })();
 
 export function t(k: string): string {

@@ -1,0 +1,45 @@
+{
+  "title": "Approve CORELINE's mobile composition",
+  "question": "Choose the composition that should govern the build. Use the note field if specific parts should be combined or revised before approval.",
+  "options": [
+    {
+      "id": "comp-a",
+      "label": "Status Gate",
+      "kicker": "TODAY-FIRST",
+      "lineage": "premium fitness dashboard with a dominant player-status window",
+      "thesis": "The whole day resolves into one status view and one decisive training action.",
+      "palette": ["#070A0B", "#171A1C", "#ECE8DE", "#71E7EF"],
+      "materials": ["blackened steel", "dark vellum", "etched seams"],
+      "viewport": "An anonymous athlete status plane and Today overview lead into training, nutrition, recovery, and supplements.",
+      "risk": "The large figure reduces space for detailed daily controls on short phones.",
+      "hero": ".impeccable/mocks/comp-a-status-gate.webp"
+    },
+    {
+      "id": "comp-b",
+      "label": "Quest First",
+      "kicker": "ACTION-FIRST",
+      "lineage": "decisive game-menu choreography translated into a training choice",
+      "thesis": "Every day begins by choosing to build a workout or generate the plan.",
+      "palette": ["#070A0B", "#171A1C", "#ECE8DE", "#71E7EF"],
+      "materials": ["blackened steel", "dark vellum", "etched seams"],
+      "viewport": "A diagonal training chamber dominates while food, supplements, recovery, Guide, and navigation remain one thumb away.",
+      "risk": "The action focus gives profile and trend information less opening-screen presence.",
+      "hero": ".impeccable/mocks/comp-b-quest-first.webp"
+    },
+    {
+      "id": "comp-c",
+      "label": "Profile Codex",
+      "kicker": "PROFILE-FIRST",
+      "lineage": "a personal status dossier expanded into an editable lifestyle plan",
+      "thesis": "The user’s own profile becomes the command center for the entire plan.",
+      "palette": ["#070A0B", "#171A1C", "#ECE8DE", "#71E7EF"],
+      "materials": ["blackened steel", "dark vellum", "etched seams"],
+      "viewport": "An anonymous profile dossier opens into lifestyle, training, food, sleep, and supplement modules.",
+      "risk": "Information density must be carefully reduced for 320-pixel screens.",
+      "hero": ".impeccable/mocks/comp-c-profile-codex.webp"
+    }
+  ],
+  "reroll": false,
+  "canon": false,
+  "steer": true
+}

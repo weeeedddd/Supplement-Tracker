@@ -28,6 +28,91 @@ Frontend-Build `VITE_BACKEND_URL` setzen.
 | `POST /api/chat/upload` | Bild-Upload für den Chat (3 MB, jpeg/png/webp/gif, Magic-Byte-Check) |
 | `WS /ws/chat/{room}` | Chat-Räume: `global`, `de`, `en`, `ja`, `ko`, `es` |
 
+## Sichere Integrationen (`/api/v1`)
+
+Die GitHub-Pages-App bleibt offline-first. Echte KI- und Standortabfragen
+laufen ausschließlich über dieses separat zu hostende HTTPS-Backend; API-Keys
+gehören nur in Server-Umgebungsvariablen und nie in den Browser-Build.
+
+| Route | Verhalten |
+|---|---|
+| `GET /api/v1/integrations/status` | Meldet ehrlich, welche Provider serverseitig konfiguriert sind; prüft keine Keys und gibt keine Secrets aus |
+| `POST /api/v1/plan/draft` | OpenAI Responses API mit strikt strukturiertem Output, `store:false`, begrenzter Laufzeit und Ausgabe |
+| `POST /api/v1/assistant/respond` | Kontextbezogene Wellness-Frage mit expliziter Freigabe; echte OpenAI-Antwort oder ehrliches `503` |
+| `POST /api/v1/stores/nearby` | Google Geocoding + Places Nearby Search; akzeptiert Adresse **oder** Koordinaten nur mit expliziter Standortfreigabe |
+
+### KI-Planentwurf
+
+- `OPENAI_API_KEY` **und** `OPENAI_MODEL` müssen gesetzt sein. Ohne beide
+  antwortet der Endpoint mit `503`; es wird nie eine lokale Antwort als „KI“
+  ausgegeben.
+- Remote-KI ist in dieser ersten Version nur für Nutzer ab 18 Jahren aktiviert.
+- Das Request-Schema enthält Alltag, Schlaf, Mahlzeitenrhythmus, Aktivität,
+  Training und Ernährungspräferenzen, aber bewusst **keine Adresse oder
+  Koordinaten**.
+- Das Backend fordert JSON nach einem festen Schema an und validiert den Output
+  erneut. Trainingstage/-dauer, Kalorien, Protein und Makro-Konsistenz werden
+  gegen serverseitige Grenzen geprüft.
+- Der System-Prompt verbietet Diagnosen, Medikamentenberatung,
+  Supplement-Dosierungen/-Stacks, extreme Ziele und Versprechen, den Körper
+  realer oder fiktionaler Figuren zu kopieren.
+
+Der Assistant-Endpoint nutzt denselben serverseitigen OpenAI-Zugang, aber ein
+kleines separates Schema: Frage (max. 1.000 Zeichen), Sprache und optional ein
+begrenzter Profil-/Plan-Snapshot. Auch dieses Schema kennt keine
+Standortfelder. Die Antwort enthält `answer`, `safety_notes`, eine
+`escalation`-Stufe und serverseitige Provider-Metadaten. Bei akuten Warnzeichen
+muss das Modell auf lokale Notfallhilfe verweisen; eine verfehlte Eskalation
+wird serverseitig verworfen. Es gibt keinen als KI ausgegebenen Regeltext-
+Fallback.
+
+Referenz: [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses)
+und [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs).
+
+### Supermärkte in der Nähe
+
+- Für Adressen werden Geocoding **und** Places benötigt. Mit Koordinaten genügt
+  Places. `GOOGLE_MAPS_API_KEY` kann beide bedienen; produktiv sind getrennte,
+  API- und serverseitig eingeschränkte Keys über
+  `GOOGLE_GEOCODING_API_KEY` / `GOOGLE_PLACES_API_KEY` empfehlenswert.
+- Adresse und Koordinaten werden nur für die aktuelle Anfrage verarbeitet und
+  durch diesen Code weder geloggt noch gespeichert. Sie werden niemals an das
+  KI-Modell gesendet.
+- Antworten enthalten nur minimale Provider-Felder, einen Abrufzeitpunkt und
+  eine Distanz. Budget und Währung bleiben Planungskontext. Der Endpoint
+  behauptet ausdrücklich **keine** aktuellen Preise, Bestände, Öffnungszeiten
+  oder Budget-Eignung.
+
+Referenz: [Google Geocoding](https://developers.google.com/maps/documentation/geocoding/requests-geocoding)
+und [Nearby Search (New)](https://developers.google.com/maps/documentation/places/web-service/nearby-search).
+
+### Produktionsgrenzen
+
+- `CORS_ORIGINS` akzeptiert nur exakte `http(s)`-Origins; `*` stoppt den Start.
+  Sichere Defaults erlauben die öffentliche GitHub-Pages-Origin und lokale
+  Vite-Ports.
+- Die drei teuren anonymen Endpoints haben Body-, Timeout-, Token- und
+  Prozess-Ratenlimits. Das In-Memory-Limit gilt nur pro Prozess. Mehrere Worker
+  benötigen einen gemeinsamen Store (z. B. Redis) plus Limits am Reverse Proxy.
+- Der Produktionshost muss HTTPS, Secret-Management, Provider-Quoten/Budgets,
+  Monitoring ohne sensible Payloads und eine vertrauenswürdig konfigurierte
+  Proxy-IP-Kette bereitstellen.
+- Google-Maps-Billing, Key-Restriktionen und die für den Betreiber geltenden
+  EWR-Nutzungsbedingungen müssen vor dem öffentlichen Start eingerichtet bzw.
+  geprüft werden.
+
+Konfiguration siehe [`.env.example`](.env.example). Tests:
+
+```bash
+cd backend
+python -m venv .venv
+# Linux/macOS: source .venv/bin/activate
+# Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+pytest -q
+ruff check app tests
+```
+
 ## SQL-Schema
 
 SQLAlchemy-Modelle in `app/models.py` (Auto-Migration beim Start):

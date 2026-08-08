@@ -94,8 +94,7 @@
 /* Desktop: Sidebar statisch neben dem Chat statt als Overlay */
 @media (min-width:900px){
   .chat-wrap{max-width:900px}
-  .chat-sidebar{position:relative;transform:none;width:0;overflow:hidden;
-    transition:width .28s ease;box-shadow:none}
+  .chat-sidebar{position:relative;transform:none;width:0;overflow:hidden;box-shadow:none}
   .chat-sidebar.open{width:250px}
   .chat-sidebar-scrim{display:none}
 }
@@ -202,7 +201,7 @@
 .neon-label{font-size:.62rem;font-weight:600;letter-spacing:.06em;color:var(--text3);width:52px;flex-shrink:0}
 .neon-track{flex:1;height:7px;background:rgba(0,0,0,.4);border-radius:99px;overflow:hidden;
   border:1px solid var(--border)}
-.neon-fill{height:100%;border-radius:99px;transition:width .6s cubic-bezier(.22,1,.36,1)}
+.neon-fill{height:100%;border-radius:99px}
 .nb-kcal{background:linear-gradient(90deg,var(--gold),#ffb300);box-shadow:0 0 10px rgba(249,200,70,.6)}
 .nb-prot{background:linear-gradient(90deg,var(--accent2),var(--accent3));box-shadow:0 0 10px rgba(168,85,247,.6)}
 .nb-carb{background:linear-gradient(90deg,#38bdf8,#0ea5e9);box-shadow:0 0 10px rgba(56,189,248,.55)}
@@ -224,13 +223,16 @@
 
 /* Gericht-Karten */
 .dish-grid{display:flex;flex-direction:column;gap:.55rem}
-.dish-card{display:flex;align-items:center;gap:.7rem;text-align:left;width:100%;cursor:pointer;
+.dish-card{display:flex;align-items:center;gap:.7rem;text-align:left;width:100%;
   background:var(--s1);border:1px solid var(--border);border-radius:var(--r2);padding:.7rem .8rem;
   transition:all .3s;backdrop-filter:var(--blur);-webkit-backdrop-filter:var(--blur)}
 .dish-card:hover{border-color:var(--border2);box-shadow:0 0 16px rgba(var(--glow-rgb),.15)}
+.dish-open{display:flex;align-items:center;gap:.7rem;min-width:0;flex:1;padding:0;text-align:left;
+  color:inherit;background:none;border:0;cursor:pointer}
+.dish-open:focus-visible,.dish-share:focus-visible{outline:2px solid var(--accent3);outline-offset:3px}
 .dish-ic{font-size:1.6rem;flex-shrink:0;width:38px;text-align:center}
 .dish-body{flex:1;min-width:0}
-.dish-name{font-size:.85rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dish-name{display:block;font-size:.85rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dish-meta{display:flex;align-items:center;gap:.5rem;margin-top:.15rem}
 .dish-cat{font-size:.6rem;font-weight:700;letter-spacing:.06em;color:var(--accent3);
   background:rgba(var(--glow-rgb),.14);border:1px solid var(--border);border-radius:99px;padding:.08rem .45rem}
@@ -268,7 +270,7 @@
   letter-spacing:.1em;color:var(--text3);margin-top:.2rem}
 .ingredient-list{list-style:none;display:flex;flex-direction:column;gap:.3rem}
 .ingredient-list li{font-size:.8rem;color:var(--text2);padding:.4rem .6rem;
-  background:rgba(0,0,0,.24);border-left:2px solid var(--accent2);border-radius:0 6px 6px 0}
+  background:rgba(0,0,0,.24);border:1px solid var(--border);box-shadow:inset 1px 0 var(--accent2);border-radius:0 6px 6px 0}
 .hub-log-btn{display:flex;align-items:center;justify-content:center;gap:.4rem;margin-top:.3rem}
 
 /* Creator-Formulare (kompakt, nichts ragt über den Rand) */
@@ -327,7 +329,7 @@
 .tracker-prog{display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem;border-bottom:1px solid var(--border)}
 .tracker-prog-bar{flex:1;height:5px;background:rgba(0,0,0,.4);border-radius:99px;overflow:hidden;border:1px solid var(--border)}
 .tracker-prog-bar>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));
-  box-shadow:0 0 8px rgba(var(--glow-rgb),.5);transition:width .35s ease}
+  box-shadow:0 0 8px rgba(var(--glow-rgb),.5)}
 .tracker-prog>span{font-size:.64rem;font-weight:700;color:var(--text3);font-variant-numeric:tabular-nums}
 .tx-exercise{padding:.55rem .1rem;border-bottom:1px solid rgba(255,255,255,.03)}
 .tx-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.45rem}
@@ -362,6 +364,7 @@
   display:inline-flex;align-items:center;justify-content:center;transition:all .3s}
 .dish-share:hover{border-color:var(--accent2);color:var(--accent3);
   background:rgba(var(--glow-rgb),.16);box-shadow:0 0 10px rgba(var(--glow-rgb),.28)}
+.dish-load-more{width:100%;margin-top:.75rem}
 
 /* Detail-Modal: Hero-Bild, Schritt-Liste, Aktions-Zeile */
 .detail-hero{width:100%;height:170px;object-fit:cover;border-radius:var(--r2);

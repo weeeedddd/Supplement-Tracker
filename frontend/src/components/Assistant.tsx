@@ -1,15 +1,27 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
 import type { DietPreference, EquipmentOption, TrainingGoal } from '../lib/plans';
+import { getBackendUrl } from '../lib/backend';
+import { requestRemoteAssistant } from '../lib/integrations';
+import { SystemIcon } from './SystemIcon';
 import '../assistant.css';
 
 export interface AssistantContext {
   displayName?: string;
+  age?: number;
   weightKg?: number;
   goal?: TrainingGoal;
   diet?: DietPreference;
+  dietaryPreferences?: string[];
   equipment?: EquipmentOption[];
   planSummary?: string;
+  lifestyleSummary?: string;
+  activityLevel?: 'low' | 'moderate' | 'high';
+  averageSleepHours?: number;
+  planTitle?: string;
+  nutritionSummary?: string;
+  calorieTargetKcal?: number;
+  proteinTargetG?: number;
 }
 
 export type AssistantTopic = 'protein' | 'substitution' | 'shopping' | 'safety' | 'general';
@@ -174,141 +186,185 @@ interface AssistantMessage {
   id: number;
   role: 'assistant' | 'user';
   text: string;
+  mode?: 'local' | 'openai' | 'system';
 }
 
 export interface AssistantProps {
   context?: AssistantContext;
   title?: string;
   className?: string;
+  onOpenShopping?: () => void;
 }
 
 const QUICK_PROMPTS = [
-  'Help me plan protein foods',
-  'Suggest an ingredient substitution',
-  'Build a simple shopping list',
+  'Plane proteinreiche Lebensmittel',
+  'Schlage eine Zutat-Alternative vor',
+  'Erstelle eine einfache Einkaufsliste',
 ];
 
-export function Assistant({ context, title = 'Plan Assistant', className = '' }: AssistantProps) {
+function remoteGoal(goal?: TrainingGoal): 'healthy_routine' | 'general_fitness' | 'fat_loss' | 'muscle_gain' | 'performance' {
+  if (goal === 'build_muscle') return 'muscle_gain';
+  if (goal === 'get_stronger') return 'performance';
+  if (goal === 'fat_loss') return 'fat_loss';
+  return goal === 'general_fitness' ? 'general_fitness' : 'healthy_routine';
+}
+
+export function Assistant({ context, title = 'Plan Assistant', className = '', onOpenShopping }: AssistantProps) {
   const [useContext, setUseContext] = useState(false);
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<AssistantMessage[]>([
-    { id: 1, role: 'assistant', text: 'Ask about protein foods, substitutions, shopping, or your starter plan.' },
+    { id: 1, role: 'assistant', mode: 'system', text: 'Frag mich nach Proteinquellen, sinnvollen Lebensmittel-Alternativen oder deinem gespeicherten Plan.' },
   ]);
-  const [searchDraft, setSearchDraft] = useState({ countryCode: '', budget: '', currency: 'EUR', store: '' });
-  const [searchStatus, setSearchStatus] = useState('');
+  const [pending, setPending] = useState(false);
+  const [modeStatus, setModeStatus] = useState('Lokale Regeln sind aktiv. Es werden keine Daten übertragen.');
+  const remoteAvailable = Boolean(getBackendUrl());
   const nextId = useMemo(() => messages.reduce((max, message) => Math.max(max, message.id), 0) + 1, [messages]);
 
-  const ask = (raw: string) => {
+  const ask = async (raw: string) => {
     const value = raw.trim();
-    if (!value) return;
-    const reply = buildLocalAssistantReply(value, { context, useContext });
+    if (!value || pending) return;
+    const localReply = buildLocalAssistantReply(value, { context, useContext });
     setMessages((current) => [
       ...current,
       { id: nextId, role: 'user', text: value },
-      { id: nextId + 1, role: 'assistant', text: reply.text },
     ]);
     setQuestion('');
+
+    if (localReply.topic === 'safety') {
+      setMessages((current) => [...current, { id: nextId + 1, role: 'assistant', mode: 'local', text: localReply.text }]);
+      setModeStatus('Sicherheitsfrage lokal abgefangen. Keine Profildaten wurden übertragen.');
+      return;
+    }
+
+    if (!useContext || !remoteAvailable) {
+      setMessages((current) => [...current, { id: nextId + 1, role: 'assistant', mode: 'local', text: localReply.text }]);
+      setModeStatus(remoteAvailable
+        ? 'Lokale Antwort. Aktiviere die Einwilligung, wenn du die sichere KI mit Profilkontext nutzen möchtest.'
+        : 'Lokale Antwort. Für echte KI muss in den Einstellungen ein sicheres Backend verbunden werden.');
+      return;
+    }
+
+    setPending(true);
+    setModeStatus('Sichere KI wird kontaktiert. Der gewählte Kontext gilt nur für diese Anfrage.');
+    try {
+      const response = await requestRemoteAssistant({
+        consent_to_remote_ai: true,
+        response_language: 'de',
+        question: value,
+        ...(context?.age && context.age >= 18 ? {
+          profile_context: {
+            age: context.age,
+            goal: remoteGoal(context.goal),
+            activity_level: context.activityLevel ?? 'moderate',
+            average_sleep_hours: context.averageSleepHours && context.averageSleepHours >= 2 && context.averageSleepHours <= 14
+              ? context.averageSleepHours
+              : 7.5,
+            dietary_preferences: [context.diet, ...(context.dietaryPreferences ?? [])]
+              .filter((item): item is string => Boolean(item))
+              .map((item) => item.slice(0, 80))
+              .slice(0, 12),
+            daily_routine_summary: context.lifestyleSummary?.slice(0, 600) ?? '',
+          },
+        } : {}),
+        ...(context?.planSummary ? {
+          plan_context: {
+            plan_title: context.planTitle?.slice(0, 100) ?? '',
+            training_summary: context.planSummary.slice(0, 600),
+            nutrition_summary: context.nutritionSummary?.slice(0, 600) ?? '',
+            calorie_target_kcal: context.calorieTargetKcal,
+            protein_target_g: context.proteinTargetG,
+          },
+        } : {}),
+      });
+      setMessages((current) => [...current, {
+        id: nextId + 1,
+        role: 'assistant',
+        mode: 'openai',
+        text: [response.answer, ...response.safety_notes].filter(Boolean).join('\n\n'),
+      }]);
+      setModeStatus(`Echte KI-Antwort über das sichere Backend · ${response.provider_storage_requested ? 'Speicherung angefordert' : 'keine Provider-Speicherung angefordert'}.`);
+    } catch (error) {
+      setMessages((current) => [...current, {
+        id: nextId + 1,
+        role: 'assistant',
+        mode: 'local',
+        text: `${localReply.text}\n\nDie echte KI war nicht erreichbar; deshalb wurde transparent auf die lokale Hilfe zurückgefallen.`,
+      }]);
+      setModeStatus(error instanceof Error ? error.message : 'Die echte KI ist momentan nicht erreichbar.');
+    } finally {
+      setPending(false);
+    }
   };
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    ask(question);
-  };
-
-  const validateSearch = (event: FormEvent) => {
-    event.preventDefault();
-    const result = createProductSearchRequest({
-      query: question.trim() || 'protein foods',
-      countryCode: searchDraft.countryCode,
-      budgetAmount: Number(searchDraft.budget),
-      currency: searchDraft.currency,
-      store: searchDraft.store,
-    });
-    if (!result.ok) {
-      setSearchStatus(`Check: ${result.errors.join(', ')}.`);
-      return;
-    }
-    setSearchStatus(`Preferences ready for ${result.value.countryCode}. Live search is not connected, so no offers or links were generated.`);
+    void ask(question);
   };
 
   return (
     <section className={`assistant-shell ${className}`.trim()} aria-labelledby="assistant-title">
       <header className="assistant-header">
         <div>
-          <span className="assistant-kicker">CONTEXTUAL GUIDE</span>
           <h2 id="assistant-title">{title}</h2>
         </div>
-        <span className="assistant-local-badge">LOCAL</span>
+        <span className="assistant-local-badge">{useContext && remoteAvailable ? 'SECURE AI' : 'LOCAL'}</span>
       </header>
 
-      <p className="assistant-disclosure" role="note">{LOCAL_DISCLOSURE}</p>
+      <p className="assistant-disclosure" role="status">{modeStatus}</p>
 
       <label className="assistant-context-toggle">
         <input
           type="checkbox"
           checked={useContext}
-          disabled={!context}
+          disabled={!context || !remoteAvailable}
           onChange={(event) => setUseContext(event.target.checked)}
         />
         <span>
-          <strong>Use my saved plan context</strong>
-          <small>{context ? 'Opt in for this assistant session only.' : 'No plan context was provided.'}</small>
+          <strong>Sichere KI mit meinem gespeicherten Kontext verwenden</strong>
+          <small>{!context
+            ? 'Kein Profilkontext vorhanden.'
+            : !remoteAvailable
+              ? 'Verbinde zuerst ein Backend in den Einstellungen. Ein API-Schlüssel gehört niemals in den Browser.'
+              : 'Einwilligung für diese Sitzung: Alter, Ziel, Aktivität, Schlaf, Ernährung, Tagesablauf und aktuelle Plan-Zielwerte werden an das konfigurierte Backend gesendet. Standort und Adresse niemals.'}</small>
         </span>
       </label>
 
       <div className="assistant-prompts" aria-label="Suggested questions">
         {QUICK_PROMPTS.map((prompt) => (
-          <button type="button" key={prompt} onClick={() => ask(prompt)}>{prompt}</button>
+          <button type="button" key={prompt} onClick={() => void ask(prompt)} disabled={pending}>{prompt}</button>
         ))}
       </div>
 
       <div className="assistant-log" aria-live="polite" aria-label="Assistant conversation">
         {messages.map((message) => (
           <div className={`assistant-message ${message.role}`} key={message.id}>
-            <span>{message.role === 'assistant' ? 'Guide' : 'You'}</span>
+            <span>{message.role === 'assistant'
+              ? message.mode === 'openai' ? 'Secure AI' : message.mode === 'local' ? 'Local guide' : 'CORELINE'
+              : 'Du'}</span>
             <p>{message.text}</p>
           </div>
         ))}
       </div>
 
       <form className="assistant-compose" onSubmit={submit}>
-        <label htmlFor="assistant-question">Your question</label>
+        <label htmlFor="assistant-question">Deine Frage</label>
         <div>
           <input
             id="assistant-question"
             value={question}
             maxLength={280}
-            placeholder="Ask about protein foods, swaps, or shopping..."
+            placeholder="Frage nach Protein, Alternativen oder deinem Plan …"
             onChange={(event) => setQuestion(event.target.value)}
           />
-          <button type="submit">Ask locally</button>
+          <button type="submit" disabled={pending}>{pending ? 'Analysiert …' : useContext && remoteAvailable ? 'Sicher fragen' : 'Lokal fragen'}</button>
         </div>
       </form>
 
-      <details className="assistant-search-contract">
-        <summary>Future product-search preferences</summary>
-        <p>No provider is connected. These fields only validate the country, budget, and store contract.</p>
-        <form onSubmit={validateSearch}>
-          <label>
-            Country code
-            <input value={searchDraft.countryCode} maxLength={2} placeholder="DE" onChange={(event) => setSearchDraft({ ...searchDraft, countryCode: event.target.value })} />
-          </label>
-          <label>
-            Budget
-            <input type="number" min="1" step="1" value={searchDraft.budget} placeholder="40" onChange={(event) => setSearchDraft({ ...searchDraft, budget: event.target.value })} />
-          </label>
-          <label>
-            Currency
-            <input value={searchDraft.currency} maxLength={3} onChange={(event) => setSearchDraft({ ...searchDraft, currency: event.target.value })} />
-          </label>
-          <label>
-            Preferred store
-            <input value={searchDraft.store} maxLength={80} placeholder="Optional" onChange={(event) => setSearchDraft({ ...searchDraft, store: event.target.value })} />
-          </label>
-          <button type="submit">Validate preferences</button>
-        </form>
-        {searchStatus && <p className="assistant-search-status" role="status">{searchStatus}</p>}
-      </details>
+      {onOpenShopping && (
+        <button type="button" className="system-button quiet" onClick={onOpenShopping}>
+          <SystemIcon name="store" /> Einkaufsradar öffnen
+        </button>
+      )}
     </section>
   );
 }

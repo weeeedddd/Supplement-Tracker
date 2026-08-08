@@ -239,11 +239,12 @@ function ScannerWidget() {
     <div className="widget" id="scanner-widget">
       <div className="w-title">Nutrition entry</div>
       <div className="scanner-row">
-        <input type="text" className="scanner-input" value={txt} placeholder={t('scanner_ph')}
+        <input id="nutrition-entry" name="nutrition-entry" type="text" className="scanner-input" value={txt} placeholder={t('scanner_ph')}
+          aria-label="Food or meal description"
           onChange={e => setTxt(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
-        <label className="scanner-file-btn" title={t('chat_upload')}>
+        <label className="scanner-file-btn" htmlFor="nutrition-photo" title={t('chat_upload')} aria-label="Food photo auswählen">
           {IconCamera}
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onFile} />
+          <input ref={fileRef} id="nutrition-photo" name="nutrition-photo" type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onFile} />
         </label>
       </div>
       {imgB64 && (
@@ -518,7 +519,7 @@ function MissionLog() {
   return (
     <div className="widget">
       <div className="w-title">Daily notes</div>
-      <textarea className="mission-log" rows={4} value={note} placeholder="Notes for today…"
+      <textarea id="daily-notes" name="daily-notes" className="mission-log" rows={4} value={note} placeholder="Notes for today…" aria-label="Daily notes"
         onChange={e => { setNote(e.target.value); S.set('note_' + dateKey(), e.target.value); }} />
     </div>
   );

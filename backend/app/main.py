@@ -2,7 +2,7 @@
 
 Start:  uvicorn app.main:app --host 0.0.0.0 --port 8000
 Env:    DATABASE_URL   (default sqlite:///./shadow.db)
-        CORS_ORIGINS   (kommagetrennt; default * für einfaches Self-Hosting)
+        CORS_ORIGINS   (kommagetrennte, exakte Origins; kein Wildcard)
         MEDIA_DIR      (default ./media)
 
 Liefert: Auth, Scan-Historie, Live-Marktpreise (Open Prices Proxy),
@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .api_v1 import router as api_v1_router
 from .db import Base, SessionLocal, engine, get_db
 from .models import AuthToken, ChatMessage, Dish, ScanEntry, User, UserStats, WorkoutPlan
 from .services.fitness import (
@@ -33,20 +34,39 @@ from .services.food import analyze_barcode, analyze_text
 from .services.loadout import find_loadout, format_loadout, loadout_names
 from .services.prices import get_live_prices_cached
 from .services.vision import MAX_IMAGE_BYTES, capabilities, decode_barcode, ocr_text
+from .security import RequestBodyLimitMiddleware, parse_cors_origins
 from .shadow_bot import (
     WARNINGS, command_on_cooldown, format_profile, moderate, parse_command,
 )
 
-app = FastAPI(title="SHADOW~1 Backend", version="2.0.0")
+app = FastAPI(title="SHADOW~1 Backend", version="2.1.0")
 
-origins = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
+try:
+    integration_request_bytes = int(os.environ.get("INTEGRATION_MAX_REQUEST_BYTES", "32768"))
+except ValueError:
+    integration_request_bytes = 32768
+integration_request_bytes = max(8192, min(65536, integration_request_bytes))
+app.add_middleware(
+    RequestBodyLimitMiddleware,
+    paths={
+        "/api/v1/plan/draft",
+        "/api/v1/assistant/respond",
+        "/api/v1/stores/nearby",
+    },
+    max_bytes=integration_request_bytes,
+)
+
+origins = parse_cors_origins(os.environ.get("CORS_ORIGINS"))
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Accept", "Authorization", "Content-Type"],
+    max_age=600,
 )
+
+app.include_router(api_v1_router)
 
 MEDIA_DIR = os.environ.get("MEDIA_DIR", os.path.join(os.path.dirname(__file__), "..", "media"))
 os.makedirs(MEDIA_DIR, exist_ok=True)

@@ -1,0 +1,75 @@
+{
+  "title": "Choose CORELINE's visual world",
+  "question": "Keep the assigned Athlete Field Kit, take one alternate, choose the familiar category standard, or re-roll with an optional steer.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Athlete Field Kit",
+      "kicker": "THE ROLL",
+      "lineage": "training-camp credentials, coach packets, and track-lane markings",
+      "thesis": "Your real life becomes a deployable daily performance brief.",
+      "palette": ["#0B1214", "#E9E3D4", "#F2FF45", "#2F6BFF", "#FF5C3A"],
+      "materials": ["ripstop field cloth", "laminated coach cards", "anodized clips"],
+      "viewport": "A portrait athlete dossier anchors the top while today's train, fuel, and recover route locks below it.",
+      "risk": "Can feel militarized if human imagery and recovery language lose warmth.",
+      "sketch": ".impeccable/sketches/assigned.webp"
+    },
+    {
+      "id": "challenger-console",
+      "label": "Graphite Control Deck",
+      "kicker": "ALTERNATE",
+      "lineage": "dark-first developer consoles and instrument panels",
+      "thesis": "Every health signal occupies one persistent, precise control panel.",
+      "case": "Product clarity is excellent, but audience identification is weaker and the human routine risks feeling like software administration.",
+      "palette": ["#111416", "#1A1F22", "#D9E2E5", "#78E08F", "#F4B860"],
+      "materials": ["graphite glass", "hairline seams", "syntax-state color"],
+      "viewport": "A dense but ordered Today panel holds readiness, workout, fuel, and supplement state without changing frames.",
+      "risk": "Technical density can become cold and visually predictable.",
+      "sketch": ".impeccable/sketches/challenger-console.webp",
+      "hero": "https://impeccable.style/worlds/cards/digital-design-canon-dark-first-developer-console-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/digital-design-canon-dark-first-developer-console.webp"
+    },
+    {
+      "id": "challenger-fold",
+      "label": "Deployable Plan Sheet",
+      "kicker": "ALTERNATE",
+      "lineage": "Miura-fold aerospace sheets and linked crease diagrams",
+      "thesis": "One pull turns a compact profile into a linked training, food, and recovery plan.",
+      "case": "The personalized-plan mechanism fuses beautifully, but folded geometry makes repeated daily actions less immediately familiar.",
+      "palette": ["#F3F4EF", "#C8D5E2", "#B59A52", "#222526", "#6F7C82"],
+      "materials": ["matte technical sheet", "gold packet foil", "scored crease graph"],
+      "viewport": "A compact profile packet opens diagonally into today's connected workout, nutrition, recovery, and supplement cells.",
+      "risk": "The geometry can compete with labels and small-screen scanning.",
+      "sketch": ".impeccable/sketches/challenger-fold.webp",
+      "hero": "https://impeccable.style/worlds/cards/paper-folds-pleats-deployable-miura-orbit-sheet-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/paper-folds-pleats-deployable-miura-orbit-sheet.webp"
+    },
+    {
+      "id": "challenger-terminal",
+      "label": "Crew Readiness Terminal",
+      "kicker": "ALTERNATE",
+      "lineage": "used-future starship terminals and equipment paperwork",
+      "thesis": "The day reads like a crew readiness check before a demanding mission.",
+      "case": "Identity is strong for game-literate users, but command grammar lowers accessibility and weakens food and profile clarity.",
+      "palette": ["#07100D", "#E3DDC9", "#76F59A", "#F5B94B", "#171B19"],
+      "materials": ["curved CRT glass", "stenciled equipment plates", "worn off-white panels"],
+      "viewport": "A phosphor readiness readout types today's workout, meals, recovery, and supplement checks beneath a crew badge.",
+      "risk": "The theatrical terminal can overpower everyday utility.",
+      "sketch": ".impeccable/sketches/challenger-terminal.webp",
+      "hero": "https://impeccable.style/worlds/cards/pop-culture-shelf-industrial-starship-terminal-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/pop-culture-shelf-industrial-starship-terminal.webp"
+    }
+  ],
+  "reroll": true,
+  "canon": true,
+  "canonCard": {
+    "label": "Premium Fitness Dashboard",
+    "thesis": "A polished mobile fitness dashboard with familiar cards, rings, imagery, and bottom navigation.",
+    "palette": ["#111827", "#FFFFFF", "#7C3AED", "#22C55E", "#94A3B8"],
+    "materials": ["soft cards", "gradient progress rings", "editorial fitness crop"],
+    "viewport": "A hero progress card sits above modular workout, nutrition, and supplement sections.",
+    "risk": "Immediately usable, but it looks like the category and makes CORELINE harder to remember.",
+    "sketch": ".impeccable/sketches/canon.webp"
+  },
+  "steer": true
+}

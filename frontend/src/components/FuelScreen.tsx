@@ -28,6 +28,13 @@ const IconList = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" str
 
 const CATS = ['all', 'breakfast', 'main', 'dessert', 'snack'];
 const EQUIP = [{ id: 'airfryer', icon: IconAir }, { id: 'ricecooker', icon: IconRice }];
+const PAGE_SIZE = 24;
+
+function isOfflineSafeImage(source?: string): boolean {
+  if (!source) return false;
+  if (source.startsWith('data:image/') || source.startsWith('blob:')) return true;
+  return !/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(source);
+}
 
 export function FuelScreen() {
   const [dishes, setDishes] = useState<Dish[]>([]);
@@ -36,8 +43,10 @@ export function FuelScreen() {
   const [detail, setDetail] = useState<Dish | null>(null);
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const load = () => {
+    setVisibleCount(PAGE_SIZE);
     fetchDishes(cat === 'all' ? undefined : cat, equip || undefined).then(setDishes);
   };
   useEffect(load, [cat, equip]);
@@ -53,6 +62,7 @@ export function FuelScreen() {
   ];
 
   const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3200); };
+  const visibleDishes = dishes.slice(0, visibleCount);
 
   const onLog = async (d: Dish) => {
     const buff = await logMeal({ name: d.name, ...nutritionFromDish(d) });
@@ -109,36 +119,41 @@ export function FuelScreen() {
 
           {/* Gerichte-Grid */}
           <div className="dish-grid">
-            {dishes.map(d0 => {
+            {visibleDishes.map(d0 => {
               const d = locDish(d0);
               return (
-                <div className="dish-card" key={String(d0.id)} role="button" tabIndex={0}
-                  onClick={() => setDetail(d0)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setDetail(d0); } }}>
-                  {d.image
-                    ? <img className="dish-thumb" src={d.image} alt="" loading="lazy" />
-                    : <div className="dish-ic">{d.icon}</div>}
-                  <div className="dish-body">
-                    <div className="dish-name">{d.name}</div>
-                    <div className="dish-meta">
-                      <span className="dish-cat">{t('cat_' + d.category)}</span>
-                      <span className="dish-time">{IconClock}{d.prep_min}′</span>
-                    </div>
-                    <div className="dish-macros">
-                      <span className="dm dm-k">{d.kcal} kcal</span>
-                      <span className="dm dm-p">{d.prot}g P</span>
-                      {d.equipment.filter(e => e === 'airfryer' || e === 'ricecooker').map(e => (
-                        <span className="dm dm-eq" key={e}>{e === 'airfryer' ? '♨' : '🍚'}</span>
-                      ))}
-                    </div>
-                  </div>
-                  <button className="dish-share" title={t('fuel_share')} aria-label={t('fuel_share')}
-                    onClick={e => { e.stopPropagation(); onShare(d0); }}>{IconShare}</button>
-                </div>
+                <article className="dish-card" key={String(d0.id)}>
+                  <button className="dish-open" type="button" onClick={() => setDetail(d0)} aria-label={`${d.name} öffnen`}>
+                    {isOfflineSafeImage(d.image)
+                      ? <img className="dish-thumb" src={d.image} alt="" loading="lazy" />
+                      : <span className="dish-ic" aria-hidden="true">{d.icon}</span>}
+                    <span className="dish-body">
+                      <span className="dish-name">{d.name}</span>
+                      <span className="dish-meta">
+                        <span className="dish-cat">{t('cat_' + d.category)}</span>
+                        <span className="dish-time">{IconClock}{d.prep_min}′</span>
+                      </span>
+                      <span className="dish-macros">
+                        <span className="dm dm-k">{d.kcal} kcal</span>
+                        <span className="dm dm-p">{d.prot}g P</span>
+                        {d.equipment.filter(e => e === 'airfryer' || e === 'ricecooker').map(e => (
+                          <span className="dm dm-eq" key={e}>{e === 'airfryer' ? '♨' : '🍚'}</span>
+                        ))}
+                      </span>
+                    </span>
+                  </button>
+                  <button className="dish-share" type="button" title={t('fuel_share')} aria-label={`${d.name}: ${t('fuel_share')}`}
+                    onClick={() => onShare(d0)}>{IconShare}</button>
+                </article>
               );
             })}
             {!dishes.length && <div className="ta-empty">{t('fuel_none')}</div>}
           </div>
+          {visibleCount < dishes.length && (
+            <button className="system-button quiet dish-load-more" type="button" onClick={() => setVisibleCount(count => count + PAGE_SIZE)}>
+              Mehr Rezepte laden · {Math.min(PAGE_SIZE, dishes.length - visibleCount)} von {dishes.length - visibleCount}
+            </button>
+          )}
         </div>
       </div>
 
@@ -159,7 +174,7 @@ function DishDetail({ dish: dish0, onClose, onLog, onShare }: { dish: Dish; onCl
           <button className="modal-close" onClick={onClose}>{IconX}</button>
         </div>
         <div className="hub-box-body">
-          {dish.image && <img className="detail-hero" src={dish.image} alt={dish.name} loading="lazy" />}
+          {isOfflineSafeImage(dish.image) && <img className="detail-hero" src={dish.image} alt={dish.name} loading="lazy" />}
           <div className="detail-macros">
             <div className="dmx"><b>{dish.kcal}</b><span>kcal</span></div>
             <div className="dmx"><b>{dish.prot}g</b><span>{t('m_prot')}</span></div>

@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-08T22:13:22.8132788Z",
+  "title": "Design System: CORELINE",
+  "extensions": {
+    "colorMeta": {
+      "moon-cyan": {
+        "role": "primary",
+        "displayName": "Moon Cyan",
+        "canonical": "#78e7ed",
+        "tonalRamp": ["#062a2c", "#0d4448", "#176268", "#25838a", "#42aab1", "#78e7ed", "#b8f5f7", "#e7fcfd"]
+      },
+      "moon-cyan-soft": {
+        "role": "primary",
+        "displayName": "Soft Moonlight",
+        "canonical": "#b8f5f7",
+        "tonalRamp": ["#112829", "#214244", "#386063", "#568185", "#7eaaad", "#b8f5f7", "#d7fafb", "#f0fdfd"]
+      },
+      "void": {
+        "role": "neutral",
+        "displayName": "Void",
+        "canonical": "#050707",
+        "tonalRamp": ["#050707", "#111414", "#262a2a", "#424747", "#626868", "#8a9090", "#bbc0c0", "#eff1f1"]
+      },
+      "obsidian": {
+        "role": "neutral",
+        "displayName": "Obsidian",
+        "canonical": "#090b0c",
+        "tonalRamp": ["#090b0c", "#15191a", "#2a3031", "#454c4d", "#656d6e", "#8d9596", "#bec4c5", "#f0f2f2"]
+      },
+      "charcoal": {
+        "role": "neutral",
+        "displayName": "Charcoal",
+        "canonical": "#111516",
+        "tonalRamp": ["#0a0d0e", "#111516", "#293031", "#444c4d", "#646d6e", "#8c9596", "#bdc4c5", "#eff2f2"]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel Charcoal",
+        "canonical": "#15191a",
+        "tonalRamp": ["#0b0e0f", "#15191a", "#2e3435", "#495051", "#697172", "#91999a", "#c1c7c8", "#f1f3f3"]
+      },
+      "panel-raised": {
+        "role": "neutral",
+        "displayName": "Raised Charcoal",
+        "canonical": "#1b2021",
+        "tonalRamp": ["#0d1011", "#1b2021", "#333a3b", "#4e5657", "#6e7778", "#969e9f", "#c5cbcc", "#f2f4f4"]
+      },
+      "bone": {
+        "role": "neutral",
+        "displayName": "Bone",
+        "canonical": "#eeeae0",
+        "tonalRamp": ["#24231f", "#403e37", "#5f5b51", "#827c6f", "#aaa395", "#d0cabe", "#eeeae0", "#fbfaf6"]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Weathered Silver",
+        "canonical": "#aaa79f",
+        "tonalRamp": ["#242321", "#3e3c38", "#5c5954", "#7b7771", "#aaa79f", "#c8c5be", "#e3e1dc", "#f8f7f4"]
+      },
+      "dim": {
+        "role": "neutral",
+        "displayName": "Ash",
+        "canonical": "#747875",
+        "tonalRamp": ["#1d1f1e", "#343735", "#505451", "#747875", "#959a96", "#b8bcb9", "#dadddb", "#f4f5f4"]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Ember Red",
+        "canonical": "#ef6675",
+        "tonalRamp": ["#351015", "#5a1b24", "#842c39", "#b44353", "#d95767", "#ef6675", "#ffb2ba", "#ffe8ea"]
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Muted Gold",
+        "canonical": "#e9c36a",
+        "tonalRamp": ["#30270e", "#514119", "#765f28", "#9d803b", "#c2a251", "#e9c36a", "#f4dca4", "#fcf3da"]
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Recovery Green",
+        "canonical": "#83d8b2",
+        "tonalRamp": ["#102d21", "#1c4937", "#2d6950", "#438b6c", "#60ad8a", "#83d8b2", "#b7ead3", "#e7f8f0"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Status Display", "purpose": "Identity, screen titles, and major outcome values." },
+      "title": { "displayName": "Command Title", "purpose": "Matrix rows, panel headings, and decisive action labels." },
+      "body": { "displayName": "Evidence Body", "purpose": "Plans, safety guidance, forms, and assistant explanations." },
+      "label": { "displayName": "System Label", "purpose": "Navigation, tabs, badges, and compact commands." }
+    },
+    "shadows": [
+      { "name": "panel-depth", "value": "0 18px 42px rgba(0,0,0,.42)", "purpose": "Dossiers, dialogs, and rare focal surfaces." },
+      { "name": "quiet-lift", "value": "0 14px 30px rgba(0,0,0,.18)", "purpose": "Established cards that need separation from the page." },
+      { "name": "command-lift", "value": "0 12px 26px rgba(0,0,0,.26)", "purpose": "Fixed command bars above scrolling content." }
+    ],
+    "motion": [
+      { "name": "decisive-ease", "value": "cubic-bezier(.16,1,.3,1)", "purpose": "Dossier, tab-panel, and screen reveals." },
+      { "name": "state-fast", "value": "160ms", "purpose": "Hover, focus, and pressed feedback." },
+      { "name": "panel-reveal", "value": "220-320ms", "purpose": "Directional planes and tab content." },
+      { "name": "reduced-motion", "value": "0.01ms", "purpose": "Immediate decorative state resolution under the user's reduced-motion preference." }
+    ],
+    "breakpoints": [
+      { "name": "narrow-phone", "value": "430px" },
+      { "name": "mobile", "value": "720px" },
+      { "name": "contained-navigation", "value": "760px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Command",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single decisive action on a surface.",
+      "html": "<button class=\"ds-command\">SAVE PROFILE</button>",
+      "css": ".ds-command{min-height:46px;padding:10px 15px;color:var(--cl-void,#050707);background:var(--cl-cyan,#78e7ed);border:1px solid var(--cl-cyan,#78e7ed);border-radius:1px;font:600 .9rem/1 'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);transition:filter .16s,transform .16s}.ds-command:hover{filter:brightness(1.07)}.ds-command:active{filter:brightness(.92);transform:translateY(1px)}.ds-command:focus-visible{outline:2px solid var(--cl-cyan,#78e7ed);outline-offset:3px}"
+    },
+    {
+      "name": "Quiet Command",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "A secondary action that does not compete with the screen's command voice.",
+      "html": "<button class=\"ds-quiet\">REVIEW DETAILS</button>",
+      "css": ".ds-quiet{min-height:46px;padding:10px 15px;color:var(--cl-muted,#aaa79f);background:rgba(255,255,255,.025);border:1px solid rgba(238,234,224,.18);border-radius:1px;font:600 .82rem/1 'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:color .16s,border-color .16s}.ds-quiet:hover{color:var(--cl-bone,#eeeae0);border-color:rgba(120,231,237,.62)}.ds-quiet:focus-visible{outline:2px solid var(--cl-cyan,#78e7ed);outline-offset:3px}"
+    },
+    {
+      "name": "Obsidian Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "A high-contrast field for profile, food, and shopping input.",
+      "html": "<label class=\"ds-field-label\">DAILY CONTEXT<input class=\"ds-field\" placeholder=\"Describe your schedule\"></label>",
+      "css": ".ds-field-label{display:grid;gap:6px;color:var(--cl-muted,#aaa79f);font:600 .72rem/1.4 Manrope,system-ui,sans-serif;letter-spacing:.04em}.ds-field{min-height:48px;padding:11px 12px;color:var(--cl-bone,#eeeae0);background:var(--cl-obsidian,#090b0c);border:1px solid rgba(238,234,224,.18);border-radius:0;font:400 .9rem/1.5 Manrope,system-ui,sans-serif}.ds-field::placeholder{color:#8d918e}.ds-field:hover{border-color:rgba(238,234,224,.34)}.ds-field:focus-visible{outline:2px solid var(--cl-cyan,#78e7ed);outline-offset:2px}"
+    },
+    {
+      "name": "Codex Matrix Row",
+      "kind": "custom",
+      "description": "A full-width profile domain row with real summary data and a clear destination.",
+      "html": "<button class=\"ds-matrix\"><span class=\"ds-matrix-icon\" aria-hidden=\"true\">◇</span><strong>TRAINING</strong><span>4 days · Intermediate · Dumbbells</span><b aria-hidden=\"true\">›</b></button>",
+      "css": ".ds-matrix{width:100%;min-height:58px;display:grid;grid-template-columns:54px minmax(108px,.65fr) minmax(0,1fr) 36px;align-items:center;padding:0;color:var(--cl-bone,#eeeae0);background:rgba(14,17,18,.92);border:1px solid rgba(238,234,224,.18);text-align:left;cursor:pointer}.ds-matrix-icon{height:100%;display:grid;place-items:center;color:var(--cl-cyan,#78e7ed);border-right:1px solid rgba(238,234,224,.18)}.ds-matrix strong{padding:0 10px;font:600 1rem/1 'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.07em}.ds-matrix>span:nth-child(3){padding:0 8px;color:var(--cl-muted,#aaa79f);font:400 .68rem/1.4 Manrope,system-ui,sans-serif}.ds-matrix b{color:var(--cl-muted,#aaa79f);font-size:1.4rem}.ds-matrix:hover{background:rgba(120,231,237,.045)}.ds-matrix:focus-visible{outline:2px solid var(--cl-cyan,#78e7ed);outline-offset:2px}"
+    },
+    {
+      "name": "Codex Tabs",
+      "kind": "nav",
+      "description": "A three-way semantic tab strip with a restrained cyan undercut.",
+      "html": "<div class=\"ds-tabs\" role=\"tablist\"><button class=\"ds-tab active\" role=\"tab\" aria-selected=\"true\">OVERVIEW</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">PLAN</button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">HISTORY</button></div>",
+      "css": ".ds-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--cl-obsidian,#090b0c);border:1px solid rgba(238,234,224,.34)}.ds-tab{position:relative;min-height:48px;color:var(--cl-muted,#aaa79f);background:transparent;border:0;border-right:1px solid rgba(238,234,224,.18);font:600 .78rem/1 'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.08em;cursor:pointer}.ds-tab:last-child{border-right:0}.ds-tab.active{color:var(--cl-cyan,#78e7ed)}.ds-tab.active:after{position:absolute;right:16%;bottom:-1px;left:16%;height:2px;content:'';background:var(--cl-cyan,#78e7ed)}.ds-tab:focus-visible{outline:2px solid var(--cl-cyan,#78e7ed);outline-offset:-3px}"
+    },
+    {
+      "name": "Five-Item Command Navigation",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "Persistent labeled navigation with one faceted active wedge.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Primary\"><button class=\"ds-nav-item active\" aria-current=\"page\">TODAY</button><button class=\"ds-nav-item\">FOOD</button><button class=\"ds-nav-item\">TRAINING</button><button class=\"ds-nav-item\">SUPPS</button><button class=\"ds-nav-item\">PROFILE</button></nav>",
+      "css": ".ds-nav{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:rgba(7,9,9,.98);border:1px solid rgba(238,234,224,.34)}.ds-nav-item{position:relative;min-width:0;min-height:64px;color:var(--cl-muted,#aaa79f);background:transparent;border:0;border-right:1px solid rgba(238,234,224,.09);font:600 .66rem/1 'Barlow Condensed','Arial Narrow',sans-serif;letter-spacing:.04em;cursor:pointer}.ds-nav-item:last-child{border-right:0}.ds-nav-item:before{position:absolute;top:-1px;left:27%;width:46%;height:7px;content:'';background:var(--cl-cyan,#78e7ed);clip-path:polygon(0 0,100% 0,82% 100%,18% 100%);transform:scaleX(0);transition:transform .24s cubic-bezier(.16,1,.3,1)}.ds-nav-item.active{color:var(--cl-cyan,#78e7ed);background:linear-gradient(180deg,rgba(120,231,237,.08),transparent 60%)}.ds-nav-item.active:before{transform:scaleX(1)}.ds-nav-item:focus-visible{outline:2px solid var(--cl-cyan,#78e7ed);outline-offset:-3px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Obsidian Dossier",
+    "overview": "CORELINE feels like a private player-status record forged from blackened metal and dark vellum. It is disciplined, exact, and quietly ominous: information leads, material supports it, and a single moon-cyan signal identifies the next meaningful action. The world borrows only the focus and choreography of premium dark-fantasy status interfaces; its geometry, sigils, imagery, and component language are original.\n\nThe interface is dense without becoming cryptic. Large condensed headings establish identity and direction, while Manrope keeps plans, cautions, nutrition values, and user context easy to scan. Motion behaves like a dossier being revealed or a menu plane changing direction. It never glitches, loops, or delays access to content.",
+    "keyCharacteristics": [
+      "Obsidian fields, bone text, and one rare moon-cyan focus signal.",
+      "Sharp clipped planes, etched one-pixel seams, and original geometric sigils.",
+      "Condensed editorial hierarchy paired with highly readable body copy.",
+      "Real local data and honest empty/provider states instead of decorative fiction.",
+      "Original anonymous imagery used as atmosphere, never as product truth."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Moon cyan is the screen's single visual command voice. Never light every border, label, and icon at once.", "section": "colors" },
+      { "name": "The Honest State Rule", "body": "Red, gold, and green describe real state only; they never manufacture urgency, readiness, or health meaning.", "section": "colors" },
+      { "name": "The Two-Voice Rule", "body": "Condensed type commands; Manrope explains. Do not use the display face for paragraphs or the body face to imitate a fantasy title.", "section": "typography" },
+      { "name": "The Measurement Rule", "body": "Display units with real values and preserve readable spacing; never rely on color or an unlabeled number to convey meaning.", "section": "typography" },
+      { "name": "The First-Viewport Rule", "body": "On a 390×844 profile screen, identity, the five domains, the edit action, and navigation must all remain discoverable without a hidden overlay or competing floating control.", "section": "layout" },
+      { "name": "The Local-Data Rule", "body": "Layout may become richer when data exists, but empty states must occupy the same trustworthy structure instead of being filled with invented metrics.", "section": "layout" },
+      { "name": "The Material-First Rule", "body": "Prefer tonal layering, texture, and seams before adding shadow. Glow appears only as a restrained consequence of cyan focus.", "section": "elevation" },
+      { "name": "The One Cut Rule", "body": "Give a component one clear geometric gesture. Do not stack polygons, borders, glows, and corner decorations on the same ordinary control.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do keep moon cyan rare and attach it to focus, selection, progress, or the next meaningful action.",
+      "Do use real local data, explicit empty states, and provider freshness/availability language.",
+      "Do preserve 320–430px layouts, 44×44px touch targets, keyboard focus, reduced motion, and German/English wrapping.",
+      "Do use original anonymous imagery and authored geometric SVG icons with accessible labels.",
+      "Do keep semantic text and interaction above every generated material asset.",
+      "Do separate AI consent from location consent and distinguish local guidance from a real provider response."
+    ],
+    "donts": [
+      "Don't use cyberpunk neon grids, glitches, scanlines, RGB splits, graffiti, or multicolor glow.",
+      "Don't copy franchise characters, logos, glyphs, exact layouts, or copyrighted artwork.",
+      "Don't invent rank, readiness, diagnosis, supplement dosage, live stock, price, distance, or AI output.",
+      "Don't use soft pill cards, emoji controls, excessive rounded glassmorphism, or decorative dashboards unrelated to the user's task.",
+      "Don't let a floating control obscure profile rows, nutrition controls, or the primary action.",
+      "Don't rasterize labels, focus states, navigation meaning, or other interactive truth."
+    ]
+  }
+}

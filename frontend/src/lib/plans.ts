@@ -99,13 +99,13 @@ export interface NutritionTargets {
   carbs: number;
   fat: number;
   sugar: number;
-  method: 'neutral-mifflin-estimate-v1';
+  method: 'neutral-mifflin-estimate-v1' | 'openai-estimate-v1';
   note: string;
 }
 
 export interface InitialPlan {
   schemaVersion: 1;
-  generator: 'local-rules-v1';
+  generator: 'local-rules-v1' | 'openai-plan-v1';
   createdAt: string | null;
   sourceLabel: string;
   emphasis: string;

@@ -1,0 +1,15 @@
+# CORELINE
+
+CORELINE is an offline-first supplement, nutrition, training, and recovery tracker.
+
+## Product boundaries
+
+- Local profiles and logs remain on the device unless the user explicitly enables a secure integration.
+- Supplement content is educational and does not prescribe doses or replace medical advice.
+- AI planning requires an independently hosted server-side integration and explicit consent.
+- Nearby-store results require an independently hosted maps integration and explicit location consent.
+
+## Links
+
+- [Source repository](https://github.com/weeeedddd/Supplement-Tracker)
+- [Published application](https://weeeedddd.github.io/Supplement-Tracker/)

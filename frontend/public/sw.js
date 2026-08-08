@@ -1,9 +1,12 @@
-const CACHE_NAME = 'coreline-shell-v1';
+const CACHE_NAME = 'coreline-shell-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
   './icons/coreline.svg',
+  './assets/coreline/profile-codex/profile-shadow.webp',
+  './assets/coreline/profile-codex/obsidian-vellum.webp',
+  './assets/coreline/profile-codex/action-plate.webp',
 ];
 
 async function cacheBuiltShell() {
