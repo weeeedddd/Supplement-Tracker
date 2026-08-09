@@ -14,7 +14,9 @@ import { ShoppingScreen } from './components/ShoppingScreen';
 import { SystemIcon, type SystemIconName } from './components/SystemIcon';
 import { TrainingScreen } from './components/TrainingScreen';
 import { getBackendUrl } from './lib/backend';
+import { lang } from './lib/i18n';
 import { removeLegacyPseudoAuth, resolveInitialScreen } from './lib/localMode';
+import { useModalIsolation } from './lib/modal';
 import type { InitialPlan } from './lib/plans';
 import { loadUserProfile } from './lib/profile';
 import { requestAiInitialPlan } from './lib/remotePlan';
@@ -24,17 +26,21 @@ import { applyTheme, getCurrentTheme } from './lib/themes';
 
 interface NavigationItem {
   screen: Extract<Screen, 'dashboard' | 'fuel' | 'training' | 'ki' | 'profile'>;
-  label: string;
+  label: { de: string; en: string };
   icon: SystemIconName;
 }
 
 const NAVIGATION: NavigationItem[] = [
-  { screen: 'dashboard', label: 'Heute', icon: 'today' },
-  { screen: 'fuel', label: 'Essen', icon: 'food' },
-  { screen: 'training', label: 'Training', icon: 'training' },
-  { screen: 'ki', label: 'Supps', icon: 'supplements' },
-  { screen: 'profile', label: 'Profil', icon: 'profile' },
+  { screen: 'dashboard', label: { de: 'Heute', en: 'Today' }, icon: 'today' },
+  { screen: 'fuel', label: { de: 'Essen', en: 'Food' }, icon: 'food' },
+  { screen: 'training', label: { de: 'Training', en: 'Training' }, icon: 'training' },
+  { screen: 'ki', label: { de: 'Supps', en: 'Supps' }, icon: 'supplements' },
+  { screen: 'profile', label: { de: 'Profil', en: 'Profile' }, icon: 'profile' },
 ];
+
+function localCopy(de: string, en: string): string {
+  return lang === 'de' ? de : en;
+}
 
 function lifestyleSummary(profile: ReturnType<typeof loadUserProfile>): string | undefined {
   if (!profile) return undefined;
@@ -72,6 +78,12 @@ export default function App() {
   const assetBase = (import.meta as ImportMeta & { env: { BASE_URL: string } }).env.BASE_URL;
   const textureUrl = new URL(`${assetBase}assets/coreline/profile-codex/obsidian-vellum.webp`, window.location.href).href;
   const actionPlateUrl = new URL(`${assetBase}assets/coreline/profile-codex/action-plate.webp`, window.location.href).href;
+  const performanceStillLifeUrl = new URL(`${assetBase}assets/coreline/system-world/performance-still-life.webp`, window.location.href).href;
+
+  useModalIsolation(assistantOpen && onApp, {
+    backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
+    onEscape: () => setAssistantOpen(false),
+  });
 
   useEffect(() => {
     applyTheme(getCurrentTheme());
@@ -84,8 +96,12 @@ export default function App() {
       '--coreline-action-plate',
       `url("${actionPlateUrl}")`,
     );
+    document.documentElement.style.setProperty(
+      '--coreline-performance-still-life',
+      `url("${performanceStillLifeUrl}")`,
+    );
     showScreen(loadUserProfile() ? 'dashboard' : resolveInitialScreen((key) => S.get(key)));
-  }, [actionPlateUrl, textureUrl]);
+  }, [actionPlateUrl, performanceStillLifeUrl, textureUrl]);
 
   const assistantContext = useMemo(() => ({
     displayName: profile?.displayName,
@@ -124,18 +140,24 @@ export default function App() {
 
   return (
     <div className="coreline-app">
-      <a className="skip-link" href="#coreline-main">Zum Inhalt springen</a>
+      <a className="skip-link" href="#coreline-main">{localCopy('Zum Inhalt springen', 'Skip to content')}</a>
       <header className="system-topbar">
         <button className="system-wordmark wordmark-button" type="button" onClick={() => profile && showScreen('dashboard')}>
           CORELINE
         </button>
         <span className="system-sigil" aria-hidden="true" />
         <div className="system-top-actions">
-          <span className="system-sync-state">{secureBackendConfigured ? 'Local + secure bridge' : 'Nur lokal'}</span>
-          <button className="system-icon-button" type="button" onClick={() => setAssistantOpen(true)} aria-label="CORELINE Guide öffnen">
-            <SystemIcon name="assistant" />
-          </button>
-          <button className="system-icon-button" type="button" onClick={() => setSettingsOpen(true)} aria-label="Einstellungen öffnen">
+          <span className="system-sync-state">
+            {secureBackendConfigured
+              ? localCopy('Backend konfiguriert', 'Backend configured')
+              : localCopy('Nur lokal', 'Local only')}
+          </span>
+          {onApp && (
+            <button className="system-icon-button" type="button" onClick={() => setAssistantOpen(true)} aria-label={localCopy('CORELINE Guide öffnen', 'Open CORELINE Guide')}>
+              <SystemIcon name="assistant" />
+            </button>
+          )}
+          <button className="system-icon-button" type="button" onClick={() => setSettingsOpen(true)} aria-label={localCopy('Einstellungen öffnen', 'Open settings')}>
             <SystemIcon name="settings" />
           </button>
         </div>
@@ -165,7 +187,7 @@ export default function App() {
       </main>
 
       {onApp && (
-        <nav className="system-bottom-nav" aria-label="Hauptnavigation">
+        <nav className="system-bottom-nav" aria-label={localCopy('Hauptnavigation', 'Main navigation')}>
           {NAVIGATION.map((item) => (
             <button
               key={item.screen}
@@ -175,7 +197,7 @@ export default function App() {
               aria-current={screen === item.screen ? 'page' : undefined}
             >
               <SystemIcon name={item.icon} />
-              <span>{item.label}</span>
+              <span>{lang === 'de' ? item.label.de : item.label.en}</span>
             </button>
           ))}
         </nav>
@@ -187,8 +209,8 @@ export default function App() {
             <div className="product-modal assistant-modal" role="presentation" onMouseDown={(event) => {
               if (event.target === event.currentTarget) setAssistantOpen(false);
             }}>
-              <div className="assistant-dialog" role="dialog" aria-modal="true" aria-label="CORELINE Guide">
-                <button autoFocus className="icon-button assistant-close" type="button" onClick={() => setAssistantOpen(false)} aria-label="Guide schließen">
+              <div className="assistant-dialog" role="dialog" aria-modal="true" aria-label={localCopy('CORELINE Guide', 'CORELINE Guide')}>
+                <button className="icon-button assistant-close" type="button" onClick={() => setAssistantOpen(false)} aria-label={localCopy('Guide schließen', 'Close Guide')}>
                   <SystemIcon name="close" />
                 </button>
                 <Assistant context={assistantContext} title="CORELINE Guide" onOpenShopping={openShopping} />

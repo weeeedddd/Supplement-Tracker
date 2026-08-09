@@ -1,16 +1,14 @@
 // ═══════════════════════════════════════════════════════════════════
 //  ◈ AGENT TRAINING PROTOCOLS & MATERIA FUEL — Frontend-Datenschicht
-//  Offline-first: Preset-Gerichte/Workouts + localStorage; wenn ein
-//  Backend konfiguriert ist, laufen Listen/Anlegen/Loggen über die API.
-//  Stat-Buffs werden immer lokal gespiegelt (Dashboard-Widget bleibt
-//  offline snappy) — identische Regeln wie im Backend.
+//  Offline-first: presets, user recipes, sessions and logs stay local.
+//  Account-backed sync is intentionally deferred until real authentication
+//  and explicit sync consent exist.
 // ═══════════════════════════════════════════════════════════════════
 import { S } from './storage';
-import { getBackendUrl } from './backend';
-import { timeoutSignal } from './storage';
 import { PRESET_DISHES } from './dishesData';
-import { equippedTitleName, getFoodLog, saveFoodLog, type FoodEntry } from './engine';
+import { getFoodLog, saveFoodLog, type FoodEntry } from './engine';
 import { lang } from './i18n';
+import { clampNutritionNumber, NUTRITION_LIMITS } from './nutritionBounds';
 import { CURATED_RECIPES, recipeToDish } from './recipes';
 
 export interface DishLoc { name: string; ingredients: string[]; steps: string[]; }
@@ -23,7 +21,7 @@ export interface Dish {
 }
 export interface Nutrition { kcal: number; prot: number; carb: number; fat: number; sug: number; }
 export type NutritionInput = Partial<Nutrition>;
-export interface NutritionIssue { field: keyof Nutrition; code: 'not-finite' | 'negative' | 'sugar-exceeds-carbs' | 'zero-calories'; }
+export interface NutritionIssue { field: keyof Nutrition; code: 'not-finite' | 'negative' | 'above-maximum' | 'sugar-exceeds-carbs' | 'zero-calories'; }
 
 /** Lokalisierte Sicht auf ein Gericht je nach aktiver Sprache (de = Basis). */
 export function locDish(d: Dish): Dish {
@@ -75,8 +73,6 @@ export interface WorkoutCompletion {
   session?: WorkoutSession;
 }
 
-const uid = () => (S.get<any>('auth')?.userId as string) || '#000';
-
 // ── Preset-Daten (Spiegel des Backends → funktioniert ohne Server) ───
 //   Der vollständige Katalog (100+ Gerichte mit Bild & Zubereitung) liegt in
 //   dishesData.ts und wird aus derselben Quelle wie das Backend generiert.
@@ -85,29 +81,37 @@ export const CURATED_DISHES: Dish[] = CURATED_RECIPES.map(recipe => recipeToDish
 
 const ex = (name: string, sets: number, reps: string, weight: string, rest: number): Exercise => ({ name, sets, reps, weight, rest });
 export const PRESET_WORKOUTS: Workout[] = [
-  { id: 'w-push', name: 'Push Day', kind: 'push', focus: 'Brust · Schultern · Trizeps', icon: '🏋', is_preset: true, exercises: [
+  { id: 'w-push', name: 'Push Day', kind: 'push', focus: 'Brust · Schultern · Trizeps', icon: '◇', is_preset: true, exercises: [
     ex('Bankdrücken', 4, '6-8', '80 kg', 120), ex('Schrägbank-Kurzhantel', 3, '10', '24 kg', 90),
     ex('Schulterdrücken', 3, '10', '18 kg', 90), ex('Seitheben', 3, '15', '10 kg', 60), ex('Trizeps-Pushdown', 3, '12', '25 kg', 60)] },
-  { id: 'w-pull', name: 'Pull Day', kind: 'pull', focus: 'Rücken · Bizeps', icon: '🏋', is_preset: true, exercises: [
+  { id: 'w-pull', name: 'Pull Day', kind: 'pull', focus: 'Rücken · Bizeps', icon: '◇', is_preset: true, exercises: [
     ex('Klimmzüge', 4, '8', 'BW', 120), ex('Langhantelrudern', 4, '8', '70 kg', 100),
     ex('Latzug', 3, '12', '55 kg', 90), ex('Face Pulls', 3, '15', '20 kg', 60), ex('Bizeps-Curls', 3, '12', '14 kg', 60)] },
-  { id: 'w-legs', name: 'Leg Day', kind: 'legs', focus: 'Quads · Hamstrings · Waden', icon: '🦵', is_preset: true, exercises: [
+  { id: 'w-legs', name: 'Leg Day', kind: 'legs', focus: 'Quads · Hamstrings · Waden', icon: '◇', is_preset: true, exercises: [
     ex('Kniebeugen', 4, '6-8', '100 kg', 150), ex('Rumänisches Kreuzheben', 3, '10', '80 kg', 120),
     ex('Beinpresse', 3, '12', '160 kg', 90), ex('Beinbeuger', 3, '12', '40 kg', 75), ex('Wadenheben', 4, '15', '60 kg', 45)] },
-  { id: 'w-full', name: 'Ganzkörper Basis', kind: 'fullbody', focus: 'Kraft-Grundlagen für Einsteiger', icon: '⚡', is_preset: true, exercises: [
+  { id: 'w-full', name: 'Ganzkörper Basis', kind: 'fullbody', focus: 'Kraft-Grundlagen für Einsteiger', icon: '◇', is_preset: true, exercises: [
     ex('Kniebeugen', 3, '10', '50 kg', 90), ex('Bankdrücken', 3, '10', '50 kg', 90),
     ex('Langhantelrudern', 3, '10', '45 kg', 90), ex('Schulterdrücken', 3, '12', '14 kg', 75), ex('Plank', 3, '45s', 'BW', 45)] },
 ];
 
-// ── Backend-Helfer ───────────────────────────────────────────────────
-async function api<T>(path: string, init?: RequestInit): Promise<T | null> {
-  const base = getBackendUrl();
-  if (!base) return null;
-  try {
-    const res = await fetch(base + path, { ...init, signal: timeoutSignal(8000) });
-    if (!res.ok) return null;
-    return await res.json() as T;
-  } catch { return null; }
+const ENGLISH_PRESET_WORKOUTS: Record<string, { name: string; focus: string; exercises: string[] }> = {
+  'w-push': { name: 'Push day', focus: 'Chest · shoulders · triceps', exercises: ['Bench press', 'Incline dumbbell press', 'Shoulder press', 'Lateral raise', 'Triceps pushdown'] },
+  'w-pull': { name: 'Pull day', focus: 'Back · biceps', exercises: ['Pull-ups', 'Barbell row', 'Lat pulldown', 'Face pulls', 'Biceps curls'] },
+  'w-legs': { name: 'Leg day', focus: 'Quads · hamstrings · calves', exercises: ['Squat', 'Romanian deadlift', 'Leg press', 'Leg curl', 'Calf raise'] },
+  'w-full': { name: 'Full-body foundation', focus: 'Strength foundations for beginners', exercises: ['Squat', 'Bench press', 'Barbell row', 'Shoulder press', 'Plank'] },
+};
+
+function localizeWorkout(workout: Workout): Workout {
+  if (lang !== 'en' || !workout.is_preset) return workout;
+  const localized = ENGLISH_PRESET_WORKOUTS[String(workout.id)];
+  if (!localized) return workout;
+  return {
+    ...workout,
+    name: localized.name,
+    focus: localized.focus,
+    exercises: workout.exercises.map((exercise, index) => ({ ...exercise, name: localized.exercises[index] ?? exercise.name })),
+  };
 }
 
 // ── Gerichte ─────────────────────────────────────────────────────────
@@ -123,7 +127,7 @@ export function estimateCaloriesFromMacros(input: Pick<Nutrition, 'prot' | 'carb
 export function normalizeNutrition(input: NutritionInput): Nutrition {
   const value = (key: keyof Nutrition) => {
     const parsed = Number(input[key] ?? 0);
-    return Number.isFinite(parsed) ? rounded(parsed) : 0;
+    return Number.isFinite(parsed) ? clampNutritionNumber(key, rounded(parsed)) : 0;
   };
   const normalized: Nutrition = {
     kcal: value('kcal'),
@@ -132,7 +136,7 @@ export function normalizeNutrition(input: NutritionInput): Nutrition {
     fat: value('fat'),
     sug: value('sug'),
   };
-  if (normalized.kcal === 0) normalized.kcal = estimateCaloriesFromMacros(normalized);
+  if (normalized.kcal === 0) normalized.kcal = clampNutritionNumber('kcal', estimateCaloriesFromMacros(normalized));
   return normalized;
 }
 
@@ -142,6 +146,7 @@ export function validateNutrition(input: NutritionInput): NutritionIssue[] {
     const value = Number(input[field] ?? 0);
     if (!Number.isFinite(value)) issues.push({ field, code: 'not-finite' });
     else if (value < 0) issues.push({ field, code: 'negative' });
+    else if (value > NUTRITION_LIMITS[field]) issues.push({ field, code: 'above-maximum' });
   }
   const carb = Number(input.carb ?? 0);
   const sugar = Number(input.sug ?? 0);
@@ -157,34 +162,24 @@ export function nutritionFromDish(dish: Dish): Nutrition {
 }
 
 function localDishes(): Dish[] {
-  const dishes = [...CURATED_DISHES, ...PRESET_DISHES, ...(S.get<Dish[]>('fuel_user_dishes') || [])];
+  const userDishes = [...(S.get<Dish[]>('fuel_user_dishes') || [])].reverse();
+  const dishes = [...userDishes, ...CURATED_DISHES, ...PRESET_DISHES];
   return [...new Map(dishes.map(dish => [String(dish.id), dish])).values()];
 }
 
 export async function fetchDishes(category?: string, equipment?: string): Promise<Dish[]> {
-  const qs = new URLSearchParams({ owner: uid() });
-  if (category) qs.set('category', category);
-  if (equipment) qs.set('equipment', equipment);
-  const r = await api<{ dishes: Dish[] }>(`/api/dishes?${qs}`);
-  let list = r?.dishes ?? localDishes();
-  if (!r) {  // lokale Filter
-    if (category) list = list.filter(d => d.category === category);
-    if (equipment) list = list.filter(d => d.equipment.includes(equipment));
-  }
+  let list = localDishes();
+  if (category) list = list.filter(d => d.category === category);
+  if (equipment) list = list.filter(d => d.equipment.includes(equipment));
   return list;
 }
 
 export async function createDish(input: Omit<Dish, 'id' | 'is_preset'>): Promise<Dish> {
-  const nutrition = normalizeNutrition(input);
-  const issues = validateNutrition(nutrition);
+  const issues = validateNutrition(input);
   if (issues.length) throw new Error(`Invalid nutrition: ${issues.map(issue => issue.code).join(', ')}`);
+  const nutrition = normalizeNutrition(input);
   const normalizedInput = { ...input, ...nutrition };
-  const r = await api<Dish>('/api/dishes', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...normalizedInput, owner_uid: uid() }),
-  });
-  if (r) return r;
-  const local: Dish = { ...normalizedInput, id: 'u-' + Date.now(), is_preset: false, owner_uid: uid() };
+  const local: Dish = { ...normalizedInput, id: 'u-' + Date.now(), is_preset: false };
   S.set('fuel_user_dishes', [...(S.get<Dish[]>('fuel_user_dishes') || []), local]);
   return local;
 }
@@ -193,16 +188,10 @@ export async function createDish(input: Omit<Dish, 'id' | 'is_preset'>): Promise
 function localWorkouts(): Workout[] { return [...PRESET_WORKOUTS, ...(S.get<Workout[]>('train_user_plans') || [])]; }
 
 export async function fetchWorkouts(): Promise<Workout[]> {
-  const r = await api<{ workouts: Workout[] }>(`/api/workouts?owner=${encodeURIComponent(uid())}`);
-  return r?.workouts ?? localWorkouts();
+  return localWorkouts().map(localizeWorkout);
 }
 
 export async function createWorkout(input: Omit<Workout, 'id' | 'is_preset'>): Promise<Workout> {
-  const r = await api<Workout>('/api/workouts', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...input, owner_uid: uid() }),
-  });
-  if (r) return r;
   const local: Workout = { ...input, id: 'u-' + Date.now(), is_preset: false };
   S.set('train_user_plans', [...(S.get<Workout[]>('train_user_plans') || []), local]);
   return local;
@@ -340,22 +329,30 @@ export function createDailyWorkout(
   };
 }
 
-// ── MEGA-FEATURE: Stat-Buffs ─────────────────────────────────────────
+// ── Local completion receipts (legacy Buff shape kept for compatibility) ──
 const BUFF_TTL = 6 * 3600 * 1000;
 
 function computeMealBuff(prot: number, kcal: number): Buff {
   const exp = Date.now() + BUFF_TTL;
-  if (prot >= 30) return { label: 'High-Protein Meal', icon: '🥩', desc: '+10 Physische Basiswerte', boosts: { STR: 10, VIT: 10 }, expires_at: exp, source: 'meal' };
-  if (kcal >= 500) return { label: 'Energie-Schub', icon: '🔥', desc: '+8 Vitalität', boosts: { VIT: 8 }, expires_at: exp, source: 'meal' };
-  return { label: 'Materia getankt', icon: '🍽', desc: '+5 Vitalität', boosts: { VIT: 5 }, expires_at: exp, source: 'meal' };
+  return {
+    label: 'Mahlzeit protokolliert',
+    icon: '◇',
+    desc: `${Math.round(prot)} g Protein · ${Math.round(kcal)} kcal erfasst`,
+    boosts: {},
+    expires_at: exp,
+    source: 'meal',
+  };
 }
 function computeWorkoutBuff(kind: string): Buff {
   const exp = Date.now() + BUFF_TTL;
-  let boosts: Record<string, number> = { STR: 5, INT: 5 };
-  if (kind === 'legs') boosts = { STR: 8, VIT: 4 };
-  else if (kind === 'push' || kind === 'pull') boosts = { STR: 7, INT: 3 };
-  const desc = '+' + Object.entries(boosts).map(([k, v]) => `${v} ${k}`).join(' · +');
-  return { label: 'Protokoll absolviert', icon: '⚡', desc, boosts, expires_at: exp, source: 'workout' };
+  return {
+    label: 'Training protokolliert',
+    icon: '◇',
+    desc: `${kind || 'Training'} · vollständig abgehakte Sätze gespeichert`,
+    boosts: {},
+    expires_at: exp,
+    source: 'workout',
+  };
 }
 
 function pushLocalBuff(b: Buff): void {
@@ -377,19 +374,15 @@ export function buffTotals(buffs: Buff[] = getActiveBuffs()): Record<string, num
 }
 
 export async function logMeal(d: { name: string } & NutritionInput): Promise<Buff> {
-  const nutrition = normalizeNutrition(d);
-  const issues = validateNutrition(nutrition);
+  const issues = validateNutrition(d);
   if (issues.length) throw new Error(`Invalid nutrition: ${issues.map(issue => issue.code).join(', ')}`);
+  const nutrition = normalizeNutrition(d);
   const now = Date.now();
   const entry: FoodEntry = { id: now, name: d.name, ts: now, ...nutrition };
   saveFoodLog([...getFoodLog(), entry]);
 
   const buff = computeMealBuff(nutrition.prot, nutrition.kcal);
   pushLocalBuff(buff);   // sofort lokal → Dashboard reagiert direkt
-  api('/api/log/meal', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ uid: uid(), name: d.name, ...nutrition }),
-  });
   return buff;
 }
 
@@ -412,13 +405,6 @@ export async function logWorkout(w: WorkoutLogInput): Promise<Buff | null> {
 
   const buff = computeWorkoutBuff(w.kind);
   pushLocalBuff(buff);
-  api('/api/log/workout', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      uid: uid(), name: w.name, kind: w.kind, session_id: w.sessionId,
-      completed_sets: w.completedSets, total_sets: w.totalSets,
-    }),
-  });
   return buff;
 }
 
@@ -429,28 +415,8 @@ export function fmtRemaining(ms: number): string {
 }
 
 // ── Rezept-Sharing → Community-Chat ──────────────────────────────────
-export async function shareRecipeToChat(dish: Dish, room = 'global'): Promise<boolean> {
-  const base = getBackendUrl();
-  if (!base) return false;   // Chat ist backend-gebunden (offline-first)
-  const auth = S.get<any>('auth') || {};
-  const profile = S.get<any>('profile') || {};
-  const recipe = {
-    name: dish.name, icon: dish.icon, image: dish.image || '', category: dish.category,
-    prep_min: dish.prep_min, kcal: dish.kcal, prot: dish.prot, carb: dish.carb, fat: dish.fat,
-    equipment: dish.equipment, ingredients: dish.ingredients, steps: dish.steps || [],
-    i18n: dish.i18n || {},
-  };
-  try {
-    const res = await fetch(base + '/api/chat/share', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      signal: timeoutSignal(8000),
-      body: JSON.stringify({
-        room, user: profile.firstName || auth.username || 'Shadow',
-        uid: auth.userId || '#000', title: equippedTitleName(), recipe,
-      }),
-    });
-    return res.ok;
-  } catch { return false; }
+export async function shareRecipeToChat(_dish: Dish, _room = 'global'): Promise<boolean> {
+  return false;
 }
 
 // ── AI PROTOCOL BUILDER — dynamischer Trainingsplan-Generator ────────
@@ -477,10 +443,10 @@ const LEVEL_META: Record<PlanLevel, { count: number; sets: number; de: string }>
   elite:    { count: 6, sets: 4, de: 'Elite' },
 };
 const FOCUS_META: Record<PlanFocus, { icon: string; de: string; muscles: string }> = {
-  push:     { icon: '🏋', de: 'Push', muscles: 'Brust · Schultern · Trizeps' },
-  pull:     { icon: '🏋', de: 'Pull', muscles: 'Rücken · Bizeps' },
-  legs:     { icon: '🦵', de: 'Legs', muscles: 'Quads · Hamstrings · Waden' },
-  fullbody: { icon: '⚡', de: 'Ganzkörper', muscles: 'Kraft-Grundlagen' },
+  push:     { icon: '◇', de: 'Push', muscles: 'Brust · Schultern · Trizeps' },
+  pull:     { icon: '◇', de: 'Pull', muscles: 'Rücken · Bizeps' },
+  legs:     { icon: '◇', de: 'Legs', muscles: 'Quads · Hamstrings · Waden' },
+  fullbody: { icon: '◇', de: 'Ganzkörper', muscles: 'Kraft-Grundlagen' },
 };
 
 export function generatePlan(p: PlanParams): Omit<Workout, 'id' | 'is_preset'> {

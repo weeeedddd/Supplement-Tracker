@@ -140,6 +140,84 @@ export const SAFE_SUPPLEMENT_CATALOG: readonly SafeSupplementCatalogItem[] = [
   },
 ] as const;
 
+type SupplementTranslation = Pick<SafeSupplementCatalogItem,
+  'label' | 'purpose' | 'timingLabel' | 'guidance' | 'caution' | 'whatItIs'
+  | 'supportedUse' | 'evidenceLimits' | 'foodSources' | 'cautions' | 'interactionPrompt'>;
+
+const GERMAN_SUPPLEMENT_COPY: Record<string, SupplementTranslation> = {
+  protein: {
+    label: 'Proteinpulver',
+    purpose: 'Eine praktische Lebensmitteloption, wenn normale Mahlzeiten die geplanten Proteinquellen nicht abdecken.',
+    timingLabel: 'Als praktische Ergänzung zu Lebensmitteln – nicht als Pflicht-Ritual',
+    guidance: 'Beachte Produktetikett und Ernährungsplan; individuelle Fragen gehören zu qualifizierter ärztlicher oder ernährungsfachlicher Beratung.',
+    caution: 'Prüfe Allergene, Zutaten und Gesamtzufuhr. Pulver ist optional und garantiert keinen Muskelaufbau.',
+    whatItIs: 'Ein konzentriertes Lebensmittelprodukt, etwa aus Milch-, Soja-, Erbsen-, Reis- oder gemischten Pflanzenproteinen.',
+    supportedUse: 'Protein unterstützt normalen Muskelaufbau, -erhalt und -reparatur. Pulver kann eine ausreichende Lebensmittelauswahl praktischer machen.',
+    evidenceLimits: 'Die meisten aktiven Menschen können ihren Proteinbedarf über Lebensmittel decken. Timing und Pulverart ersetzen weder ausreichende Ernährung noch Training und Erholung.',
+    foodSources: ['Milchprodukte oder angereicherte Alternativen', 'Eier, Fisch, Fleisch oder Geflügel', 'Bohnen, Linsen, Tofu, Tempeh und Sojaprodukte'],
+    cautions: ['Prüfe Milch-, Soja-, Erbsen- und andere Allergene.', 'Bei Nierenerkrankung, Schwangerschaft, Essstörungserholung oder anderen klinischen Anforderungen ist qualifizierte Beratung nötig.'],
+    interactionPrompt: 'Gibt es eine Allergie, Nierenerkrankung, Schwangerschaft oder einen klinischen Ernährungsplan, der zuerst geprüft werden sollte?',
+  },
+  kreatin: {
+    label: 'Kreatin-Monohydrat',
+    purpose: 'Ein optionales Performance-Supplement mit Evidenz für bestimmte kurze, wiederholte hochintensive Belastungen.',
+    timingLabel: 'Regelmäßigkeit ist wichtiger als ein vermeintlich perfektes Zeitfenster',
+    guidance: 'Beachte das Produktetikett und kläre die Eignung bei Unsicherheit mit einer qualifizierten Fachperson.',
+    caution: 'Wassergewichtsänderung und Verdauungsbeschwerden sind möglich. CORELINE erstellt keine Dosierung und kein Ladeprotokoll.',
+    whatItIs: 'Eine überwiegend im Muskel gespeicherte Verbindung, die in kleineren Mengen aus tierischen Lebensmitteln stammt; Monohydrat ist die am besten untersuchte Supplementform.',
+    supportedUse: 'Bei manchen Erwachsenen kann es die Leistung bei wiederholten kurzen, intensiven Belastungen sowie Kraft- oder Powertraining unterstützen.',
+    evidenceLimits: 'Die Reaktion ist individuell; der Nutzen für Ausdauerbelastungen ist begrenzt. Es ersetzt weder Training noch Ernährung, Schlaf oder Erholung.',
+    foodSources: ['Fisch', 'Fleisch'],
+    cautions: ['Bei Nierenerkrankung, Schwangerschaft, Medikamenteneinnahme oder Nutzung unter 18 ist individuelle Beratung nötig.', 'Anhaltende Verdauungsbeschwerden sollten Anlass sein, das Produkt zu stoppen und zu prüfen.'],
+    interactionPrompt: 'Bist du unter 18, schwanger, nimmst Medikamente oder lebst mit einer Nierenerkrankung?',
+  },
+  omega: {
+    label: 'Omega-3',
+    purpose: 'Eine Gruppe von Fetten mit ALA, EPA und DHA; Lebensmittel bleiben der erste Bezugspunkt.',
+    timingLabel: 'Ein spezielles Performance-Zeitfenster ist nicht belegt',
+    guidance: 'Beachte das Produktetikett; eine qualifizierte Fachperson kann Bedarf und Wechselwirkungsrisiko beurteilen.',
+    caution: 'Unterstelle keine pauschalen Vorteile für Herz, Gehirn oder Entzündungen. Der Nutzen eines Supplements hängt vom Kontext ab.',
+    whatItIs: 'Essenzielle und langkettige mehrfach ungesättigte Fette. ALA stammt vor allem aus Pflanzen; EPA und DHA kommen häufig in Meereslebensmitteln und Algenprodukten vor.',
+    supportedUse: 'Omega-3-Fette haben normale Funktionen im Körper. Ob ein Supplement sinnvoll ist, hängt von Ernährung und individuellem klinischem Kontext ab.',
+    evidenceLimits: 'Allgemeine EPA- und DHA-Supplementziele gelten nicht für alle; die Evidenz unterscheidet sich je nach Ergebnis und Produkt.',
+    foodSources: ['Fettreicher Fisch wie Lachs, Hering oder Sardinen', 'Walnüsse, Leinsamen, Chiasamen und bestimmte Öle als ALA-Quellen', 'Algenbasierte Lebensmittel oder Produkte für DHA/EPA'],
+    cautions: ['Besprich die Nutzung bei Blutverdünnern oder Blutungsneigung.', 'Prüfe Fisch- oder Schalentierallergene und die Produktherkunft.'],
+    interactionPrompt: 'Nimmst du blutverdünnende Medikamente, besteht eine Blutungsneigung oder Fischallergie?',
+  },
+  vitd: {
+    label: 'Vitamin D',
+    purpose: 'Ein Vitamin, das an Kalziumaufnahme, Knochengesundheit sowie normaler Muskel-, Nerven- und Immunfunktion beteiligt ist.',
+    timingLabel: 'Ein Bedarf lässt sich nicht aus Stimmung oder Alltag ableiten',
+    guidance: 'Beachte das Produktetikett; für längerfristige Nutzung sind fachlich begleitete Tests und Beratung vorzuziehen.',
+    caution: 'Eine übermäßige Zufuhr kann schaden und mit Medikamenten wechselwirken. Vermeide mehrere überlappende Vitamin-D-Produkte.',
+    whatItIs: 'Ein fettlösliches Vitamin aus wenigen Lebensmitteln, angereicherten Produkten, Supplements und der Bildung in der Haut nach Sonnenlicht.',
+    supportedUse: 'Eine ausreichende Versorgung unterstützt Kalziumaufnahme, Knochen sowie normale Muskel- und Nervenfunktion.',
+    evidenceLimits: 'CORELINE kann aus Sonne, Müdigkeit, Stimmung, Ernährung oder Training keinen Mangel diagnostizieren.',
+    foodSources: ['Fettreicher Fisch und Eigelb', 'Angereicherte Milch- oder Pflanzenalternativen', 'Angereicherte Getreideprodukte, sofern verfügbar'],
+    cautions: ['Langfristige Überdosierung kann ernste Schäden einschließlich Nierenproblemen verursachen.', 'Medikamente können Vitamin-D-Spiegel oder -Wirkung verändern.'],
+    interactionPrompt: 'Wurde dein Status fachlich gemessen und wurden Medikamente sowie überlappende Produkte geprüft?',
+  },
+  magnesium: {
+    label: 'Magnesium',
+    purpose: 'Ein Mineral für normale Muskel-, Nerven- und Stoffwechselfunktionen; es ist nicht automatisch ein Schlafprodukt.',
+    timingLabel: 'Keine allgemeingültige Schlaf- oder Erholungszeit ist belegt',
+    guidance: 'Beachte das Produktetikett und kläre Bedarf, Form und Medikamentenwechselwirkungen qualifiziert ab.',
+    caution: 'Supplementformen können Durchfall, Übelkeit oder Krämpfe verursachen und mit Medikamenten wechselwirken.',
+    whatItIs: 'Ein essenzielles Mineral, das in vielen pflanzlichen Lebensmitteln vorkommt und an zahlreichen normalen Körperprozessen beteiligt ist.',
+    supportedUse: 'Eine ausreichende Versorgung unterstützt normale Muskel- und Nervenfunktion, Blutzuckerregulation und weitere Stoffwechselaufgaben.',
+    evidenceLimits: 'Ein Supplement ist keine garantierte Lösung für Schlaf, Stress, Krämpfe oder Erholung.',
+    foodSources: ['Hülsenfrüchte, Nüsse und Samen', 'Vollkornprodukte', 'Grünes Blattgemüse', 'Angereicherte Lebensmittel'],
+    cautions: ['Antibiotika, Bisphosphonate, Diuretika und andere Medikamente sollten mit ärztlicher oder pharmazeutischer Fachberatung geprüft werden.', 'Verdauungsbeschwerden sind bei manchen Supplementformen häufig.'],
+    interactionPrompt: 'Nimmst du Antibiotika, Bisphosphonate, Diuretika oder andere regelmäßige Medikamente?',
+  },
+};
+
+export function localizeSupplement(item: SafeSupplementCatalogItem, language: string): SafeSupplementCatalogItem {
+  if (language !== 'de') return item;
+  const localized = GERMAN_SUPPLEMENT_COPY[item.id];
+  return localized ? { ...item, ...localized } : item;
+}
+
 const SAFE_IDS = new Set(SAFE_SUPPLEMENT_CATALOG.map(item => item.id));
 
 export function getSupplementById(id: string): SafeSupplementCatalogItem | undefined {

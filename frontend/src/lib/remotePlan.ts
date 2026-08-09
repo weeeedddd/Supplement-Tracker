@@ -44,7 +44,84 @@ function movementFromExercise(name: string): PlanExercise['movement'] {
   return 'conditioning';
 }
 
-export function buildRemotePlanRequest({ context }: AiPlanRequest): RemotePlanRequest {
+function isBoundedText(value: unknown, maximum: number): value is string {
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= maximum;
+}
+
+function assertBoundedRemotePlan(response: RemotePlanEnvelope): void {
+  const candidate = response as unknown as Record<string, unknown>;
+  const draft = candidate.draft as Record<string, unknown> | undefined;
+  const days = draft?.training_days;
+  const nutrition = draft?.nutrition as Record<string, unknown> | undefined;
+  const recovery = draft?.recovery as Record<string, unknown> | undefined;
+  const safetyNotes = draft?.safety_notes;
+  if (
+    candidate.provider !== 'openai'
+    || candidate.provider_storage_requested !== false
+    || !isBoundedText(candidate.generated_at, 80)
+    || !draft
+    || !isBoundedText(draft.summary, 1_000)
+    || !Array.isArray(days)
+    || days.length < 1
+    || days.length > 6
+    || !nutrition
+    || !recovery
+    || !Array.isArray(safetyNotes)
+    || safetyNotes.length < 1
+    || safetyNotes.length > 10
+    || safetyNotes.some(note => !isBoundedText(note, 500))
+    || !isBoundedText(candidate.safety_disclaimer, 1_000)
+  ) throw new Error('Remote plan response failed runtime validation.');
+
+  const validDay = days.every((value) => {
+    if (!value || typeof value !== 'object') return false;
+    const day = value as Record<string, unknown>;
+    const exercises = day.exercises;
+    return Number.isInteger(day.day_number)
+      && Number(day.day_number) >= 1
+      && Number(day.day_number) <= 7
+      && isBoundedText(day.label, 120)
+      && isBoundedText(day.focus, 240)
+      && Number.isFinite(day.duration_minutes)
+      && Number(day.duration_minutes) >= 10
+      && Number(day.duration_minutes) <= 120
+      && Array.isArray(exercises)
+      && exercises.length >= 1
+      && exercises.length <= 10
+      && exercises.every((item) => {
+        if (!item || typeof item !== 'object') return false;
+        const exercise = item as Record<string, unknown>;
+        return isBoundedText(exercise.name, 120)
+          && Number.isInteger(exercise.sets)
+          && Number(exercise.sets) >= 1
+          && Number(exercise.sets) <= 6
+          && isBoundedText(exercise.reps_or_duration, 100)
+          && isBoundedText(exercise.effort_cue, 240)
+          && isBoundedText(exercise.equipment, 80);
+      });
+  });
+  const boundedNumber = (value: unknown, minimum: number, maximum: number) => Number.isFinite(value) && Number(value) >= minimum && Number(value) <= maximum;
+  const mealPrinciples = nutrition.meal_principles;
+  const recoveryActions = recovery.actions;
+  if (
+    !validDay
+    || !boundedNumber(nutrition.calorie_target_kcal, 1_200, 4_500)
+    || !boundedNumber(nutrition.protein_target_g, 0, 250)
+    || !boundedNumber(nutrition.carbohydrate_target_g, 0, 700)
+    || !boundedNumber(nutrition.fat_target_g, 0, 140)
+    || !isBoundedText(nutrition.sugar_guidance, 500)
+    || !Array.isArray(mealPrinciples)
+    || mealPrinciples.length < 1
+    || mealPrinciples.length > 10
+    || mealPrinciples.some(item => !isBoundedText(item, 300))
+    || !boundedNumber(recovery.sleep_target_hours, 0, 16)
+    || !Array.isArray(recoveryActions)
+    || recoveryActions.length > 10
+    || recoveryActions.some(item => !isBoundedText(item, 300))
+  ) throw new Error('Remote plan response exceeded safety bounds.');
+}
+
+export function buildRemotePlanRequest({ context, responseLanguage }: AiPlanRequest): RemotePlanRequest {
   const routine = (context.lifestyle.typicalDay
     ?? context.lifestyle.workStudyPattern
     ?? 'No additional daily-routine detail provided.').slice(0, 1_200);
@@ -57,7 +134,7 @@ export function buildRemotePlanRequest({ context }: AiPlanRequest): RemotePlanRe
 
   return {
     consent: { share_profile_and_lifestyle: true },
-    response_language: 'de',
+    response_language: responseLanguage,
     age: context.age,
     height_cm: context.heightCm,
     weight_kg: context.weightKg,
@@ -87,13 +164,17 @@ export function buildRemotePlanRequest({ context }: AiPlanRequest): RemotePlanRe
 }
 
 export function remoteEnvelopeToInitialPlan(response: RemotePlanEnvelope, request: AiPlanRequest): InitialPlan {
+  assertBoundedRemotePlan(response);
   const draft = response.draft;
+  const isGerman = request.responseLanguage === 'de';
   const sessions = draft.training_days.map((day) => ({
     day: day.day_number,
     title: day.label,
     focus: day.focus,
     durationMinutes: day.duration_minutes,
-    warmup: 'Begin with 5–8 minutes of easy movement and comfortable practice repetitions.',
+    warmup: isGerman
+      ? 'Beginne mit 5–8 Minuten lockerer Bewegung und angenehmen Übungswiederholungen.'
+      : 'Begin with 5–8 minutes of easy movement and comfortable practice repetitions.',
     exercises: day.exercises.map((exercise, index) => ({
       id: `ai-${day.day_number}-${index + 1}`,
       name: exercise.name,
@@ -103,15 +184,20 @@ export function remoteEnvelopeToInitialPlan(response: RemotePlanEnvelope, reques
       reps: exercise.reps_or_duration,
       effort: exercise.effort_cue,
     })),
-    cooldown: 'Finish with a few minutes of easy movement. Stop if a movement causes pain or unusual symptoms.',
+    cooldown: isGerman
+      ? 'Beende die Einheit mit einigen Minuten lockerer Bewegung. Stoppe, wenn eine Bewegung Schmerzen oder ungewöhnliche Symptome auslöst.'
+      : 'Finish with a few minutes of easy movement. Stop if a movement causes pain or unusual symptoms.',
   }));
-  const sugarReference = Math.round(draft.nutrition.calorie_target_kcal * 0.1 / 4);
+  const sugarReference = Math.min(
+    draft.nutrition.carbohydrate_target_g,
+    Math.round(draft.nutrition.calorie_target_kcal * 0.1 / 4),
+  );
 
   return {
     schemaVersion: 1,
     generator: 'openai-plan-v1',
     createdAt: response.generated_at,
-    sourceLabel: 'Secure AI plan',
+    sourceLabel: isGerman ? 'Sicherer KI-Plan' : 'Secure AI plan',
     emphasis: draft.summary,
     difficulty: request.context.difficulty,
     experience: request.context.experience,
@@ -124,10 +210,12 @@ export function remoteEnvelopeToInitialPlan(response: RemotePlanEnvelope, reques
       fat: draft.nutrition.fat_target_g,
       sugar: sugarReference,
       method: 'openai-estimate-v1',
-      note: `${draft.nutrition.sugar_guidance} Starting estimates only; review using energy, appetite and progress.`,
+      note: `${draft.nutrition.sugar_guidance} ${isGerman ? 'Nur Startwerte; prüfe sie anhand von Energie, Appetit und Verlauf.' : 'Starting estimates only; review using energy, appetite and progress.'}`,
     },
     recoveryGuidance: [
-      `Sleep planning target: ${draft.recovery.sleep_target_hours} hours.`,
+      isGerman
+        ? `Orientierungswert für die Schlafplanung: ${draft.recovery.sleep_target_hours} Stunden.`
+        : `Sleep planning target: ${draft.recovery.sleep_target_hours} hours.`,
       ...draft.recovery.actions,
     ].join(' '),
     foodGuidance: draft.nutrition.meal_principles.join(' '),

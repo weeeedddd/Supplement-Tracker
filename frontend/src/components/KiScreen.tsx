@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { S } from '../lib/storage';
 import { lang } from '../lib/i18n';
+import { useModalIsolation } from '../lib/modal';
 import { showScreen } from '../lib/store';
 import {
   SAFE_SUPPLEMENT_CATALOG,
+  localizeSupplement,
   sanitizeRoutineSelection,
   toProtocol,
   type SafeSupplementCatalogItem,
 } from '../lib/supplements';
 import type { ProtocolItem } from '../lib/engine';
-import { SystemIcon } from './SystemIcon';
+import { PerformanceHero } from './PerformanceHero';
+import { SystemIcon, type SystemIconName } from './SystemIcon';
 
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
 
@@ -19,6 +23,14 @@ const evidenceLabel: Record<SafeSupplementCatalogItem['evidenceLevel'], { de: st
   food_first: { de: 'Lebensmittel zuerst', en: 'Food first' },
 };
 
+const supplementIcons: Record<string, SystemIconName> = {
+  protein: 'food',
+  kreatin: 'training',
+  omega: 'water',
+  vitd: 'sun',
+  magnesium: 'moon',
+};
+
 export function KiScreen() {
   const initial = useMemo(() => {
     const current = S.get<ProtocolItem[]>('protocol') || [];
@@ -26,6 +38,11 @@ export function KiScreen() {
   }, []);
   const [selected, setSelected] = useState<string[]>(initial);
   const [details, setDetails] = useState<SafeSupplementCatalogItem | null>(null);
+
+  useModalIsolation(Boolean(details), {
+    backgroundSelectors: ['.supplement-page', '.system-topbar', '.system-bottom-nav'],
+    onEscape: () => setDetails(null),
+  });
 
   const toggle = (id: string) => {
     setSelected(current => current.includes(id)
@@ -46,16 +63,22 @@ export function KiScreen() {
   return (
     <section className="screen active system-screen" id="screen-ki">
       <div className="system-page supplement-page">
-        <header className="system-page-header supplement-header">
-          <div className="system-heading-mark" aria-hidden="true"><SystemIcon name="supplements" /></div>
-          <div>
-            <h1>{copy('Supplement-Wissen', 'Supplement knowledge')}</h1>
-            <p>{copy(
-              'Verstehe, was verbreitete Supplements leisten können – und wo die Evidenz endet. Du wählst selbst, was du bereits nutzt.',
-              'Understand what common supplements may support and where the evidence stops. You choose what you already use.',
-            )}</p>
-          </div>
-        </header>
+        <PerformanceHero
+          variant="supplements"
+          icon="supplements"
+          title={copy('Supplement-Wissen', 'Supplement knowledge')}
+          description={copy(
+            'Verstehe, was verbreitete Supplements leisten können – und wo die Evidenz endet. Du wählst selbst, was du bereits nutzt.',
+            'Understand what common supplements may support and where the evidence stops. You choose what you already use.',
+          )}
+          status={(
+            <>
+              <span><small>{copy('Ausgewählt', 'Selected')}</small><strong>{selected.length}</strong></span>
+              <span><small>{copy('Einträge', 'Entries')}</small><strong>{SAFE_SUPPLEMENT_CATALOG.length}</strong></span>
+              <span><small>{copy('Prinzip', 'Principle')}</small><strong>{copy('Food first', 'Food first')}</strong></span>
+            </>
+          )}
+        />
 
         <aside className="system-notice" role="note">
           <SystemIcon name="shield" />
@@ -69,12 +92,13 @@ export function KiScreen() {
         </aside>
 
         <section className="supplement-library" aria-label={copy('Supplement-Bibliothek', 'Supplement library')}>
-          {SAFE_SUPPLEMENT_CATALOG.map(item => {
+          {SAFE_SUPPLEMENT_CATALOG.map(catalogItem => {
+            const item = localizeSupplement(catalogItem, lang);
             const active = selected.includes(item.id);
             const label = evidenceLabel[item.evidenceLevel];
             return (
               <article className={active ? 'supplement-entry selected' : 'supplement-entry'} key={item.id}>
-                <div className="supplement-entry-icon" aria-hidden="true"><SystemIcon name="supplements" /></div>
+                <div className="supplement-entry-icon" aria-hidden="true"><SystemIcon name={supplementIcons[item.id] || 'supplements'} /></div>
                 <div className="supplement-entry-copy">
                   <div className="supplement-entry-title">
                     <h2>{item.label}</h2>
@@ -102,49 +126,6 @@ export function KiScreen() {
           })}
         </section>
 
-        {details && (
-          <section className="supplement-detail-panel" aria-labelledby="supplement-detail-title">
-            <header>
-              <div>
-                <h2 id="supplement-detail-title">{details.label}</h2>
-                <p>{details.whatItIs}</p>
-              </div>
-              <button type="button" className="system-icon-button" onClick={() => setDetails(null)} aria-label={copy('Details schließen', 'Close details')}>
-                <SystemIcon name="close" />
-              </button>
-            </header>
-            <div className="supplement-detail-grid">
-              <section>
-                <h3>{copy('Was die Evidenz stützt', 'What evidence supports')}</h3>
-                <p>{details.supportedUse}</p>
-              </section>
-              <section>
-                <h3>{copy('Grenzen', 'Limits')}</h3>
-                <p>{details.evidenceLimits}</p>
-              </section>
-              <section>
-                <h3>{copy('Lebensmittelquellen', 'Food sources')}</h3>
-                <ul>{details.foodSources.map(source => <li key={source}>{source}</li>)}</ul>
-              </section>
-              <section>
-                <h3>{copy('Vorher prüfen', 'Check first')}</h3>
-                <p>{details.interactionPrompt}</p>
-                <ul>{details.cautions.map(caution => <li key={caution}>{caution}</li>)}</ul>
-              </section>
-            </div>
-            <footer>
-              <span>{copy('Geprüft', 'Reviewed')}: {details.reviewedAt}</span>
-              <div>
-                {details.sources.map(source => (
-                  <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">
-                    {source.authority}<SystemIcon name="external" />
-                  </a>
-                ))}
-              </div>
-            </footer>
-          </section>
-        )}
-
         <footer className="system-action-bar supplement-actions">
           <button className="system-button quiet" type="button" onClick={skip}>{copy('Ohne Supplements fortfahren', 'Continue without supplements')}</button>
           <button className="system-primary-action" type="button" onClick={save}>
@@ -153,6 +134,27 @@ export function KiScreen() {
           </button>
         </footer>
       </div>
+      {details && createPortal(
+        <div className="supplement-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setDetails(null); }}>
+          <section className="supplement-detail-panel" role="dialog" aria-modal="true" aria-labelledby="supplement-detail-title" onMouseDown={event => event.stopPropagation()}>
+            <header>
+              <div><h2 id="supplement-detail-title">{details.label}</h2><p>{details.whatItIs}</p></div>
+              <button type="button" className="system-icon-button" onClick={() => setDetails(null)} aria-label={copy('Details schließen', 'Close details')}><SystemIcon name="close" /></button>
+            </header>
+            <div className="supplement-detail-grid">
+              <section><h3>{copy('Was die Evidenz stützt', 'What evidence supports')}</h3><p>{details.supportedUse}</p></section>
+              <section><h3>{copy('Grenzen', 'Limits')}</h3><p>{details.evidenceLimits}</p></section>
+              <section><h3>{copy('Lebensmittelquellen', 'Food sources')}</h3><ul>{details.foodSources.map(source => <li key={source}>{source}</li>)}</ul></section>
+              <section><h3>{copy('Vorher prüfen', 'Check first')}</h3><p>{details.interactionPrompt}</p><ul>{details.cautions.map(caution => <li key={caution}>{caution}</li>)}</ul></section>
+            </div>
+            <footer>
+              <span>{copy('Geprüft', 'Reviewed')}: {details.reviewedAt}</span>
+              <div>{details.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.authority}<SystemIcon name="external" /></a>)}</div>
+            </footer>
+          </section>
+        </div>,
+        document.body,
+      )}
     </section>
   );
 }

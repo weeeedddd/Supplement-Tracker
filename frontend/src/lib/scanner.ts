@@ -5,7 +5,6 @@
 //  Facts (funktioniert auch auf GitHub Pages). Nie werfende Fallbacks.
 // ═══════════════════════════════════════════════════════════════════
 import { S, timeoutSignal } from './storage';
-import { getBackendUrl } from './backend';
 import type { Macros } from './engine';
 
 export interface ScanResult { name: string; macros: Macros; }
@@ -102,6 +101,7 @@ const FOOD_PER100: { w: string[]; g: number; m: Macros }[] = [
   { w: ['keks', 'cookie', 'biscuit'], g: 40, m: { kcal: 480, prot: 6, carb: 66, fat: 21, sug: 32 } },
   { w: ['gummibär', 'haribo', 'gummy'], g: 75, m: { kcal: 340, prot: 7, carb: 77, fat: 0, sug: 46 } },
   { w: ['eis', 'ice cream', 'gelato'], g: 100, m: { kcal: 210, prot: 4, carb: 24, fat: 11, sug: 22 } },
+  { w: ['skyr'], g: 250, m: { kcal: 63, prot: 11, carb: 4, fat: 0, sug: 4 } },
   { w: ['joghurt', 'yogurt', 'yoghurt'], g: 200, m: { kcal: 62, prot: 4, carb: 5, fat: 3, sug: 5 } },
   { w: ['banane', 'banana'], g: 120, m: { kcal: 89, prot: 1, carb: 23, fat: 0, sug: 12 } },
   { w: ['apfel', 'apple'], g: 180, m: { kcal: 52, prot: 0, carb: 14, fat: 0, sug: 10 } },
@@ -275,7 +275,7 @@ const FOOD_PER100: { w: string[]; g: number; m: Macros }[] = [
 ];
 
 // Portionsbasierte Alt-DB (letzte Text-Stufe)
-export function dummyFoodMacros(input: string): Macros {
+export function dummyFoodMacros(input: string): Macros | null {
   const s = input.toLowerCase();
   const kw: { w: string[]; m: Macros }[] = [
     { w: ['pizza'], m: { kcal: 620, prot: 24, carb: 72, fat: 22, sug: 6 } },
@@ -293,14 +293,13 @@ export function dummyFoodMacros(input: string): Macros {
   ];
   for (const { w, m } of kw) {
     if (w.some(word => s.includes(word))) {
-      const jitter = (v: number) => Math.round(v * (0.95 + Math.random() * .1));
-      return { kcal: jitter(m.kcal), prot: jitter(m.prot), carb: jitter(m.carb), fat: jitter(m.fat), sug: jitter(m.sug) };
+      return { ...m };
     }
   }
-  return { kcal: 400, prot: 18, carb: 44, fat: 14, sug: 5 };
+  return null;
 }
 
-export function keywordFoodEstimate(text: string): ScanResult {
+export function keywordFoodEstimate(text: string): ScanResult | null {
   const s = (text || '').toLowerCase();
   const grams = parseGrams(s);
   const mult = parseMultiplier(s);
@@ -313,6 +312,7 @@ export function keywordFoodEstimate(text: string): ScanResult {
     }
   }
   const base = dummyFoodMacros(text || '');
+  if (!base) return null;
   if (mult > 1) (Object.keys(base) as (keyof Macros)[]).forEach(k => { base[k] = Math.round(base[k] * mult); });
   return { name: text, macros: base };
 }
@@ -321,65 +321,18 @@ export function keywordFoodEstimate(text: string): ScanResult {
 // must be represented honestly instead of mapping image bytes to canned meals.
 export function simulateVisionScan(_imageB64: string): ScanResult | null { return null; }
 
-// ── Backend-Analyse (bevorzugt, wenn konfiguriert) ───────────────────
-async function backendAnalyze(params: Record<string, string>): Promise<ScanResult | null> {
-  const backend = getBackendUrl();
-  if (!backend) return null;
-  try {
-    const qs = new URLSearchParams(params).toString();
-    const res = await fetch(`${backend}/api/food/analyze?${qs}`, { signal: timeoutSignal(9000) });
-    if (!res.ok) return null;
-    const d = await res.json();
-    if (d && d.found && d.macros) return { name: '◈ ' + d.name, macros: d.macros };
-  } catch { /* Backend down → lokale Kaskade */ }
-  return null;
-}
-
-// ── ECHTER Foto-Scan über das Backend: das Bild selbst wird hochgeladen
-//    und serverseitig ausgewertet (Barcode-Dekodierung, optional OCR)
-async function backendScanImage(imageB64: string, hint: string): Promise<ScanResult | null> {
-  const backend = getBackendUrl();
-  if (!backend) return null;
-  try {
-    const blob = await (await fetch(imageB64)).blob();
-    const fd = new FormData();
-    fd.append('file', blob, 'scan.jpg');
-    const qs = hint ? `?q=${encodeURIComponent(hint)}` : '';
-    const res = await fetch(`${backend}/api/food/scan${qs}`, { method: 'POST', body: fd, signal: timeoutSignal(15000) });
-    if (!res.ok) return null;
-    const d = await res.json();
-    if (d && d.found && d.macros) return { name: '◈ ' + d.name, macros: d.macros };
-  } catch { /* Backend down → Browser-Kaskade */ }
-  return null;
-}
-
-// ── Öffentliche Kaskaden ─────────────────────────────────────────────
-export async function analyzeTextLocally(txt: string): Promise<ScanResult> {
-  const viaBackend = await backendAnalyze({ q: txt });
-  if (viaBackend) return viaBackend;
-  try {
-    const prod = await offSearchProduct(txt);
-    if (prod) {
-      const r = macrosFromOFF(prod, parseGrams(txt));
-      if (r) return { name: '◈ ' + offName(prod, r.grams), macros: r.macros };
-    }
-  } catch { /* API down → lokale Schätzung */ }
+// Text entries deliberately stay on-device. They are conservative estimates
+// until the user edits them; no configured backend receives the query.
+export async function analyzeTextLocally(txt: string): Promise<ScanResult | null> {
   return keywordFoodEstimate(txt);
 }
 
-// FIX „Burrito Bowl": Die Vision-SIMULATION ist raus. Wird nichts echt
-// erkannt, liefert die Kaskade null — die UI zeigt dann eine ehrliche
-// Meldung statt erfundener Nährwerte.
+// The image itself never leaves the browser. A locally decoded barcode may be
+// looked up at Open Food Facts; when that fails, return null instead of using
+// the optional text hint as a fabricated image result.
 export async function analyzeImageLocally(imageB64: string, hint: string): Promise<ScanResult | null> {
-  // 1) Backend wertet das ECHTE Bild aus (Barcode serverseitig, optional OCR)
-  const viaScan = await backendScanImage(imageB64, hint);
-  if (viaScan) return viaScan;
-
-  // 2) Browser-BarcodeDetector (Chrome/Android/Safari 17+) → OFF-Produkt
   const code = await detectBarcode(imageB64);
   if (code) {
-    const viaBackend = await backendAnalyze({ barcode: code, ...(hint ? { q: hint } : {}) });
-    if (viaBackend) return viaBackend;
     try {
       const prod = await offProductByBarcode(code);
       if (prod) {
@@ -388,10 +341,5 @@ export async function analyzeImageLocally(imageB64: string, hint: string): Promi
       }
     } catch { /* weiter in der Kaskade */ }
   }
-
-  // 3) Text-Hint des Users → validierte Suche/Keyword-Schätzung
-  if (hint && hint.trim()) return analyzeTextLocally(hint);
-
-  // 4) Nichts erkannt → ehrlich null (keine Mock-Daten mehr)
   return null;
 }

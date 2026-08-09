@@ -1,7 +1,8 @@
 // ── Profil-Overlay (RPG-Akte), Complete-Overlay, Briefing-Modal — TS-Port
 import { useMemo } from 'react';
 import { S } from '../lib/storage';
-import { t } from '../lib/i18n';
+import { lang, t } from '../lib/i18n';
+import { useModalIsolation } from '../lib/modal';
 import { refresh, useAppState } from '../lib/store';
 import { theme } from '../lib/themes';
 import {
@@ -9,6 +10,7 @@ import {
   ACHIEVE_DEFS, getUnlockedAchievements, getEquippedTitle, equipTitle, asArray,
   SDEFS, type Macros, type Profile, type ProtocolItem,
 } from '../lib/engine';
+import { SystemIcon } from './SystemIcon';
 
 const AV = ['◈', '◉', '◊'];
 
@@ -137,13 +139,39 @@ export function ProfileOverlay({ open, onClose }: { open: boolean; onClose: () =
 }
 
 export function CompleteOverlay({ streak, onDismiss }: { streak: number | null; onDismiss: () => void }) {
+  useModalIsolation(streak !== null, {
+    backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
+    onEscape: onDismiss,
+  });
+
   if (streak === null) return null;
+  const isGerman = lang === 'de';
   return (
-    <div className="complete-ov show">
-      <span className="big-sigil">◈</span>
-      <h2>{t('complete_title')}</h2>
-      <p>{t('complete_streak').replace('{n}', String(streak))}</p>
-      <button className="dismiss-btn" onClick={onDismiss}>{t('btn_dismiss')}</button>
+    <div className="system-dialog-backdrop complete-system-backdrop" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onDismiss();
+    }}>
+      <section className="system-dialog complete-system-dialog" role="dialog" aria-modal="true" aria-labelledby="complete-title" aria-describedby="complete-description">
+        <header>
+          <h2 id="complete-title">{isGerman ? 'Routine gespeichert' : 'Routine saved'}</h2>
+          <button className="system-icon-button" type="button" onClick={onDismiss} aria-label={isGerman ? 'Bestätigung schließen' : 'Close confirmation'}>
+            <SystemIcon name="close" />
+          </button>
+        </header>
+        <div className="complete-system-body">
+          <span className="complete-system-mark" aria-hidden="true"><SystemIcon name="check" /></span>
+          <div>
+            <strong>{isGerman ? 'Heutige Auswahl abgeschlossen' : 'Today’s selection completed'}</strong>
+            <p id="complete-description">
+              {isGerman
+                ? `Alle ausgewählten Routine-Einträge sind dokumentiert. Aktuelle Serie: ${streak} ${streak === 1 ? 'Tag' : 'Tage'}.`
+                : `All selected routine items are documented. Current streak: ${streak} ${streak === 1 ? 'day' : 'days'}.`}
+            </p>
+          </div>
+        </div>
+        <footer>
+          <button className="system-button" type="button" onClick={onDismiss}>{isGerman ? 'Weiter' : 'Continue'}</button>
+        </footer>
+      </section>
     </div>
   );
 }

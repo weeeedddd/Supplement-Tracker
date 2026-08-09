@@ -7,10 +7,10 @@ import { refresh } from './store';
 export const I18N: Record<string, Record<string, string>> = {};
 for (const lg of Object.keys(BASE)) I18N[lg] = { ...BASE[lg], ...(I18N_EXTRA[lg] || {}) };
 
-const SUPPORTED = ['de', 'en', 'ja', 'ko', 'es', 'tr'];
+const SUPPORTED = ['de', 'en'];
 export let lang: string = (() => {
   const stored = S.get<string>('lang');
-  if (stored && SUPPORTED.includes(stored)) return stored;
+  if (stored) return SUPPORTED.includes(stored) ? stored : 'en';
   const browserLanguage = typeof navigator !== 'undefined' ? navigator.language.slice(0, 2).toLowerCase() : '';
   return SUPPORTED.includes(browserLanguage) ? browserLanguage : 'de';
 })();
@@ -30,8 +30,6 @@ export function applyDocumentLanguage(): void {
   if (typeof document !== 'undefined') document.documentElement.lang = lang;
 }
 
-export const LANGS = ['de', 'en', 'ja', 'ko', 'es', 'tr'] as const;
+export const LANGS = ['de', 'en'] as const;
 
-export const LANG_NAMES: Record<string, string> = {
-  de: 'Deutsch', en: 'English', ja: '日本語', ko: '한국어', es: 'Español', tr: 'Türkçe',
-};
+export const LANG_NAMES: Record<string, string> = { de: 'Deutsch', en: 'English' };

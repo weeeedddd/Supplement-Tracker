@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { S, dateKey, prevKey } from './storage';
 import { t } from './i18n';
+import { clampNutritionNumber, type NutritionField } from './nutritionBounds';
 
 // ── Typen ────────────────────────────────────────────────────────────
 export interface Macros { kcal: number; prot: number; carb: number; fat: number; sug: number; }
@@ -316,13 +317,13 @@ export function calcBuffsDebuffs(th: any) {
 }
 
 // ═══ FOOD LOG ════════════════════════════════════════════════════════
-export function sanitizeFoodNumber(value: unknown): number {
+export function sanitizeFoodNumber(value: unknown, field: NutritionField = 'kcal'): number {
   const numeric = typeof value === 'number'
     ? value
     : typeof value === 'string' && value.trim() !== ''
       ? Number(value)
       : Number.NaN;
-  return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
+  return clampNutritionNumber(field, numeric);
 }
 
 export function normalizeFoodEntry(value: unknown): FoodEntry | null {
@@ -333,11 +334,11 @@ export function normalizeFoodEntry(value: unknown): FoodEntry | null {
     id: entry.id as number,
     name: entry.name,
     ts: entry.ts as number,
-    kcal: sanitizeFoodNumber(entry.kcal),
-    prot: sanitizeFoodNumber(entry.prot),
-    carb: sanitizeFoodNumber(entry.carb),
-    fat: sanitizeFoodNumber(entry.fat),
-    sug: sanitizeFoodNumber(entry.sug),
+    kcal: sanitizeFoodNumber(entry.kcal, 'kcal'),
+    prot: sanitizeFoodNumber(entry.prot, 'prot'),
+    carb: sanitizeFoodNumber(entry.carb, 'carb'),
+    fat: sanitizeFoodNumber(entry.fat, 'fat'),
+    sug: sanitizeFoodNumber(entry.sug, 'sug'),
   };
 }
 

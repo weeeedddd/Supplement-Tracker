@@ -6,7 +6,8 @@ export type SystemIconName =
   | 'calendar' | 'clock' | 'edit' | 'history' | 'plan' | 'lifestyle'
   | 'sleep' | 'chevron' | 'check' | 'plus' | 'info' | 'store'
   | 'location' | 'budget' | 'assistant' | 'close' | 'search'
-  | 'sync' | 'warning' | 'equipment' | 'leaf' | 'back' | 'external';
+  | 'sync' | 'warning' | 'equipment' | 'leaf' | 'back' | 'external'
+  | 'water' | 'camera' | 'delete' | 'share' | 'list' | 'flame';
 
 export interface SystemIconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: SystemIconName;
@@ -49,6 +50,12 @@ function Glyph({ name }: { name: SystemIconName }) {
     case 'leaf': return <><path d="M20 4C12 4 5 7 5 14c0 3 2 5 5 5 7 0 9-7 10-15z"/><path d="M5 20c3-5 7-8 12-11"/></>;
     case 'back': return <><path d="m15 5-7 7 7 7"/><path d="M8 12h12"/></>;
     case 'external': return <><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6H5V6h6"/></>;
+    case 'water': return <><path d="M12 3c3.2 4 6 7.1 6 11a6 6 0 0 1-12 0c0-3.9 2.8-7 6-11z"/><path d="M9 15.2c.4 1.1 1.4 1.8 2.7 1.8"/></>;
+    case 'camera': return <><path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.5"/></>;
+    case 'delete': return <><path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13"/><path d="M10 11v5M14 11v5"/></>;
+    case 'share': return <><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></>;
+    case 'list': return <><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></>;
+    case 'flame': return <path d="M13 3c.2 3-1.7 4.4-3 6.2-1.2 1.7-.3 3.2 1.2 4.2-.1-2.4 1.5-3.2 2.8-4.8 2.7 2 4 4.4 4 6.7A6 6 0 0 1 6 15c0-2.1 1-4 2.8-5.8-.2 2 .8 3 1.7 3.5C9 8.2 11 5 13 3z"/>;
   }
 }
 

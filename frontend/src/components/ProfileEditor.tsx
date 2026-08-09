@@ -4,10 +4,13 @@ import {
   loadUserProfile,
   patchStoredUserProfile,
   PROFILE_LIMITS,
+  userProfileToPlanInput,
   type CookingAccess,
   type SleepQuality,
 } from '../lib/profile';
-import type { DietPreference, PlanDifficulty, TrainingGoal } from '../lib/plans';
+import { calculateNutritionTargets, type DietPreference, type InitialPlan, type PlanDifficulty, type TrainingGoal } from '../lib/plans';
+import { lang } from '../lib/i18n';
+import { useModalIsolation } from '../lib/modal';
 import { S } from '../lib/storage';
 import { SystemIcon } from './SystemIcon';
 
@@ -46,6 +49,8 @@ const EMPTY_DRAFT: Draft = {
   stressRecovery: '', injuriesLimitations: '', preferredTrainingWindow: '',
 };
 
+const copy = (de: string, en: string) => lang === 'de' ? de : en;
+
 function listFromText(value: string): string[] {
   return [...new Set(value.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean))].slice(0, PROFILE_LIMITS.listItems);
 }
@@ -54,6 +59,11 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [status, setStatus] = useState('');
+
+  useModalIsolation(open, {
+    backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
+    onEscape: onClose,
+  });
 
   useEffect(() => {
     if (!open) return;
@@ -83,11 +93,6 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
     }
     setStatus('');
     closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
   if (!open) return null;
@@ -102,19 +107,19 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
     const daysPerWeek = Number(draft.daysPerWeek);
     const sleepHours = draft.sleepDurationHours.trim() ? Number(draft.sleepDurationHours) : null;
     if (!draft.displayName.trim() || draft.displayName.trim().length > PROFILE_LIMITS.displayName) {
-      setStatus(`Der Name muss 1–${PROFILE_LIMITS.displayName} Zeichen lang sein.`);
+      setStatus(copy(`Der Name muss 1–${PROFILE_LIMITS.displayName} Zeichen lang sein.`, `Name must be 1–${PROFILE_LIMITS.displayName} characters long.`));
       return;
     }
     if (!Number.isInteger(age) || age < 16 || age > 85 || heightCm < 120 || heightCm > 230 || weightKg < 35 || weightKg > 250) {
-      setStatus('Prüfe Alter (16–85), Größe (120–230 cm) und Gewicht (35–250 kg).');
+      setStatus(copy('Prüfe Alter (16–85), Größe (120–230 cm) und Gewicht (35–250 kg).', 'Check age (16–85), height (120–230 cm), and weight (35–250 kg).'));
       return;
     }
     if (!Number.isInteger(daysPerWeek) || daysPerWeek < 2 || daysPerWeek > 6) {
-      setStatus('Trainingstage müssen zwischen 2 und 6 liegen.');
+      setStatus(copy('Trainingstage müssen zwischen 2 und 6 liegen.', 'Training days must be between 2 and 6.'));
       return;
     }
     if (sleepHours !== null && (!Number.isFinite(sleepHours) || sleepHours < 0 || sleepHours > 16)) {
-      setStatus('Die Schlafdauer muss zwischen 0 und 16 Stunden liegen oder leer bleiben.');
+      setStatus(copy('Die Schlafdauer muss zwischen 0 und 16 Stunden liegen oder leer bleiben.', 'Sleep duration must be between 0 and 16 hours or left blank.'));
       return;
     }
 
@@ -142,7 +147,7 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
       },
     });
     if (!saved) {
-      setStatus('Das lokale Profil konnte nicht geladen werden.');
+      setStatus(copy('Das lokale Profil konnte nicht geladen werden.', 'The local profile could not be loaded.'));
       return;
     }
 
@@ -160,7 +165,17 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
       dietaryPreferences: saved.dietaryPreferences,
       lifestyle: saved.lifestyle,
     });
-    setStatus('Profil gespeichert. Bestehende Pläne, Routinen und Logs wurden nicht verändert.');
+    const nutritionTargets = calculateNutritionTargets(userProfileToPlanInput(saved), lang === 'de' ? 'de' : 'en');
+    S.set('macros', {
+      kcal: nutritionTargets.calories,
+      prot: nutritionTargets.protein,
+      carb: nutritionTargets.carbs,
+      fat: nutritionTargets.fat,
+      sug: nutritionTargets.sugar,
+    });
+    const initialPlan = S.get<InitialPlan>('initial_plan');
+    if (initialPlan) S.set('initial_plan', { ...initialPlan, nutritionTargets });
+    setStatus(copy('Profil und Ernährungsziele gespeichert. Bestehende Trainingspläne, Routinen und Logs wurden nicht verändert.', 'Profile and nutrition targets saved. Existing training plans, routines, and logs were not changed.'));
     onSaved();
   };
 
@@ -171,53 +186,53 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
       <section className="settings-panel profile-editor" role="dialog" aria-modal="true" aria-labelledby="profile-editor-title">
         <header className="settings-header">
           <div>
-            <h2 id="profile-editor-title">Profil-Dossier bearbeiten</h2>
-            <p>Diese Änderung ist nicht-destruktiv: Dein aktueller Trainingsplan wird nicht automatisch ersetzt.</p>
+            <h2 id="profile-editor-title">{copy('Profil-Dossier bearbeiten', 'Edit profile dossier')}</h2>
+            <p>{copy('Diese Änderung ist nicht-destruktiv: Dein aktueller Trainingsplan wird nicht automatisch ersetzt.', 'This edit is non-destructive: your current training plan is not replaced automatically.')}</p>
           </div>
-          <button ref={closeRef} className="icon-button" type="button" onClick={onClose} aria-label="Profil-Editor schließen"><SystemIcon name="close" /></button>
+          <button ref={closeRef} className="icon-button" type="button" onClick={onClose} aria-label={copy('Profil-Editor schließen', 'Close profile editor')}><SystemIcon name="close" /></button>
         </header>
         <form onSubmit={save}>
           <fieldset className="settings-section">
-            <legend>Basis & Ziel</legend>
+            <legend>{copy('Basis & Ziel', 'Basics & goal')}</legend>
             <div className="shopping-field-grid">
-              <label className="system-field wide">Anzeigename<input required maxLength={PROFILE_LIMITS.displayName} value={draft.displayName} onChange={(event) => update('displayName', event.target.value)} /></label>
-              <label className="system-field">Alter<input type="number" min="16" max="85" value={draft.age} onChange={(event) => update('age', event.target.value)} /></label>
-              <label className="system-field">Größe (cm)<input type="number" min="120" max="230" step="0.1" value={draft.heightCm} onChange={(event) => update('heightCm', event.target.value)} /></label>
-              <label className="system-field">Gewicht (kg)<input type="number" min="35" max="250" step="0.1" value={draft.weightKg} onChange={(event) => update('weightKg', event.target.value)} /></label>
-              <label className="system-field">Trainingstage<select value={draft.daysPerWeek} onChange={(event) => update('daysPerWeek', event.target.value)}>{[2,3,4,5,6].map((days) => <option value={days} key={days}>{days} pro Woche</option>)}</select></label>
-              <label className="system-field">Ziel<select value={draft.goal} onChange={(event) => update('goal', event.target.value as TrainingGoal)}><option value="general_fitness">Allgemeine Fitness</option><option value="build_muscle">Muskelaufbau</option><option value="get_stronger">Kraftaufbau</option><option value="fat_loss">Fettverlust unterstützen</option></select></label>
-              <label className="system-field">Intensität<select value={draft.difficulty} onChange={(event) => update('difficulty', event.target.value as PlanDifficulty)}><option value="light">Leicht</option><option value="medium">Mittel</option><option value="hard">Hart</option></select></label>
+              <label className="system-field wide">{copy('Anzeigename', 'Display name')}<input required maxLength={PROFILE_LIMITS.displayName} value={draft.displayName} onChange={(event) => update('displayName', event.target.value)} /></label>
+              <label className="system-field">{copy('Alter', 'Age')}<input type="number" min="16" max="85" value={draft.age} onChange={(event) => update('age', event.target.value)} /></label>
+              <label className="system-field">{copy('Größe (cm)', 'Height (cm)')}<input type="number" min="120" max="230" step="0.1" value={draft.heightCm} onChange={(event) => update('heightCm', event.target.value)} /></label>
+              <label className="system-field">{copy('Gewicht (kg)', 'Weight (kg)')}<input type="number" min="35" max="250" step="0.1" value={draft.weightKg} onChange={(event) => update('weightKg', event.target.value)} /></label>
+              <label className="system-field">{copy('Trainingstage', 'Training days')}<select value={draft.daysPerWeek} onChange={(event) => update('daysPerWeek', event.target.value)}>{[2,3,4,5,6].map((days) => <option value={days} key={days}>{copy(`${days} pro Woche`, `${days} per week`)}</option>)}</select></label>
+              <label className="system-field">{copy('Ziel', 'Goal')}<select value={draft.goal} onChange={(event) => update('goal', event.target.value as TrainingGoal)}><option value="general_fitness">{copy('Allgemeine Fitness', 'General fitness')}</option><option value="build_muscle">{copy('Muskelaufbau', 'Build muscle')}</option><option value="get_stronger">{copy('Kraftaufbau', 'Build strength')}</option><option value="fat_loss">{copy('Gewichtsabnahme unterstützen', 'Support fat loss')}</option></select></label>
+              <label className="system-field">{copy('Intensität', 'Intensity')}<select value={draft.difficulty} onChange={(event) => update('difficulty', event.target.value as PlanDifficulty)}><option value="light">{copy('Leicht', 'Light')}</option><option value="medium">{copy('Mittel', 'Medium')}</option><option value="hard">{copy('Hart', 'Hard')}</option></select></label>
             </div>
           </fieldset>
 
           <fieldset className="settings-section">
-            <legend>Alltag, Schlaf & Erholung</legend>
+            <legend>{copy('Alltag, Schlaf & Erholung', 'Routine, sleep & recovery')}</legend>
             <div className="shopping-field-grid">
-              <label className="system-field">Arbeit / Studium<input maxLength={PROFILE_LIMITS.shortText} value={draft.workStudyPattern} onChange={(event) => update('workStudyPattern', event.target.value)} /></label>
-              <label className="system-field">Bevorzugte Trainingszeit<input maxLength={PROFILE_LIMITS.shortText} value={draft.preferredTrainingWindow} onChange={(event) => update('preferredTrainingWindow', event.target.value)} /></label>
-              <label className="system-field wide">Typischer Tag<textarea maxLength={PROFILE_LIMITS.typicalDay} value={draft.typicalDay} onChange={(event) => update('typicalDay', event.target.value)} /></label>
-              <label className="system-field wide">Bewegung außerhalb des Trainings<textarea maxLength={PROFILE_LIMITS.activityContext} value={draft.activityContext} onChange={(event) => update('activityContext', event.target.value)} /></label>
-              <label className="system-field">Schlafdauer<input type="number" min="0" max="16" step="0.25" value={draft.sleepDurationHours} onChange={(event) => update('sleepDurationHours', event.target.value)} /></label>
-              <label className="system-field">Schlafqualität<select value={draft.sleepQuality} onChange={(event) => update('sleepQuality', event.target.value as Draft['sleepQuality'])}><option value="">Keine Angabe</option><option value="poor">Oft schlecht</option><option value="fair">Okay</option><option value="good">Meist gut</option><option value="variable">Wechselhaft</option></select></label>
-              <label className="system-field wide">Stress & Erholung<textarea maxLength={PROFILE_LIMITS.healthContext} value={draft.stressRecovery} onChange={(event) => update('stressRecovery', event.target.value)} /></label>
-              <label className="system-field wide">Einschränkungen, die berücksichtigt werden sollen<textarea maxLength={PROFILE_LIMITS.healthContext} value={draft.injuriesLimitations} onChange={(event) => update('injuriesLimitations', event.target.value)} /></label>
+              <label className="system-field">{copy('Arbeit / Studium', 'Work / study')}<input maxLength={PROFILE_LIMITS.shortText} value={draft.workStudyPattern} onChange={(event) => update('workStudyPattern', event.target.value)} /></label>
+              <label className="system-field">{copy('Bevorzugte Trainingszeit', 'Preferred training time')}<input maxLength={PROFILE_LIMITS.shortText} value={draft.preferredTrainingWindow} onChange={(event) => update('preferredTrainingWindow', event.target.value)} /></label>
+              <label className="system-field wide">{copy('Typischer Tag', 'Typical day')}<textarea maxLength={PROFILE_LIMITS.typicalDay} value={draft.typicalDay} onChange={(event) => update('typicalDay', event.target.value)} /></label>
+              <label className="system-field wide">{copy('Bewegung außerhalb des Trainings', 'Movement outside training')}<textarea maxLength={PROFILE_LIMITS.activityContext} value={draft.activityContext} onChange={(event) => update('activityContext', event.target.value)} /></label>
+              <label className="system-field">{copy('Schlafdauer', 'Sleep duration')}<input type="number" min="0" max="16" step="0.25" value={draft.sleepDurationHours} onChange={(event) => update('sleepDurationHours', event.target.value)} /></label>
+              <label className="system-field">{copy('Schlafqualität', 'Sleep quality')}<select value={draft.sleepQuality} onChange={(event) => update('sleepQuality', event.target.value as Draft['sleepQuality'])}><option value="">{copy('Keine Angabe', 'Not specified')}</option><option value="poor">{copy('Oft schlecht', 'Often poor')}</option><option value="fair">{copy('Okay', 'Fair')}</option><option value="good">{copy('Meist gut', 'Usually good')}</option><option value="variable">{copy('Wechselhaft', 'Variable')}</option></select></label>
+              <label className="system-field wide">{copy('Stress & Erholung', 'Stress & recovery')}<textarea maxLength={PROFILE_LIMITS.healthContext} value={draft.stressRecovery} onChange={(event) => update('stressRecovery', event.target.value)} /></label>
+              <label className="system-field wide">{copy('Einschränkungen, die berücksichtigt werden sollen', 'Limitations to consider')}<textarea maxLength={PROFILE_LIMITS.healthContext} value={draft.injuriesLimitations} onChange={(event) => update('injuriesLimitations', event.target.value)} /></label>
             </div>
           </fieldset>
 
           <fieldset className="settings-section">
-            <legend>Ernährung</legend>
+            <legend>{copy('Ernährung', 'Nutrition')}</legend>
             <div className="shopping-field-grid">
-              <label className="system-field">Ernährungsweise<select value={draft.diet} onChange={(event) => update('diet', event.target.value as DietPreference)}><option value="flexible">Flexibel</option><option value="omnivore">Omnivor</option><option value="vegetarian">Vegetarisch</option><option value="vegan">Vegan</option></select></label>
-              <label className="system-field">Kochmöglichkeit<select value={draft.cookingAccess} onChange={(event) => update('cookingAccess', event.target.value as Draft['cookingAccess'])}><option value="">Keine Angabe</option><option value="none">Keine regelmäßige Küche</option><option value="limited">Eingeschränkt</option><option value="full">Voll ausgestattet</option></select></label>
-              <label className="system-field wide">Mahlzeitenrhythmus<textarea maxLength={PROFILE_LIMITS.mealRhythm} value={draft.mealRhythm} onChange={(event) => update('mealRhythm', event.target.value)} /></label>
-              <label className="system-field wide">Weitere Präferenzen (kommagetrennt)<input maxLength={640} value={draft.dietaryPreferences} onChange={(event) => update('dietaryPreferences', event.target.value)} /></label>
+              <label className="system-field">{copy('Ernährungsweise', 'Diet')}<select value={draft.diet} onChange={(event) => update('diet', event.target.value as DietPreference)}><option value="flexible">{copy('Flexibel', 'Flexible')}</option><option value="omnivore">{copy('Mischkost', 'Omnivore')}</option><option value="vegetarian">{copy('Vegetarisch', 'Vegetarian')}</option><option value="vegan">Vegan</option></select></label>
+              <label className="system-field">{copy('Kochmöglichkeit', 'Cooking access')}<select value={draft.cookingAccess} onChange={(event) => update('cookingAccess', event.target.value as Draft['cookingAccess'])}><option value="">{copy('Keine Angabe', 'Not specified')}</option><option value="none">{copy('Keine regelmäßige Küche', 'No regular kitchen')}</option><option value="limited">{copy('Eingeschränkt', 'Limited')}</option><option value="full">{copy('Voll ausgestattet', 'Full kitchen')}</option></select></label>
+              <label className="system-field wide">{copy('Mahlzeitenrhythmus', 'Meal rhythm')}<textarea maxLength={PROFILE_LIMITS.mealRhythm} value={draft.mealRhythm} onChange={(event) => update('mealRhythm', event.target.value)} /></label>
+              <label className="system-field wide">{copy('Weitere Präferenzen (kommagetrennt)', 'Other preferences (comma-separated)')}<input maxLength={640} value={draft.dietaryPreferences} onChange={(event) => update('dietaryPreferences', event.target.value)} /></label>
             </div>
           </fieldset>
 
           {status && <p className="shopping-budget-note" role="status">{status}</p>}
           <div className="system-action-bar">
-            <button className="system-button quiet" type="button" onClick={onClose}>Abbrechen</button>
-            <button className="system-primary-action" type="submit"><SystemIcon name="check" /> Profil speichern</button>
+            <button className="system-button quiet" type="button" onClick={onClose}>{copy('Abbrechen', 'Cancel')}</button>
+            <button className="system-primary-action" type="submit"><SystemIcon name="check" /> {copy('Profil speichern', 'Save profile')}</button>
           </div>
         </form>
       </section>

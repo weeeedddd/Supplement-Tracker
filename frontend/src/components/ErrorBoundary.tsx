@@ -14,21 +14,21 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
-    console.error(`[SHADOW~1] ◈ ErrorBoundary <${this.props.label}>:`, error, info?.componentStack);
+    console.error(`[CORELINE] ErrorBoundary <${this.props.label}>:`, error, info?.componentStack);
   }
 
   render() {
     if (this.state.error) {
       return (
         <div className="eb-panel" role="alert">
-          <span className="eb-sigil">◈</span>
-          <h2>RISS IN DER VOID</h2>
-          <p>Ein Modul ist abgestürzt — der Rest der App läuft weiter.<br />
-            <em>A module crashed — the rest of the app keeps running.</em></p>
+          <span className="eb-sigil" aria-hidden="true">◇</span>
+          <h2>MODULFEHLER / MODULE ERROR</h2>
+          <p>Dieser Bereich konnte nicht geladen werden; deine lokalen Daten wurden nicht verändert.<br />
+            <em>This section could not load; your local data was not changed.</em></p>
           <pre className="eb-msg">{String(this.state.error?.message ?? this.state.error)}</pre>
           <div className="eb-actions">
-            <button onClick={() => this.setState({ error: null })}>↻ Modul neu laden</button>
-            <button onClick={() => location.reload()}>◈ App neu starten</button>
+            <button onClick={() => this.setState({ error: null })}>Bereich erneut laden / Retry section</button>
+            <button onClick={() => location.reload()}>App neu laden / Reload app</button>
           </div>
         </div>
       );

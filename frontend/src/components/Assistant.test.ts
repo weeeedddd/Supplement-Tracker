@@ -74,6 +74,19 @@ describe('buildLocalAssistantReply', () => {
     expect(reply.text.toLowerCase()).toContain('stop the painful movement');
     expect(reply.text.toLowerCase()).toContain('qualified');
   });
+
+  it('keeps German local guidance honest and catches German symptom wording', () => {
+    const reply = buildLocalAssistantReply('Mein Knie tut weh beim Training', {
+      context,
+      useContext: true,
+      language: 'de',
+    });
+
+    expect(reply.topic).toBe('safety');
+    expect(reply.text).toContain('Stoppe');
+    expect(reply.disclosure).toContain('Lokale Regeln');
+    expect(reply.disclosure).toContain('kein Live-KI-Dienst');
+  });
 });
 
 describe('product search contract helpers', () => {

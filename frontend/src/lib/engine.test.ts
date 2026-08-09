@@ -103,6 +103,27 @@ describe('food persistence boundary', () => {
 
     expect(engine.getFoodLog()[0]).toMatchObject({ kcal: 0, prot: 0, carb: 8, fat: 3, sug: 0 });
   });
+
+  it('clamps oversized nutrient values at the food-log persistence boundary', () => {
+    engine.saveFoodLog([{
+      id: 3,
+      name: 'Oversized legacy entry',
+      ts: 3,
+      kcal: 99_999,
+      prot: 9_999,
+      carb: 9_999,
+      fat: 9_999,
+      sug: 9_999,
+    }]);
+
+    expect(engine.getFoodLog()[0]).toMatchObject({
+      kcal: 10_000,
+      prot: 1_000,
+      carb: 1_500,
+      fat: 1_000,
+      sug: 1_500,
+    });
+  });
 });
 
 describe('automatic supplement recommendations', () => {

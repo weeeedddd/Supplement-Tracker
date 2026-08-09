@@ -1,17 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { backendHealth, getBackendUrl, setBackendUrl } from '../lib/backend';
-import { LANG_NAMES, LANGS, lang, setLang } from '../lib/i18n';
+import { LANG_NAMES, lang, setLang } from '../lib/i18n';
 import { collectExportableLocalData, LOCAL_SYNC_STATE } from '../lib/localMode';
+import { useModalIsolation } from '../lib/modal';
 import { S } from '../lib/storage';
 import { applyTheme, getCurrentTheme } from '../lib/themes';
 import { SystemIcon } from './SystemIcon';
 
 const THEME_CHOICES = [
-  { id: 'shadow', label: 'Nacht' },
-  { id: 'system', label: 'Mondlicht' },
-  { id: 'ghoul', label: 'Ember' },
+  { id: 'shadow', de: 'Nacht', en: 'Night' },
+  { id: 'system', de: 'Mondlicht', en: 'Moonlight' },
+  { id: 'ghoul', de: 'Glut', en: 'Ember' },
 ] as const;
+
+const RELEASE_LANGS = ['de', 'en'] as const;
+const copy = (de: string, en: string) => lang === 'de' ? de : en;
 
 interface SettingsPanelProps {
   open: boolean;
@@ -36,6 +40,11 @@ export function SettingsPanel({ open, onClose, onLocalReset }: SettingsPanelProp
   const [backendStatus, setBackendStatus] = useState('');
   const [checkingBackend, setCheckingBackend] = useState(false);
 
+  useModalIsolation(open, {
+    backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
+    onEscape: onClose,
+  });
+
   useEffect(() => {
     if (!open) {
       setResetArmed(false);
@@ -44,11 +53,6 @@ export function SettingsPanel({ open, onClose, onLocalReset }: SettingsPanelProp
     setBackendDraft(getBackendUrl());
     setBackendStatus('');
     closeRef.current?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
   if (!open) return null;
@@ -78,84 +82,111 @@ export function SettingsPanel({ open, onClose, onLocalReset }: SettingsPanelProp
   const saveAndCheckBackend = async () => {
     const normalized = backendDraft.trim().replace(/\/+$/, '');
     if (normalized && !validSecureBackendUrl(normalized)) {
-      setBackendStatus('Nutze HTTPS. Unsicheres HTTP ist nur für localhost in der Entwicklung erlaubt.');
+      setBackendStatus(copy(
+        'Nutze HTTPS. Unsicheres HTTP ist nur für localhost in der Entwicklung erlaubt.',
+        'Use HTTPS. Insecure HTTP is allowed only for localhost during development.',
+      ));
       return;
     }
     setBackendUrl(normalized);
     if (!normalized) {
-      setBackendStatus('Backend-Verbindung entfernt. Alle lokalen Funktionen bleiben verfügbar.');
+      setBackendStatus(copy(
+        'Backend-Verbindung entfernt. Alle lokalen Funktionen bleiben verfügbar.',
+        'Backend connection removed. All local features remain available.',
+      ));
       return;
     }
     setCheckingBackend(true);
-    setBackendStatus('Verbindung wird geprüft …');
+    setBackendStatus(copy('Verbindung wird geprüft …', 'Checking connection …'));
     const healthy = await backendHealth();
     setCheckingBackend(false);
     setBackendStatus(healthy
-      ? 'Backend erreichbar. KI und Standortsuche werden pro Anfrage weiterhin separat geprüft.'
-      : 'Backend nicht erreichbar. URL wurde gespeichert; die App fällt weiterhin sicher auf lokale Funktionen zurück.');
+      ? copy(
+        'Backend erreichbar. KI und Standortsuche werden pro Anfrage weiterhin separat geprüft.',
+        'Backend reachable. AI and location search are still checked separately for every request.',
+      )
+      : copy(
+        'Backend nicht erreichbar. URL wurde gespeichert; die App fällt weiterhin sicher auf lokale Funktionen zurück.',
+        'Backend unavailable. The URL was saved; the app continues to fall back safely to local features.',
+      ));
   };
 
   return (
-    <div className="product-modal" role="presentation" onMouseDown={(event) => {
+    <div className="product-modal" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
     }}>
       <section className="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header className="settings-header">
-          <h2 id="settings-title">Einstellungen & Daten</h2>
-          <button ref={closeRef} className="icon-button" onClick={onClose} aria-label="Einstellungen schließen"><SystemIcon name="close" /></button>
+          <h2 id="settings-title">{copy('Einstellungen & Daten', 'Settings & data')}</h2>
+          <button ref={closeRef} className="icon-button" type="button" onClick={onClose} aria-label={copy('Einstellungen schließen', 'Close settings')}><SystemIcon name="close" /></button>
         </header>
 
-        <div className="settings-section sync-state" aria-label="Konto- und Synchronisierungsstatus">
+        <section className="settings-section sync-state" aria-labelledby="local-storage-status-title">
           <div className="status-dot" aria-hidden="true" />
           <div>
-            <strong>Auf diesem Gerät gespeichert</strong>
-            <p>Profil, Plan, Mahlzeiten und Einheiten funktionieren ohne Konto. Cloud-Konten und verschlüsselte Synchronisierung sind zukünftige Integrationen und werden hier nicht vorgetäuscht.</p>
+            <h3 id="local-storage-status-title">{copy('Auf diesem Gerät gespeichert', 'Stored on this device')}</h3>
+            <p>{copy(
+              'Profil, Plan, Mahlzeiten und Einheiten funktionieren ohne Konto. Cloud-Konten und verschlüsselte Synchronisierung sind zukünftige Integrationen und werden hier nicht vorgetäuscht.',
+              'Profile, plan, meals, and sessions work without an account. Cloud accounts and encrypted sync are future integrations and are not simulated here.',
+            )}</p>
             <code>{LOCAL_SYNC_STATE.mode} · Schema {LOCAL_SYNC_STATE.schemaVersion}</code>
           </div>
-        </div>
+        </section>
 
-        <div className="settings-section">
-          <strong>Sicheres Backend für echte KI & Karten</strong>
-          <p>Nur die Server-URL gehört hier hinein. OpenAI- und Karten-API-Schlüssel bleiben ausschließlich als Server-Umgebungsvariablen im Backend.</p>
-          <label className="system-field settings-backend-field">
-            Backend-URL
-            <input
-              type="url"
-              inputMode="url"
-              autoComplete="url"
-              placeholder="https://api.example.com"
-              value={backendDraft}
-              onChange={(event) => setBackendDraft(event.target.value)}
-            />
-          </label>
-          <div className="settings-backend-actions">
-            <button className="secondary-button" type="button" onClick={() => void saveAndCheckBackend()} disabled={checkingBackend}>
-              {checkingBackend ? 'Prüfe …' : 'Speichern & prüfen'}
-            </button>
+        <details className="settings-section settings-integration">
+          <summary>
+            <span>
+              <strong>{copy('Integrationen & erweitertes Backend', 'Integrations & advanced backend')}</strong>
+              <small>{copy('Optional für echte KI und die Standortsuche', 'Optional for real AI and location search')}</small>
+            </span>
+            <SystemIcon name="chevron" />
+          </summary>
+          <div className="settings-integration-body">
+            <p>{copy(
+              'Nur die Server-URL gehört hier hinein. OpenAI- und Karten-API-Schlüssel bleiben ausschließlich als Server-Umgebungsvariablen im Backend.',
+              'Only the server URL belongs here. OpenAI and maps API keys remain server-side environment variables in the backend.',
+            )}</p>
+            <label className="system-field settings-backend-field">
+              Backend-URL
+              <input
+                type="url"
+                inputMode="url"
+                autoComplete="url"
+                placeholder="https://api.example.com"
+                value={backendDraft}
+                onChange={(event) => setBackendDraft(event.target.value)}
+              />
+            </label>
+            <div className="settings-backend-actions">
+              <button className="secondary-button" type="button" onClick={() => void saveAndCheckBackend()} disabled={checkingBackend}>
+                {checkingBackend ? copy('Prüfe …', 'Checking …') : copy('Speichern & prüfen', 'Save & check')}
+              </button>
+            </div>
+            {backendStatus && <p role="status">{backendStatus}</p>}
           </div>
-          {backendStatus && <p role="status">{backendStatus}</p>}
-        </div>
+        </details>
 
         <div className="settings-grid">
           <fieldset className="settings-section">
-            <legend>Sprache</legend>
+            <legend>{copy('Sprache', 'Language')}</legend>
             <div className="choice-row">
-              {LANGS.map((code) => (
+              {RELEASE_LANGS.map((code) => (
                 <button key={code} className={lang === code ? 'choice active' : 'choice'}
-                  onClick={() => setLang(code)} aria-pressed={lang === code}>
+                  type="button" onClick={() => setLang(code)} aria-pressed={lang === code}>
                   {LANG_NAMES[code] || code.toUpperCase()}
                 </button>
               ))}
             </div>
+            <p>{copy('Die Kernoberfläche ist auf Deutsch und Englisch verfügbar; gespeicherte Inhalte und Anbieter-Ergebnisse können ihre Ausgangssprache behalten.', 'The core interface is available in German and English; saved content and provider results may retain their source language.')}</p>
           </fieldset>
 
           <fieldset className="settings-section">
-            <legend>Darstellung</legend>
+            <legend>{copy('Darstellung', 'Appearance')}</legend>
             <div className="choice-row">
               {THEME_CHOICES.map((choice) => (
                 <button key={choice.id} className={getCurrentTheme() === choice.id ? 'choice active' : 'choice'}
-                  onClick={() => applyTheme(choice.id)} aria-pressed={getCurrentTheme() === choice.id}>
-                  {choice.label}
+                  type="button" onClick={() => applyTheme(choice.id)} aria-pressed={getCurrentTheme() === choice.id}>
+                  {lang === 'de' ? choice.de : choice.en}
                 </button>
               ))}
             </div>
@@ -164,23 +195,23 @@ export function SettingsPanel({ open, onClose, onLocalReset }: SettingsPanelProp
 
         <div className="settings-section data-actions">
           <div>
-            <strong>Lokales Backup</strong>
-            <p>Lade eine JSON-Sicherung herunter. Veraltete Demo-Anmeldedaten werden immer ausgeschlossen.</p>
+            <strong>{copy('Lokales Backup', 'Local backup')}</strong>
+            <p>{copy('Lade eine JSON-Sicherung herunter. Veraltete Demo-Anmeldedaten werden immer ausgeschlossen.', 'Download a JSON backup. Obsolete demo credentials are always excluded.')}</p>
           </div>
-          <button className="secondary-button" onClick={exportData}>Daten exportieren</button>
+          <button className="secondary-button" type="button" onClick={exportData}>{copy('Daten exportieren', 'Export data')}</button>
         </div>
 
         <div className="settings-section danger-zone">
           <div>
-            <strong>Dieses Gerät zurücksetzen</strong>
-            <p>Löscht alle CORELINE-Daten in diesem Browser. Exportiere vorher ein Backup, wenn du sie behalten möchtest.</p>
+            <strong>{copy('Dieses Gerät zurücksetzen', 'Reset this device')}</strong>
+            <p>{copy('Löscht alle CORELINE-Daten in diesem Browser. Exportiere vorher ein Backup, wenn du sie behalten möchtest.', 'Deletes all CORELINE data in this browser. Export a backup first if you want to keep it.')}</p>
           </div>
           {!resetArmed ? (
-            <button className="danger-button" onClick={() => setResetArmed(true)}>Zurücksetzen vorbereiten</button>
+            <button className="danger-button" type="button" onClick={() => setResetArmed(true)}>{copy('Zurücksetzen vorbereiten', 'Prepare reset')}</button>
           ) : (
             <div className="confirm-actions">
-              <button className="secondary-button" onClick={() => setResetArmed(false)}>Abbrechen</button>
-              <button className="danger-button" onClick={resetLocalData}>Lokale Daten löschen</button>
+              <button className="secondary-button" type="button" onClick={() => setResetArmed(false)}>{copy('Abbrechen', 'Cancel')}</button>
+              <button className="danger-button" type="button" onClick={resetLocalData}>{copy('Lokale Daten löschen', 'Delete local data')}</button>
             </div>
           )}
         </div>

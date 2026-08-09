@@ -45,8 +45,8 @@
 
 .icon-button {
   display: grid;
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   place-items: center;
   flex: 0 0 auto;
   color: var(--text);
@@ -72,6 +72,7 @@
 }
 
 fieldset.settings-section { min-width: 0; }
+.settings-section h3 { margin: 0; font-size: .92rem; }
 .settings-section legend { padding: 0 .35rem; color: var(--text2); font-size: .75rem; font-weight: 700; }
 .settings-section p { max-width: 62ch; margin: .25rem 0 0; color: var(--text3); font-size: .75rem; line-height: 1.55; }
 .settings-section code { display: inline-block; margin-top: .45rem; color: var(--accent3); font-size: .68rem; }
@@ -80,16 +81,78 @@ fieldset.settings-section { min-width: 0; }
   display: grid;
   grid-template-columns: auto 1fr;
   gap: .75rem;
-  border-color: rgba(34, 211, 160, .25);
+  border-color: var(--border);
 }
 
 .status-dot {
-  width: 10px;
-  height: 10px;
-  margin-top: .3rem;
-  background: var(--success);
-  border-radius: 50%;
-  box-shadow: 0 0 14px rgba(34, 211, 160, .65);
+  position: relative;
+  width: 14px;
+  height: 14px;
+  margin: .28rem .15rem 0;
+  color: var(--accent3);
+  background: transparent;
+  border: 1px solid var(--border2);
+  border-radius: 0;
+  box-shadow: none;
+  transform: rotate(45deg);
+}
+
+.status-dot::after {
+  position: absolute;
+  inset: 3px;
+  content: '';
+  background: currentColor;
+  opacity: .78;
+}
+
+.settings-integration {
+  padding: 0;
+}
+
+.settings-integration > summary {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .85rem 1rem;
+  color: var(--text);
+  cursor: pointer;
+  list-style: none;
+}
+
+.settings-integration > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-integration > summary span {
+  display: grid;
+  gap: .2rem;
+}
+
+.settings-integration > summary small {
+  color: var(--text3);
+  font-size: .68rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.settings-integration > summary svg {
+  flex: 0 0 auto;
+  color: var(--text3);
+  transition: transform .2s cubic-bezier(.16, 1, .3, 1);
+}
+
+.settings-integration[open] > summary {
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-integration[open] > summary svg {
+  transform: rotate(90deg);
+}
+
+.settings-integration-body {
+  padding: .15rem 1rem 1rem;
 }
 
 .choice-row { display: flex; flex-wrap: wrap; gap: .4rem; }

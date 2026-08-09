@@ -2,19 +2,21 @@ import { useState, type FormEvent } from 'react';
 
 import { requestNearbyStores, type NearbyStoresEnvelope } from '../lib/integrations';
 import { getBackendUrl } from '../lib/backend';
+import { lang } from '../lib/i18n';
 import { SystemIcon } from './SystemIcon';
 
 type LocationChoice =
   | { kind: 'address' }
   | { kind: 'coordinates'; latitude: number; longitude: number };
 
-const COUNTRY_LABELS: Record<string, string> = {
-  DE: 'Deutschland',
-  AT: 'Österreich',
-  CH: 'Schweiz',
-  NL: 'Niederlande',
-  BE: 'Belgien',
-  FR: 'Frankreich',
+const copy = (de: string, en: string) => lang === 'de' ? de : en;
+const COUNTRY_LABELS: Record<string, { de: string; en: string }> = {
+  DE: { de: 'Deutschland', en: 'Germany' },
+  AT: { de: 'Österreich', en: 'Austria' },
+  CH: { de: 'Schweiz', en: 'Switzerland' },
+  NL: { de: 'Niederlande', en: 'Netherlands' },
+  BE: { de: 'Belgien', en: 'Belgium' },
+  FR: { de: 'Frankreich', en: 'France' },
 };
 
 function formatDistance(meters: number): string {
@@ -46,7 +48,7 @@ export function ShoppingScreen() {
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setStatus('Dein Browser unterstützt die Standortfreigabe nicht. Nutze stattdessen eine Adresse.');
+      setStatus(copy('Dein Browser unterstützt die Standortfreigabe nicht. Nutze stattdessen eine Adresse.', 'Your browser does not support location sharing. Use an address instead.'));
       return;
     }
     setLocating(true);
@@ -56,12 +58,12 @@ export function ShoppingScreen() {
         setLocation({ kind: 'coordinates', latitude: coords.latitude, longitude: coords.longitude });
         setAddress('');
         setLocating(false);
-        setStatus('Standort für diese Suche übernommen. Er wird nicht lokal gespeichert.');
+        setStatus(copy('Standort für diese Suche übernommen. Er wird nicht lokal gespeichert.', 'Location accepted for this search. It is not stored locally.'));
       },
       () => {
         setLocation({ kind: 'address' });
         setLocating(false);
-        setStatus('Standort wurde nicht freigegeben. Du kannst eine Adresse eingeben.');
+        setStatus(copy('Standort wurde nicht freigegeben. Du kannst eine Adresse eingeben.', 'Location was not shared. You can enter an address.'));
       },
       { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 },
     );
@@ -77,28 +79,28 @@ export function ShoppingScreen() {
     const parsedRadius = Number(radius);
 
     if (!consent) {
-      setStatus('Bitte bestätige zuerst die einmalige Standortfreigabe für diese Suche.');
+      setStatus(copy('Bitte bestätige zuerst die einmalige Standortfreigabe für diese Suche.', 'Confirm the one-time location consent for this search first.'));
       return;
     }
     if (!/^[A-Z]{2}$/.test(normalizedCountry) || !/^[A-Z]{3}$/.test(normalizedCurrency)) {
-      setStatus('Prüfe Länder- und Währungscode. Erwartet werden z. B. DE und EUR.');
+      setStatus(copy('Prüfe Länder- und Währungscode. Erwartet werden z. B. DE und EUR.', 'Check the country and currency codes, for example DE and EUR.'));
       return;
     }
     if (!Number.isFinite(parsedBudget) || parsedBudget <= 0 || parsedBudget > 100_000) {
-      setStatus('Das Budget muss zwischen 1 und 100.000 liegen.');
+      setStatus(copy('Das Budget muss zwischen 1 und 100.000 liegen.', 'Budget must be between 1 and 100,000.'));
       return;
     }
     if (!Number.isInteger(parsedRadius) || parsedRadius < 500 || parsedRadius > 25_000) {
-      setStatus('Der Suchradius muss zwischen 500 m und 25 km liegen.');
+      setStatus(copy('Der Suchradius muss zwischen 500 m und 25 km liegen.', 'Search radius must be between 500 m and 25 km.'));
       return;
     }
     if (location.kind === 'address' && (address.trim().length < 5 || address.trim().length > 200)) {
-      setStatus('Gib eine vollständige Adresse oder mindestens Ort und Postleitzahl ein.');
+      setStatus(copy('Gib eine vollständige Adresse oder mindestens Ort und Postleitzahl ein.', 'Enter a full address or at least a town and postal code.'));
       return;
     }
 
     setPending(true);
-    setStatus('Supermärkte werden über den konfigurierten Kartenanbieter gesucht …');
+    setStatus(copy('Supermärkte werden über den konfigurierten Kartenanbieter gesucht …', 'Searching supermarkets through the configured maps provider …'));
     try {
       const response = await requestNearbyStores({
         location_consent: true,
@@ -107,15 +109,17 @@ export function ShoppingScreen() {
         currency: normalizedCurrency,
         radius_meters: parsedRadius,
         max_results: 10,
-        language_code: 'de',
+        language_code: lang === 'de' ? 'de' : 'en',
         ...(location.kind === 'coordinates'
           ? { coordinates: { latitude: location.latitude, longitude: location.longitude } }
           : { address: address.trim() }),
       });
       setResult(response);
-      setStatus(response.results.length ? `${response.results.length} echte Standorte gefunden.` : 'Keine passenden Standorte im Suchradius gefunden.');
+      setStatus(response.results.length
+        ? copy(`${response.results.length} echte Standorte gefunden.`, `${response.results.length} verified locations found.`)
+        : copy('Keine passenden Standorte im Suchradius gefunden.', 'No matching locations found within the search radius.'));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'Die Standortsuche ist momentan nicht verfügbar.');
+      setStatus(error instanceof Error ? error.message : copy('Die Standortsuche ist momentan nicht verfügbar.', 'Location search is currently unavailable.'));
     } finally {
       setPending(false);
     }
@@ -127,18 +131,18 @@ export function ShoppingScreen() {
         <header className="system-page-header">
           <span className="system-heading-mark"><SystemIcon name="store" /></span>
           <div>
-            <h1 id="shopping-title">Einkaufsradar</h1>
-            <p>Finde echte Supermärkte in deiner Nähe. Budget und Standort gehen ausschließlich an den separaten Karten-Endpunkt – niemals an die KI.</p>
+            <h1 id="shopping-title">{copy('Einkaufsradar', 'Shopping radar')}</h1>
+            <p>{copy('Finde echte Supermärkte in deiner Nähe. Budget und Standort gehen ausschließlich an den separaten Karten-Endpunkt – niemals an die KI.', 'Find real supermarkets nearby. Budget and location go only to the separate maps endpoint — never to AI.')}</p>
           </div>
         </header>
 
         <div className="system-notice" role="note">
           <SystemIcon name={backendConfigured ? 'shield' : 'warning'} />
           <div>
-            <strong>{backendConfigured ? 'Sichere Verbindung vorbereitet' : 'Backend noch nicht verbunden'}</strong>
+            <strong>{backendConfigured ? copy('Sichere Verbindung vorbereitet', 'Secure connection prepared') : copy('Backend noch nicht verbunden', 'Backend not connected yet')}</strong>
             <span>{backendConfigured
-              ? 'Adressen werden nur für die einzelne Suche verarbeitet und weder im Browserprofil noch im KI-Kontext gespeichert.'
-              : 'GitHub Pages kann keinen geheimen Karten-Schlüssel hosten. Hinterlege in den Einstellungen die URL eines sicheren CORELINE-Backends.'}</span>
+              ? copy('Adressen werden nur für die einzelne Suche verarbeitet und weder im Browserprofil noch im KI-Kontext gespeichert.', 'Addresses are processed only for the individual search and are not stored in the browser profile or AI context.')
+              : copy('GitHub Pages kann keinen geheimen Karten-Schlüssel hosten. Hinterlege in den Einstellungen die URL eines sicheren CORELINE-Backends.', 'GitHub Pages cannot host a secret maps key. Add the URL of a secure CORELINE backend in settings.')}</span>
           </div>
         </div>
 
@@ -146,13 +150,13 @@ export function ShoppingScreen() {
           <form className="shopping-form" onSubmit={submit} noValidate>
             <div className="shopping-field-grid">
               <label className="system-field">
-                Land
+                {copy('Land', 'Country')}
                 <select value={country} onChange={(event) => setCountry(event.target.value)}>
-                  {Object.entries(COUNTRY_LABELS).map(([code, label]) => <option value={code} key={code}>{label} ({code})</option>)}
+                  {Object.entries(COUNTRY_LABELS).map(([code, label]) => <option value={code} key={code}>{lang === 'de' ? label.de : label.en} ({code})</option>)}
                 </select>
               </label>
               <label className="system-field">
-                Suchradius
+                {copy('Suchradius', 'Search radius')}
                 <select value={radius} onChange={(event) => setRadius(event.target.value)}>
                   <option value="2000">2 km</option>
                   <option value="5000">5 km</option>
@@ -165,17 +169,17 @@ export function ShoppingScreen() {
                 <input type="number" inputMode="decimal" min="1" max="100000" step="1" value={budget} onChange={(event) => setBudget(event.target.value)} />
               </label>
               <label className="system-field">
-                Währung
-                <input maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value)} aria-label="Dreistelliger Währungscode" />
+                {copy('Währung', 'Currency')}
+                <input maxLength={3} value={currency} onChange={(event) => setCurrency(event.target.value)} aria-label={copy('Dreistelliger Währungscode', 'Three-letter currency code')} />
               </label>
               <label className="system-field wide">
-                Adresse oder Ort
+                {copy('Adresse oder Ort', 'Address or town')}
                 <input
                   autoComplete="street-address"
                   maxLength={200}
                   value={address}
                   disabled={location.kind === 'coordinates'}
-                  placeholder="z. B. 10115 Berlin"
+                  placeholder={copy('z. B. 10115 Berlin', 'e.g. 10115 Berlin')}
                   onChange={(event) => {
                     setAddress(event.target.value);
                     setLocation({ kind: 'address' });
@@ -186,36 +190,36 @@ export function ShoppingScreen() {
 
             <div className="shopping-location-actions">
               <button className="system-button quiet" type="button" onClick={useCurrentLocation} disabled={locating}>
-                <SystemIcon name="location" /> {locating ? 'Standort wird gelesen …' : 'Aktuellen Standort nutzen'}
+                <SystemIcon name="location" /> {locating ? copy('Standort wird gelesen …', 'Reading location …') : copy('Aktuellen Standort nutzen', 'Use current location')}
               </button>
               {location.kind === 'coordinates' && (
-                <button className="system-button quiet" type="button" onClick={() => setLocation({ kind: 'address' })}>Adresse verwenden</button>
+                <button className="system-button quiet" type="button" onClick={() => setLocation({ kind: 'address' })}>{copy('Adresse verwenden', 'Use address')}</button>
               )}
             </div>
 
             <label className="shopping-consent">
               <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-              <span>Ich stimme zu, dass Standort oder Adresse einmalig an den konfigurierten Kartenanbieter gesendet werden, um Supermärkte zu finden. Die Angabe wird nicht im Profil gespeichert.</span>
+              <span>{copy('Ich stimme zu, dass Standort oder Adresse einmalig an den konfigurierten Kartenanbieter gesendet werden, um Supermärkte zu finden. Die Angabe wird nicht im Profil gespeichert.', 'I consent to sending the location or address once to the configured maps provider to find supermarkets. It is not stored in the profile.')}</span>
             </label>
 
             <button className="system-primary-action" type="submit" disabled={pending || !backendConfigured}>
-              <SystemIcon name="search" /> {pending ? 'Suche läuft' : 'Supermärkte finden'}
+              <SystemIcon name="search" /> {pending ? copy('Suche läuft', 'Searching') : copy('Supermärkte finden', 'Find supermarkets')}
             </button>
             {status && <p className="shopping-budget-note" role="status">{status}</p>}
           </form>
 
-          <section className="shopping-results" aria-label="Gefundene Supermärkte" aria-busy={pending}>
+          <section className="shopping-results" aria-label={copy('Gefundene Supermärkte', 'Found supermarkets')} aria-busy={pending}>
             {!result ? (
               <div className="shopping-state">
                 <div>
                   <SystemIcon name="location" />
-                  <h2>Noch keine Suche</h2>
-                  <p>Wir zeigen nur live vom Kartenanbieter bestätigte Standorte. Keine erfundenen Läden, Preise oder Produktlinks.</p>
+                  <h2>{copy('Noch keine Suche', 'No search yet')}</h2>
+                  <p>{copy('Wir zeigen nur live vom Kartenanbieter bestätigte Standorte. Keine erfundenen Läden, Preise oder Produktlinks.', 'Only locations confirmed live by the maps provider are shown. No invented stores, prices, or product links.')}</p>
                 </div>
               </div>
             ) : result.results.length === 0 ? (
               <div className="shopping-state">
-                <div><SystemIcon name="search" /><h2>Nichts gefunden</h2><p>Erhöhe den Radius oder prüfe die Ortsangabe.</p></div>
+                <div><SystemIcon name="search" /><h2>{copy('Nichts gefunden', 'Nothing found')}</h2><p>{copy('Erhöhe den Radius oder prüfe die Ortsangabe.', 'Increase the radius or check the location.')}</p></div>
               </div>
             ) : (
               <>
@@ -230,7 +234,7 @@ export function ShoppingScreen() {
                           <span>{formatDistance(store.distance_meters)} · {store.formatted_address}</span>
                         </div>
                         {mapsUrl && (
-                          <a className="system-icon-button" href={mapsUrl} target="_blank" rel="noreferrer" aria-label={`${store.name} in Karten öffnen`}>
+                          <a className="system-icon-button" href={mapsUrl} target="_blank" rel="noreferrer" aria-label={copy(`${store.name} in Karten öffnen`, `Open ${store.name} in maps`)}>
                             <SystemIcon name="external" />
                           </a>
                         )}
@@ -238,7 +242,10 @@ export function ShoppingScreen() {
                     );
                   })}
                 </div>
-                <p className="shopping-budget-note">{result.notice} Dein Budget von {result.budget_context.amount.toLocaleString('de-DE')} {result.budget_context.currency} dient momentan nur als Planungskontext; Live-Preise und Lagerbestände sind noch nicht angebunden.</p>
+                <p className="shopping-budget-note">{result.notice} {copy(
+                  `Dein Budget von ${result.budget_context.amount.toLocaleString('de-DE')} ${result.budget_context.currency} dient momentan nur als Planungskontext; Live-Preise und Lagerbestände sind noch nicht angebunden.`,
+                  `Your budget of ${result.budget_context.amount.toLocaleString('en-GB')} ${result.budget_context.currency} is currently planning context only; live prices and inventory are not connected yet.`,
+                )}</p>
               </>
             )}
           </section>

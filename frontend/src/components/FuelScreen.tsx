@@ -1,34 +1,31 @@
-// ═══════════════════════════════════════════════════════════════════
-//  ◈ MATERIA FUEL — Ernährungs-Hub (Gerichte, Makros, Rezept schmieden)
-//  Mobile-first, Glassmorphism, Neon-Makrobalken, Lucide-Icons.
-//  · Rezeptbilder + Schritt-für-Schritt-Zubereitung
-//  · Teilen-Button → Rezept-Card im Community-Chat
-// ═══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from 'react';
-import { t } from '../lib/i18n';
-import { refresh } from '../lib/store';
-import { S } from '../lib/storage';
+import { createPortal } from 'react-dom';
+
 import { calcConsumed, type Macros } from '../lib/engine';
 import {
-  fetchDishes, createDish, logMeal, shareRecipeToChat, locDish,
-  estimateCaloriesFromMacros, normalizeNutrition, nutritionFromDish, validateNutrition,
+  createDish,
+  estimateCaloriesFromMacros,
+  fetchDishes,
+  locDish,
+  logMeal,
+  normalizeNutrition,
+  nutritionFromDish,
+  validateNutrition,
   type Dish,
 } from '../lib/fitness';
+import { lang, t } from '../lib/i18n';
+import { useModalIsolation } from '../lib/modal';
+import { NUTRITION_LIMITS } from '../lib/nutritionBounds';
+import { S } from '../lib/storage';
+import { refresh } from '../lib/store';
+import { PerformanceHero } from './PerformanceHero';
+import { SystemIcon } from './SystemIcon';
 import '../fuel.css';
 
-const IconPot = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h20"/><path d="M3 12a9 9 0 0 0 18 0"/><path d="m7 8 1-4"/><path d="m12 8 .5-4"/><path d="m17 8-1-4"/></svg>;
-const IconPlus = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const IconX = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const IconClock = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
-const IconZap = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
-const IconAir = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8"/><circle cx="12" cy="14" r="3"/></svg>;
-const IconRice = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 18 0"/><rect x="2" y="12" width="20" height="8" rx="2"/><path d="M7 8v-.5"/><path d="M17 8v-.5"/></svg>;
-const IconShare = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>;
-const IconList = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
-
-const CATS = ['all', 'breakfast', 'main', 'dessert', 'snack'];
-const EQUIP = [{ id: 'airfryer', icon: IconAir }, { id: 'ricecooker', icon: IconRice }];
+const CATEGORIES = ['all', 'breakfast', 'main', 'dessert', 'snack'];
+const EQUIPMENT = ['airfryer', 'ricecooker'];
 const PAGE_SIZE = 24;
+const copy = (de: string, en: string) => lang === 'de' ? de : en;
 
 function isOfflineSafeImage(source?: string): boolean {
   if (!source) return false;
@@ -38,249 +35,296 @@ function isOfflineSafeImage(source?: string): boolean {
 
 export function FuelScreen() {
   const [dishes, setDishes] = useState<Dish[]>([]);
-  const [cat, setCat] = useState('all');
-  const [equip, setEquip] = useState<string | null>(null);
+  const [category, setCategory] = useState('all');
+  const [equipment, setEquipment] = useState<string | null>(null);
   const [detail, setDetail] = useState<Dish | null>(null);
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState('');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
+  useModalIsolation(Boolean(detail || creating), {
+    backgroundSelectors: ['.food-page', '.system-topbar', '.system-bottom-nav'],
+    onEscape: () => { setDetail(null); setCreating(false); },
+  });
+
   const load = () => {
     setVisibleCount(PAGE_SIZE);
-    fetchDishes(cat === 'all' ? undefined : cat, equip || undefined).then(setDishes);
+    void fetchDishes(category === 'all' ? undefined : category, equipment || undefined).then(setDishes);
   };
-  useEffect(load, [cat, equip]);
+  useEffect(load, [category, equipment]);
 
   const goals = S.get<Macros>('macros');
-  const c = calcConsumed();
-  const bars: { key: keyof Macros; label: string; cls: string; unit: string }[] = [
-    { key: 'kcal', label: t('m_kcal'), cls: 'nb-kcal', unit: '' },
-    { key: 'prot', label: t('m_prot'), cls: 'nb-prot', unit: 'g' },
-    { key: 'carb', label: t('m_carb'), cls: 'nb-carb', unit: 'g' },
-    { key: 'fat', label: t('m_fat'), cls: 'nb-fat', unit: 'g' },
-    { key: 'sug', label: t('m_sug'), cls: 'nb-sug', unit: 'g' },
+  const consumed = calcConsumed();
+  const bars: { key: keyof Macros; label: string; unit: string }[] = [
+    { key: 'kcal', label: copy('Kalorien', 'Calories'), unit: 'kcal' },
+    { key: 'prot', label: copy('Protein', 'Protein'), unit: 'g' },
+    { key: 'carb', label: copy('Kohlenhydrate', 'Carbohydrates'), unit: 'g' },
+    { key: 'fat', label: copy('Fett', 'Fat'), unit: 'g' },
+    { key: 'sug', label: copy('Zucker', 'Sugar'), unit: 'g' },
   ];
-
-  const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3200); };
   const visibleDishes = dishes.slice(0, visibleCount);
 
-  const onLog = async (d: Dish) => {
-    const buff = await logMeal({ name: d.name, ...nutritionFromDish(d) });
-    setDetail(null);
-    refresh();
-    flash(`${buff.icon} ${buff.label} · ${buff.desc}`);
+  const flash = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 3200);
   };
 
-  const onShare = async (d: Dish) => {
-    const ok = await shareRecipeToChat(d);
-    flash(ok ? `${d.icon} ${t('fuel_shared')}` : t('fuel_share_offline'));
+  const logDish = async (dish: Dish) => {
+    await logMeal({ name: dish.name, ...nutritionFromDish(dish) });
+    setDetail(null);
+    refresh();
+    flash(copy(`${dish.name} wurde für heute erfasst.`, `${dish.name} was logged for today.`));
   };
 
   return (
-    <div className="screen active" id="screen-fuel">
-      <div className="hub-wrap">
-        <div className="ki-chat-hd">
-          <div className="ki-sigil-sm">{IconPot}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="ki-chat-hd-title">Nutrition</div>
-            <div className="ki-chat-hd-sub">Log meals, review targets, and keep recipes close.</div>
-          </div>
-        </div>
+    <section className="screen active system-screen" id="screen-fuel">
+      <div className="system-page food-page">
+        <PerformanceHero
+          variant="food"
+          icon="food"
+          title={copy('Ernährung', 'Nutrition')}
+          description={copy(
+            'Mahlzeiten verlässlich protokollieren, Ziele prüfen und eigene Rezepte lokal speichern.',
+            'Log meals reliably, review targets, and save your own recipes locally.',
+          )}
+          status={(
+            <>
+              <span><small>{copy('Kalorien', 'Calories')}</small><strong>{Math.round(consumed.kcal)}{goals ? ` / ${Math.round(goals.kcal)}` : ''}</strong></span>
+              <span><small>{copy('Protein', 'Protein')}</small><strong>{Math.round(consumed.prot)} g</strong></span>
+              <span><small>{copy('Rezepte', 'Recipes')}</small><strong>{dishes.length}</strong></span>
+            </>
+          )}
+        />
 
-        <div className="hub-scroll">
-          {/* Neon-Makrobalken */}
+        <div className="food-content">
           {goals && (
-            <div className="widget neon-macros">
-              <div className="w-title">{t('fuel_macros')}</div>
-              {bars.map(b => {
-                const pct = goals[b.key] > 0 ? Math.min(100, c[b.key] / goals[b.key] * 100) : 0;
-                return (
-                  <div className="neon-row" key={b.key}>
-                    <span className="neon-label">{b.label}</span>
-                    <div className="neon-track"><div className={`neon-fill ${b.cls}`} style={{ width: pct + '%' }} /></div>
-                    <span className="neon-val">{c[b.key]}<span className="neon-goal">/{goals[b.key]}{b.unit}</span></span>
-                  </div>
-                );
-              })}
-            </div>
+            <section className="system-ledger nutrition-target-ledger" aria-labelledby="nutrition-target-title">
+              <header className="ledger-heading">
+                <span aria-hidden="true"><SystemIcon name="target" /></span>
+                <h2 id="nutrition-target-title">{copy('Tagesziele', 'Daily targets')}</h2>
+              </header>
+              <div className="nutrition-target-rows">
+                {bars.map(row => {
+                  const target = goals[row.key];
+                  const current = consumed[row.key];
+                  const progress = target > 0 ? Math.min(1, current / target) : 0;
+                  return (
+                    <div className="nutrition-target-row" key={row.key}>
+                      <span>{row.label}</span>
+                      <div className="ledger-progress" role="progressbar" aria-label={row.label} aria-valuemin={0} aria-valuemax={target} aria-valuenow={Math.round(current)}>
+                        <span style={{ transform: `scaleX(${progress})` }} />
+                      </div>
+                      <strong>{Math.round(current)}<small> / {Math.round(target)} {row.unit}</small></strong>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
           )}
 
-          {/* Filter */}
-          <div className="hub-filters">
-            {CATS.map(x => (
-              <button key={x} className={`chip${cat === x ? ' sel' : ''}`} onClick={() => setCat(x)}>{t('cat_' + x)}</button>
-            ))}
-            {EQUIP.map(e => (
-              <button key={e.id} className={`chip chip-eq${equip === e.id ? ' sel' : ''}`}
-                onClick={() => setEquip(equip === e.id ? null : e.id)}>{e.icon}{t('eq_' + e.id)}</button>
-            ))}
-            <button className="chip chip-forge" onClick={() => setCreating(true)}>{IconPlus}{t('fuel_forge')}</button>
+          <div className="food-toolbar" aria-label={copy('Rezeptfilter und Aktionen', 'Recipe filters and actions')}>
+            <div className="hub-filters">
+              {CATEGORIES.map(item => (
+                <button
+                  type="button"
+                  key={item}
+                  className={`chip${category === item ? ' sel' : ''}`}
+                  aria-pressed={category === item}
+                  onClick={() => setCategory(item)}
+                >
+                  {t(`cat_${item}`)}
+                </button>
+              ))}
+              {EQUIPMENT.map(item => (
+                <button
+                  type="button"
+                  key={item}
+                  className={`chip chip-eq${equipment === item ? ' sel' : ''}`}
+                  aria-pressed={equipment === item}
+                  onClick={() => setEquipment(equipment === item ? null : item)}
+                >
+                  <SystemIcon name="equipment" />{t(`eq_${item}`)}
+                </button>
+              ))}
+            </div>
+            <button className="system-button food-create-action" type="button" onClick={() => setCreating(true)}>
+              <SystemIcon name="plus" />{copy('Eigenes Rezept', 'New recipe')}
+            </button>
           </div>
 
-          {/* Gerichte-Grid */}
           <div className="dish-grid">
-            {visibleDishes.map(d0 => {
-              const d = locDish(d0);
+            {visibleDishes.map(baseDish => {
+              const dish = locDish(baseDish);
               return (
-                <article className="dish-card" key={String(d0.id)}>
-                  <button className="dish-open" type="button" onClick={() => setDetail(d0)} aria-label={`${d.name} öffnen`}>
-                    {isOfflineSafeImage(d.image)
-                      ? <img className="dish-thumb" src={d.image} alt="" loading="lazy" />
-                      : <span className="dish-ic" aria-hidden="true">{d.icon}</span>}
+                <article className="dish-card" key={String(baseDish.id)}>
+                  <button className="dish-open" type="button" onClick={() => setDetail(baseDish)} aria-label={`${dish.name} ${copy('öffnen', 'open')}`}>
+                    {isOfflineSafeImage(dish.image)
+                      ? <img className="dish-thumb" src={dish.image} alt="" loading="lazy" />
+                      : <span className={`dish-visual dish-visual-${dish.category}`} aria-hidden="true"><SystemIcon name="food" /></span>}
                     <span className="dish-body">
-                      <span className="dish-name">{d.name}</span>
+                      <span className="dish-name">{dish.name}</span>
                       <span className="dish-meta">
-                        <span className="dish-cat">{t('cat_' + d.category)}</span>
-                        <span className="dish-time">{IconClock}{d.prep_min}′</span>
+                        <span className="dish-cat">{t(`cat_${dish.category}`)}</span>
+                        <span className="dish-time"><SystemIcon name="clock" />{dish.prep_min} min</span>
                       </span>
                       <span className="dish-macros">
-                        <span className="dm dm-k">{d.kcal} kcal</span>
-                        <span className="dm dm-p">{d.prot}g P</span>
-                        {d.equipment.filter(e => e === 'airfryer' || e === 'ricecooker').map(e => (
-                          <span className="dm dm-eq" key={e}>{e === 'airfryer' ? '♨' : '🍚'}</span>
+                        <span className="dm dm-k">{dish.kcal} kcal</span>
+                        <span className="dm dm-p">{dish.prot} g P</span>
+                        {dish.equipment.filter(item => EQUIPMENT.includes(item)).map(item => (
+                          <span className="dm dm-eq" key={item}><SystemIcon name="equipment" />{t(`eq_${item}`)}</span>
                         ))}
                       </span>
                     </span>
                   </button>
-                  <button className="dish-share" type="button" title={t('fuel_share')} aria-label={`${d.name}: ${t('fuel_share')}`}
-                    onClick={() => onShare(d0)}>{IconShare}</button>
                 </article>
               );
             })}
-            {!dishes.length && <div className="ta-empty">{t('fuel_none')}</div>}
+            {!dishes.length && (
+              <div className="system-empty">
+                <SystemIcon name="search" />
+                <div><strong>{copy('Keine Rezepte in diesem Filter', 'No recipes in this filter')}</strong><p>{copy('Ändere Kategorie oder Ausstattung.', 'Change the category or equipment filter.')}</p></div>
+              </div>
+            )}
           </div>
+
           {visibleCount < dishes.length && (
             <button className="system-button quiet dish-load-more" type="button" onClick={() => setVisibleCount(count => count + PAGE_SIZE)}>
-              Mehr Rezepte laden · {Math.min(PAGE_SIZE, dishes.length - visibleCount)} von {dishes.length - visibleCount}
+              {copy('Mehr Rezepte laden', 'Load more recipes')} · {Math.min(PAGE_SIZE, dishes.length - visibleCount)}
             </button>
           )}
         </div>
       </div>
 
-      {detail && <DishDetail dish={detail} onClose={() => setDetail(null)} onLog={() => onLog(detail)} onShare={() => onShare(detail)} />}
+      {detail && <DishDetail dish={detail} onClose={() => setDetail(null)} onLog={() => void logDish(detail)} />}
       {creating && <DishCreator onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
-      {toast && <div className="buff-toast">{IconZap}<span>{toast}</span></div>}
-    </div>
+      {toast && <div className="system-toast" role="status" aria-live="polite"><SystemIcon name="check" /><span>{toast}</span></div>}
+    </section>
   );
 }
 
-function DishDetail({ dish: dish0, onClose, onLog, onShare }: { dish: Dish; onClose: () => void; onLog: () => void; onShare: () => void }) {
-  const dish = locDish(dish0);
-  return (
-    <div className="hub-modal open" onClick={onClose}>
-      <div className="hub-box" onClick={e => e.stopPropagation()}>
+function DishDetail({ dish: sourceDish, onClose, onLog }: { dish: Dish; onClose: () => void; onLog: () => void }) {
+  const dish = locDish(sourceDish);
+  return createPortal(
+    <div className="hub-modal open" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="hub-box" role="dialog" aria-modal="true" aria-labelledby="dish-detail-title" onMouseDown={event => event.stopPropagation()}>
         <div className="hub-box-hd">
-          <span className="hub-box-title">{dish.icon} {dish.name}</span>
-          <button className="modal-close" onClick={onClose}>{IconX}</button>
+          <span className="hub-box-title" id="dish-detail-title"><SystemIcon name="food" />{dish.name}</span>
+          <button className="modal-close" type="button" onClick={onClose} aria-label={copy('Rezept schließen', 'Close recipe')}><SystemIcon name="close" /></button>
         </div>
         <div className="hub-box-body">
-          {isOfflineSafeImage(dish.image) && <img className="detail-hero" src={dish.image} alt={dish.name} loading="lazy" />}
+          {isOfflineSafeImage(dish.image) && <img className="detail-hero" src={dish.image} alt="" loading="lazy" />}
           <div className="detail-macros">
             <div className="dmx"><b>{dish.kcal}</b><span>kcal</span></div>
-            <div className="dmx"><b>{dish.prot}g</b><span>{t('m_prot')}</span></div>
-            <div className="dmx"><b>{dish.carb}g</b><span>{t('m_carb')}</span></div>
-            <div className="dmx"><b>{dish.fat}g</b><span>{t('m_fat')}</span></div>
-            <div className="dmx"><b>{dish.sug || 0}g</b><span>{t('m_sug')}</span></div>
+            <div className="dmx"><b>{dish.prot} g</b><span>{copy('Protein', 'Protein')}</span></div>
+            <div className="dmx"><b>{dish.carb} g</b><span>{copy('Kohlenhydrate', 'Carbohydrates')}</span></div>
+            <div className="dmx"><b>{dish.fat} g</b><span>{copy('Fett', 'Fat')}</span></div>
+            <div className="dmx"><b>{dish.sug || 0} g</b><span>{copy('Zucker', 'Sugar')}</span></div>
           </div>
-          <div className="detail-sec">{IconList} {t('fuel_ingredients')} · {IconClock} {dish.prep_min} min</div>
-          <ul className="ingredient-list">
-            {dish.ingredients.map((ing, i) => <li key={i}>{ing}</li>)}
-          </ul>
+          <div className="detail-sec"><SystemIcon name="list" />{t('fuel_ingredients')} · <SystemIcon name="clock" />{dish.prep_min} min</div>
+          <ul className="ingredient-list">{dish.ingredients.map((ingredient, index) => <li key={`${ingredient}-${index}`}>{ingredient}</li>)}</ul>
           {dish.steps && dish.steps.length > 0 && (
             <>
-              <div className="detail-sec">{IconPot} {t('fuel_steps')}</div>
+              <div className="detail-sec"><SystemIcon name="food" />{t('fuel_steps')}</div>
               <ol className="step-list">
-                {dish.steps.map((s, i) => (
-                  <li key={i}><span className="step-num">{i + 1}</span><span>{s}</span></li>
-                ))}
+                {dish.steps.map((step, index) => <li key={`${step}-${index}`}><span className="step-num">{index + 1}</span><span>{step}</span></li>)}
               </ol>
             </>
           )}
           <div className="detail-actions">
-            <button className="action-btn hub-log-btn" onClick={onLog}>{IconZap} {t('fuel_log')}</button>
-            <button className="hub-share-btn" onClick={onShare}>{IconShare} {t('fuel_share')}</button>
+            <button className="system-primary-action hub-log-btn" type="button" onClick={onLog}><SystemIcon name="plus" />{copy('Mahlzeit protokollieren', 'Log meal')}</button>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
 function DishCreator({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState('main');
-  const [prep, setPrep] = useState('');
-  const [ing, setIng] = useState('');
+  const [prepMinutes, setPrepMinutes] = useState('');
+  const [ingredients, setIngredients] = useState('');
   const [steps, setSteps] = useState('');
-  const [m, setM] = useState({ kcal: '', prot: '', carb: '', fat: '', sug: '' });
-  const [eq, setEq] = useState<string[]>([]);
+  const [macros, setMacros] = useState({ kcal: '', prot: '', carb: '', fat: '', sug: '' });
+  const [equipment, setEquipment] = useState<string[]>([]);
   const [error, setError] = useState('');
-  const num = (v: string) => Number.parseFloat(v) || 0;
-  const toggleEq = (x: string) => setEq(eq.includes(x) ? eq.filter(e => e !== x) : [...eq, x]);
+  const number = (value: string) => Number.parseFloat(value) || 0;
+
+  const toggleEquipment = (item: string) => {
+    setEquipment(current => current.includes(item) ? current.filter(value => value !== item) : [...current, item]);
+  };
 
   const save = async () => {
     setError('');
-    const nutrition = normalizeNutrition({
-      kcal: num(m.kcal), prot: num(m.prot), carb: num(m.carb), fat: num(m.fat), sug: num(m.sug),
-    });
-    const issues = validateNutrition(nutrition);
-    if (!name.trim() || !ing.trim() || num(prep) <= 0 || issues.length) {
+    const rawNutrition = {
+      kcal: number(macros.kcal),
+      prot: number(macros.prot),
+      carb: number(macros.carb),
+      fat: number(macros.fat),
+      sug: number(macros.sug),
+    };
+    const issues = validateNutrition(rawNutrition);
+    if (!name.trim() || !ingredients.trim() || number(prepMinutes) <= 0 || issues.length) {
       setError(issues.some(issue => issue.code === 'sugar-exceeds-carbs')
-        ? `${t('m_sug')} ≤ ${t('m_carb')}`
-        : 'Name, Zutaten, Zeit und gültige Nährwerte sind erforderlich.');
+        ? copy('Zucker darf nicht über den Kohlenhydraten liegen.', 'Sugar cannot exceed carbohydrates.')
+        : copy('Name, Zutaten, Zeit und gültige Nährwerte sind erforderlich.', 'Name, ingredients, time, and valid nutrition values are required.'));
       return;
     }
+    const nutrition = normalizeNutrition(rawNutrition);
+
     try {
       await createDish({
-      name: name.trim(), category, prep_min: num(prep),
-      ingredients: ing.split('\n').map(s => s.trim()).filter(Boolean),
-      steps: steps.split('\n').map(s => s.trim()).filter(Boolean),
-      ...nutrition,
-      equipment: eq.length ? eq : ['none'], icon: '🍳', image: '',
+        name: name.trim(),
+        category,
+        prep_min: Math.min(1440, number(prepMinutes)),
+        ingredients: ingredients.split('\n').map(value => value.trim()).filter(Boolean),
+        steps: steps.split('\n').map(value => value.trim()).filter(Boolean),
+        ...nutrition,
+        equipment: equipment.length ? equipment : ['none'],
+        icon: '',
+        image: '',
       });
       onSaved();
     } catch {
-      setError('Die Nährwerte konnten nicht gespeichert werden.');
+      setError(copy('Das Rezept konnte nicht gespeichert werden.', 'The recipe could not be saved.'));
     }
   };
 
-  return (
-    <div className="hub-modal open" onClick={onClose}>
-      <div className="hub-box" onClick={e => e.stopPropagation()}>
+  return createPortal(
+    <div className="hub-modal open" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="hub-box" role="dialog" aria-modal="true" aria-labelledby="dish-creator-title" onMouseDown={event => event.stopPropagation()}>
         <div className="hub-box-hd">
-          <span className="hub-box-title">◈ {t('fuel_forge')}</span>
-          <button className="modal-close" onClick={onClose}>{IconX}</button>
+          <span className="hub-box-title" id="dish-creator-title"><SystemIcon name="plus" />{copy('Eigenes Rezept', 'New recipe')}</span>
+          <button className="modal-close" type="button" onClick={onClose} aria-label={copy('Rezept-Editor schließen', 'Close recipe editor')}><SystemIcon name="close" /></button>
         </div>
         <div className="hub-box-body">
-          <input className="hub-input" placeholder={t('fuel_f_name')} value={name} onChange={e => setName(e.target.value)} />
+          <label className="system-field wide"><span>{copy('Name', 'Name')}</span><input className="hub-input" required maxLength={100} value={name} onChange={event => setName(event.target.value)} /></label>
           <div className="hub-row2">
-            <select className="hub-input" value={category} onChange={e => setCategory(e.target.value)}>
-              {['breakfast', 'main', 'dessert', 'snack'].map(x => <option key={x} value={x}>{t('cat_' + x)}</option>)}
-            </select>
-            <input className="hub-input" type="number" inputMode="numeric" placeholder={t('fuel_f_prep')} value={prep} onChange={e => setPrep(e.target.value)} />
+            <label className="system-field"><span>{copy('Kategorie', 'Category')}</span><select className="hub-input" value={category} onChange={event => setCategory(event.target.value)}>{['breakfast', 'main', 'dessert', 'snack'].map(item => <option key={item} value={item}>{t(`cat_${item}`)}</option>)}</select></label>
+            <label className="system-field"><span>{copy('Zubereitung (Minuten)', 'Prep time (minutes)')}</span><input className="hub-input" type="number" inputMode="numeric" min="1" max="1440" value={prepMinutes} onChange={event => setPrepMinutes(event.target.value)} /></label>
           </div>
-          <textarea className="hub-input hub-area" placeholder={t('fuel_f_ing')} rows={3} value={ing} onChange={e => setIng(e.target.value)} />
-          <textarea className="hub-input hub-area" placeholder={t('fuel_f_steps')} rows={3} value={steps} onChange={e => setSteps(e.target.value)} />
+          <label className="system-field wide"><span>{copy('Zutaten – eine pro Zeile', 'Ingredients — one per line')}</span><textarea className="hub-input hub-area" rows={3} value={ingredients} onChange={event => setIngredients(event.target.value)} /></label>
+          <label className="system-field wide"><span>{copy('Schritte – einer pro Zeile', 'Steps — one per line')}</span><textarea className="hub-input hub-area" rows={3} value={steps} onChange={event => setSteps(event.target.value)} /></label>
           <div className="hub-macro-grid hub-macro-grid-five">
-            {(['kcal', 'prot', 'carb', 'fat', 'sug'] as const).map(k => (
-              <div className="hub-mf" key={k}>
-                <label>{t('m_' + (k === 'kcal' ? 'kcal' : k))}</label>
-                <input type="number" inputMode="decimal" min="0" step="0.1" value={m[k]}
-                  aria-invalid={Boolean(error)} onChange={e => setM({ ...m, [k]: e.target.value })} />
-              </div>
+            {(['kcal', 'prot', 'carb', 'fat', 'sug'] as const).map(key => (
+              <label className="hub-mf" key={key}>
+                <span>{key === 'kcal' ? 'kcal' : key === 'prot' ? copy('Protein', 'Protein') : key === 'carb' ? copy('Kohlenhydrate', 'Carbohydrates') : key === 'fat' ? copy('Fett', 'Fat') : copy('Zucker', 'Sugar')}</span>
+                <input type="number" inputMode="decimal" min="0" max={NUTRITION_LIMITS[key]} step="0.1" value={macros[key]} aria-invalid={Boolean(error)} onChange={event => setMacros(current => ({ ...current, [key]: event.target.value }))} />
+              </label>
             ))}
           </div>
-          <div className="nutrition-estimate">
-            ≈ {estimateCaloriesFromMacros({ prot: num(m.prot), carb: num(m.carb), fat: num(m.fat), sug: num(m.sug) })} kcal aus Makros
-          </div>
+          <div className="nutrition-estimate">≈ {estimateCaloriesFromMacros({ prot: number(macros.prot), carb: number(macros.carb), fat: number(macros.fat), sug: number(macros.sug) })} {copy('kcal aus den Makros', 'kcal from macros')}</div>
           {error && <div className="fuel-form-error" role="alert">{error}</div>}
           <div className="hub-eq-row">
-            <button className={`chip chip-eq${eq.includes('airfryer') ? ' sel' : ''}`} onClick={() => toggleEq('airfryer')}>{IconAir}{t('eq_airfryer')}</button>
-            <button className={`chip chip-eq${eq.includes('ricecooker') ? ' sel' : ''}`} onClick={() => toggleEq('ricecooker')}>{IconRice}{t('eq_ricecooker')}</button>
+            {EQUIPMENT.map(item => (
+              <button type="button" key={item} className={`chip chip-eq${equipment.includes(item) ? ' sel' : ''}`} aria-pressed={equipment.includes(item)} onClick={() => toggleEquipment(item)}><SystemIcon name="equipment" />{t(`eq_${item}`)}</button>
+            ))}
           </div>
-          <button className="action-btn" onClick={save}>{t('fuel_f_save')}</button>
+          <button className="system-primary-action" type="button" onClick={() => void save()}>{copy('Rezept speichern', 'Save recipe')}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

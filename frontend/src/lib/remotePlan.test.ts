@@ -6,6 +6,7 @@ import type { RemotePlanEnvelope } from './integrations';
 
 const request: AiPlanRequest = {
   consentedAt: '2026-08-08T10:00:00.000Z',
+  responseLanguage: 'de',
   context: {
     schemaVersion: 3,
     age: 31,
@@ -111,5 +112,15 @@ describe('remote plan privacy boundary', () => {
     expect(plan.sessions[0]?.exercises[0]).toMatchObject({ movement: 'squat', equipment: 'dumbbells', sets: 3 });
     expect(plan.safetyNotes).toContain('General fitness guidance only.');
     expect(serialized).not.toMatch(/\b\d+\s?(mg|iu)\b/);
+  });
+
+  it('rejects unbounded exercise data and keeps sugar within carbohydrates', () => {
+    const excessive = structuredClone(envelope);
+    excessive.draft.training_days[0].exercises[0].sets = 999;
+    expect(() => remoteEnvelopeToInitialPlan(excessive, request)).toThrow(/safety bounds|runtime validation/);
+
+    const zeroCarbs = structuredClone(envelope);
+    zeroCarbs.draft.nutrition.carbohydrate_target_g = 0;
+    expect(remoteEnvelopeToInitialPlan(zeroCarbs, request).nutritionTargets.sugar).toBe(0);
   });
 });

@@ -53,6 +53,8 @@ describe('workout completion rewards', () => {
     const repeated = await logWorkout(completion);
 
     expect(first).not.toBeNull();
+    expect(first?.boosts).toEqual({});
+    expect(`${first?.label} ${first?.desc}`).not.toMatch(/\+\d|STR|VIT|INT|AGI|MAG/);
     expect(repeated).toBeNull();
     expect(getActiveBuffs()).toHaveLength(1);
   });

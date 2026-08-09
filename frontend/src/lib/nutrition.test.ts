@@ -42,6 +42,36 @@ describe('nutrition calculations and persistence', () => {
     expect(issues.map(issue => issue.code)).toEqual(expect.arrayContaining(['negative', 'sugar-exceeds-carbs']));
   });
 
+  it('rejects every nutrient above its per-entry safety limit', () => {
+    const issues = validateNutrition({ kcal: 10_000.1, prot: 1_000.1, carb: 1_500.1, fat: 1_000.1, sug: 1_500.1 });
+
+    expect(issues.filter(issue => issue.code === 'above-maximum').map(issue => issue.field)).toEqual([
+      'kcal',
+      'prot',
+      'carb',
+      'fat',
+      'sug',
+    ]);
+  });
+
+  it('clamps normalized nutrients and macro-derived calories to their safety limits', () => {
+    expect(normalizeNutrition({ kcal: 99_999, prot: 9_999, carb: 9_999, fat: 9_999, sug: 9_999 })).toEqual({
+      kcal: 10_000,
+      prot: 1_000,
+      carb: 1_500,
+      fat: 1_000,
+      sug: 1_500,
+    });
+    expect(normalizeNutrition({ kcal: 0, prot: 1_000, carb: 1_500, fat: 1_000, sug: 1_500 }).kcal).toBe(10_000);
+  });
+
+  it('rejects an oversized meal before anything is persisted', async () => {
+    await expect(logMeal({ name: 'Oversized meal', kcal: 10_001, prot: 20, carb: 30, fat: 10, sug: 5 }))
+      .rejects.toThrow('above-maximum');
+
+    expect(calcConsumed()).toEqual({ kcal: 0, prot: 0, carb: 0, fat: 0, sug: 0 });
+  });
+
   it('logs all five nutrition values into the daily food total', async () => {
     await logMeal({ name: 'Balanced bowl', kcal: 510, prot: 32, carb: 58, fat: 17, sug: 9 });
 

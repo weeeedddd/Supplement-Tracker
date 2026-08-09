@@ -5,6 +5,7 @@ export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentOption = 'bodyweight' | 'dumbbells' | 'resistance_bands' | 'full_gym';
 export type DietPreference = 'flexible' | 'omnivore' | 'vegetarian' | 'vegan';
 export type TrainingGoal = 'general_fitness' | 'build_muscle' | 'get_stronger' | 'fat_loss';
+export type PlanLanguage = 'de' | 'en';
 
 export interface InspirationProfile {
   id: InspirationProfileId;
@@ -127,7 +128,7 @@ const EQUIPMENT = new Set<EquipmentOption>(['bodyweight', 'dumbbells', 'resistan
 const DIETS = new Set<DietPreference>(['flexible', 'omnivore', 'vegetarian', 'vegan']);
 const GOALS = new Set<TrainingGoal>(['general_fitness', 'build_muscle', 'get_stronger', 'fat_loss']);
 
-export function calculateNutritionTargets(input: PlanInput): NutritionTargets {
+export function calculateNutritionTargets(input: PlanInput, language: PlanLanguage = 'en'): NutritionTargets {
   const validation = validatePlanInput(input);
   if (!validation.valid) throw new Error(`Invalid nutrition input: ${Object.keys(validation.errors).join(', ')}`);
 
@@ -162,7 +163,9 @@ export function calculateNutritionTargets(input: PlanInput): NutritionTargets {
     fat,
     sugar: Math.min(carbs, Math.round(carbs * .2)),
     method: 'neutral-mifflin-estimate-v1',
-    note: 'A neutral starting estimate based on age, height, weight, training days, and goal. Review it against real weight, hunger, energy, and training trends.',
+    note: language === 'de'
+      ? 'Ein neutraler Startwert auf Basis von Alter, Größe, Gewicht, Trainingstagen und Ziel. Prüfe ihn anhand echter Gewichts-, Hunger-, Energie- und Trainingsverläufe.'
+      : 'A neutral starting estimate based on age, height, weight, training days, and goal. Review it against real weight, hunger, energy, and training trends.',
   };
 }
 
@@ -233,18 +236,45 @@ const EXERCISES: ExerciseTemplate[] = [
   { id: 'gym-bike', name: 'Easy stationary bike intervals', movement: 'conditioning', equipment: 'full_gym' },
 ];
 
-const GOAL_EMPHASIS: Record<TrainingGoal, string> = {
-  general_fitness: 'balanced strength and everyday conditioning',
-  build_muscle: 'controlled resistance training and recovery',
-  get_stronger: 'repeatable strength practice with conservative progression',
-  fat_loss: 'consistent full-body training and sustainable activity',
+const EXERCISE_NAMES_DE: Record<string, string> = {
+  'chair-squat': 'Kniebeuge zum Stuhl',
+  'split-squat': 'Gestützte Split-Kniebeuge',
+  'glute-bridge': 'Glute Bridge',
+  'incline-pushup': 'Erhöhte Liegestütze',
+  'wall-slide': 'Wall Slide',
+  'dead-bug': 'Dead Bug',
+  'side-plank': 'Seitstütz',
+  march: 'Lockere Marsch-Intervalle',
+  'mobility-flow': 'Hüft- und Schulter-Mobilität',
+  'step-up': 'Niedriger Step-up',
+  'db-goblet-squat': 'Goblet Squat mit Kurzhantel',
+  'db-rdl': 'Rumänisches Kreuzheben mit Kurzhanteln',
+  'db-floor-press': 'Floor Press mit Kurzhanteln',
+  'db-row': 'Gestütztes Kurzhantelrudern',
+  'db-carry': 'Suitcase Carry mit Kurzhantel',
+  'band-squat': 'Kniebeuge mit Band',
+  'band-hinge': 'Hip Hinge mit Band',
+  'band-press': 'Brustdrücken mit Band',
+  'band-row': 'Rudern mit Band',
+  'gym-leg-press': 'Beinpresse',
+  'gym-cable-pull': 'Cable Pull-through',
+  'gym-chest-press': 'Brustpresse',
+  'gym-pulldown': 'Latzug',
+  'gym-bike': 'Lockere Fahrrad-Intervalle',
 };
 
-const DIET_GUIDANCE: Record<DietPreference, string> = {
-  flexible: 'Build regular meals around a protein food, produce, a carbohydrate source, and enough fluids.',
-  omnivore: 'Use varied food protein sources, produce, whole-food carbohydrates, and enough fluids.',
-  vegetarian: 'Rotate dairy or eggs if used with beans, lentils, tofu, tempeh, grains, produce, and enough fluids.',
-  vegan: 'Rotate beans, lentils, tofu, tempeh, soy foods, grains, produce, and enough fluids; seek qualified advice for individual nutrient needs.',
+const GOAL_EMPHASIS: Record<TrainingGoal, Record<PlanLanguage, string>> = {
+  general_fitness: { de: 'ausgewogene Kraft und alltagstaugliche Kondition', en: 'balanced strength and everyday conditioning' },
+  build_muscle: { de: 'kontrolliertes Krafttraining und Erholung', en: 'controlled resistance training and recovery' },
+  get_stronger: { de: 'wiederholbare Kraftpraxis mit konservativer Steigerung', en: 'repeatable strength practice with conservative progression' },
+  fat_loss: { de: 'konsequentes Ganzkörpertraining und nachhaltige Aktivität', en: 'consistent full-body training and sustainable activity' },
+};
+
+const DIET_GUIDANCE: Record<DietPreference, Record<PlanLanguage, string>> = {
+  flexible: { de: 'Baue regelmäßige Mahlzeiten aus einer Proteinquelle, Obst oder Gemüse, einer Kohlenhydratquelle und ausreichend Flüssigkeit auf.', en: 'Build regular meals around a protein food, produce, a carbohydrate source, and enough fluids.' },
+  omnivore: { de: 'Nutze abwechslungsreiche Proteinquellen, Obst und Gemüse, vollwertige Kohlenhydrate und ausreichend Flüssigkeit.', en: 'Use varied food protein sources, produce, whole-food carbohydrates, and enough fluids.' },
+  vegetarian: { de: 'Kombiniere – falls genutzt – Milchprodukte oder Eier mit Bohnen, Linsen, Tofu, Tempeh, Getreide, Obst und Gemüse.', en: 'Rotate dairy or eggs if used with beans, lentils, tofu, tempeh, grains, produce, and enough fluids.' },
+  vegan: { de: 'Wechsle zwischen Bohnen, Linsen, Tofu, Tempeh, Sojaprodukten, Getreide, Obst und Gemüse; kläre individuelle Nährstofffragen fachlich ab.', en: 'Rotate beans, lentils, tofu, tempeh, soy foods, grains, produce, and enough fluids; seek qualified advice for individual nutrient needs.' },
 };
 
 function profileFor(id?: InspirationProfileId): InspirationProfile | undefined {
@@ -277,19 +307,21 @@ function setCount(input: PlanInput): number {
   return base;
 }
 
-function effortCue(input: PlanInput): string {
-  if (input.experience === 'beginner' || input.age < 18 || input.age >= 65) return 'leave 2-3 reps in reserve';
-  if (input.difficulty === 'hard' && input.experience === 'advanced') return 'leave 1-2 reps in reserve';
-  return 'leave 2 reps in reserve';
+function effortCue(input: PlanInput, language: PlanLanguage): string {
+  if (input.experience === 'beginner' || input.age < 18 || input.age >= 65) return language === 'de' ? '2–3 Wiederholungen im Tank lassen' : 'leave 2-3 reps in reserve';
+  if (input.difficulty === 'hard' && input.experience === 'advanced') return language === 'de' ? '1–2 Wiederholungen im Tank lassen' : 'leave 1-2 reps in reserve';
+  return language === 'de' ? '2 Wiederholungen im Tank lassen' : 'leave 2 reps in reserve';
 }
 
-function repCue(input: PlanInput, movement: MovementPattern): string {
-  if (movement === 'conditioning') return input.difficulty === 'light' ? '4 x 30 seconds easy' : '6 x 30 seconds easy-moderate';
-  if (movement === 'mobility') return '5 slow breaths per side';
-  if (movement === 'core' || movement === 'carry') return '20-40 seconds, controlled';
-  if (input.goal === 'get_stronger') return '6-10 controlled reps';
-  if (input.goal === 'fat_loss') return '10-15 controlled reps';
-  return '8-12 controlled reps';
+function repCue(input: PlanInput, movement: MovementPattern, language: PlanLanguage): string {
+  if (movement === 'conditioning') return input.difficulty === 'light'
+    ? language === 'de' ? '4 × 30 Sekunden locker' : '4 x 30 seconds easy'
+    : language === 'de' ? '6 × 30 Sekunden locker bis moderat' : '6 x 30 seconds easy-moderate';
+  if (movement === 'mobility') return language === 'de' ? '5 ruhige Atemzüge je Seite' : '5 slow breaths per side';
+  if (movement === 'core' || movement === 'carry') return language === 'de' ? '20–40 Sekunden kontrolliert' : '20-40 seconds, controlled';
+  if (input.goal === 'get_stronger') return language === 'de' ? '6–10 kontrollierte Wiederholungen' : '6-10 controlled reps';
+  if (input.goal === 'fat_loss') return language === 'de' ? '10–15 kontrollierte Wiederholungen' : '10-15 controlled reps';
+  return language === 'de' ? '8–12 kontrollierte Wiederholungen' : '8-12 controlled reps';
 }
 
 function selectExercises(input: PlanInput, sessionIndex: number): ExerciseTemplate[] {
@@ -310,62 +342,83 @@ function selectExercises(input: PlanInput, sessionIndex: number): ExerciseTempla
   return selected;
 }
 
-function sessionFocus(input: PlanInput, index: number): string {
-  const labels = ['Full body foundation', 'Movement quality', 'Strength and control', 'Easy conditioning', 'Full body variation', 'Technique reset'];
-  if (input.inspirationProfile === 'goku' && index % 2 === 1) return 'Athletic conditioning';
-  if (input.inspirationProfile === 'tanjiro' && index % 2 === 1) return 'Balance and mobility';
-  if (input.inspirationProfile === 'toji' && index % 2 === 0) return 'Simple strength practice';
+function sessionFocus(input: PlanInput, index: number, language: PlanLanguage): string {
+  const labels = language === 'de'
+    ? ['Ganzkörper-Basis', 'Bewegungsqualität', 'Kraft und Kontrolle', 'Lockere Kondition', 'Ganzkörper-Variation', 'Technik-Fokus']
+    : ['Full body foundation', 'Movement quality', 'Strength and control', 'Easy conditioning', 'Full body variation', 'Technique reset'];
+  if (input.inspirationProfile === 'goku' && index % 2 === 1) return language === 'de' ? 'Athletische Kondition' : 'Athletic conditioning';
+  if (input.inspirationProfile === 'tanjiro' && index % 2 === 1) return language === 'de' ? 'Balance und Mobilität' : 'Balance and mobility';
+  if (input.inspirationProfile === 'toji' && index % 2 === 0) return language === 'de' ? 'Direkte Kraftpraxis' : 'Simple strength practice';
   return labels[index % labels.length];
 }
 
-export function generateInitialPlan(input: PlanInput): InitialPlan {
+export function generateInitialPlan(input: PlanInput, language: PlanLanguage = 'en'): InitialPlan {
   const validation = validatePlanInput(input);
   if (!validation.valid) throw new Error(`Invalid plan input: ${Object.keys(validation.errors).join(', ')}`);
 
   const inspiration = input.mode === 'inspiration' ? profileFor(input.inspirationProfile) : undefined;
-  const emphasis = inspiration?.emphasis || GOAL_EMPHASIS[input.goal];
+  const inspirationEmphasis: Partial<Record<InspirationProfileId, Record<PlanLanguage, string>>> = {
+    toji: { de: 'Kraft und Explosivität', en: 'strength and power' },
+    goku: { de: 'Kondition und athletische Vielfalt', en: 'conditioning and athletic variety' },
+    tanjiro: { de: 'ausgewogene Kraft, Kondition und Mobilität', en: 'balanced strength, conditioning, and mobility' },
+  };
+  const emphasis = inspiration
+    ? inspirationEmphasis[inspiration.id]?.[language] ?? inspiration.emphasis
+    : GOAL_EMPHASIS[input.goal][language];
   const sets = setCount(input);
-  const effort = effortCue(input);
+  const effort = effortCue(input, language);
   const sessions = Array.from({ length: input.daysPerWeek }, (_, index): PlanSession => {
     const exercises = selectExercises(input, index).map((exercise): PlanExercise => ({
       ...exercise,
+      name: language === 'de' ? EXERCISE_NAMES_DE[exercise.id] ?? exercise.name : exercise.name,
       sets,
-      reps: repCue(input, exercise.movement),
+      reps: repCue(input, exercise.movement, language),
       effort,
     }));
     return {
       day: index + 1,
-      title: `Session ${index + 1}`,
-      focus: sessionFocus(input, index),
+      title: language === 'de' ? `Einheit ${index + 1}` : `Session ${index + 1}`,
+      focus: sessionFocus(input, index, language),
       durationMinutes: 25 + exercises.length * 5,
-      warmup: 'Begin with 5-8 minutes of easy movement and one comfortable practice set.',
+      warmup: language === 'de' ? 'Beginne mit 5–8 Minuten lockerer Bewegung und einem entspannten Aufwärmsatz.' : 'Begin with 5-8 minutes of easy movement and one comfortable practice set.',
       exercises,
-      cooldown: 'Finish with 3-5 minutes of easy movement. Recovery work should feel comfortable, not forced.',
+      cooldown: language === 'de' ? 'Beende die Einheit mit 3–5 Minuten lockerer Bewegung. Erholung soll sich angenehm und nicht erzwungen anfühlen.' : 'Finish with 3-5 minutes of easy movement. Recovery work should feel comfortable, not forced.',
     };
   });
 
-  const safetyNotes = [
+  const safetyNotes = language === 'de' ? [
+    'Starte konservativ und stoppe bei stechendem Schmerz, Brustschmerz, Ohnmacht oder ungewöhnlicher Atemnot.',
+    'Nutze stabile Technik und erhöhe erst dann jeweils eine Variable, wenn sich die Einheiten verlässlich beherrschbar anfühlen.',
+    'Dieser Startplan ist allgemeine Orientierung, keine medizinische Versorgung und kein Ersatz für eine qualifizierte Untersuchung.',
+  ] : [
     'Start conservatively and stop for sharp pain, chest pain, faintness, or unusual shortness of breath.',
     'Use stable technique and increase only one variable at a time after sessions feel consistently manageable.',
     'This starter plan is general guidance, not medical care or a substitute for an assessment by a qualified professional.',
   ];
   if (input.age < 18) {
-    safetyNotes.push('Review training choices with a parent or guardian and a qualified youth coach before increasing difficulty.');
+    safetyNotes.push(language === 'de'
+      ? 'Prüfe Trainingsentscheidungen mit einer erziehungsberechtigten Person und qualifizierter Jugend-Trainerbegleitung, bevor du die Schwierigkeit erhöhst.'
+      : 'Review training choices with a parent or guardian and a qualified youth coach before increasing difficulty.');
   }
 
   return {
     schemaVersion: 1,
     generator: 'local-rules-v1',
     createdAt: null,
-    sourceLabel: inspiration ? `${inspiration.name} inspiration profile` : input.mode === 'guided' ? 'Guided local plan' : 'Own Path',
+    sourceLabel: inspiration
+      ? language === 'de' ? `${inspiration.name} Inspirationsprofil` : `${inspiration.name} inspiration profile`
+      : input.mode === 'guided' ? language === 'de' ? 'Geführter lokaler Plan' : 'Guided local plan'
+        : language === 'de' ? 'Eigener Weg' : 'Own Path',
     emphasis,
     difficulty: input.difficulty,
     experience: input.experience,
     daysPerWeek: input.daysPerWeek,
     sessions,
-    nutritionTargets: calculateNutritionTargets(input),
-    recoveryGuidance: `Place at least one easier or rest day after your most demanding session. The ${input.difficulty} setting changes volume, not a promised outcome.`,
-    foodGuidance: DIET_GUIDANCE[input.diet],
+    nutritionTargets: calculateNutritionTargets(input, language),
+    recoveryGuidance: language === 'de'
+      ? `Plane nach der forderndsten Einheit mindestens einen leichteren oder freien Tag ein. Die Intensität „${input.difficulty}“ verändert das Volumen, nicht ein versprochenes Ergebnis.`
+      : `Place at least one easier or rest day after your most demanding session. The ${input.difficulty} setting changes volume, not a promised outcome.`,
+    foodGuidance: DIET_GUIDANCE[input.diet][language],
     safetyNotes,
   };
 }

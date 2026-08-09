@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { applyDocumentLanguage } from './lib/i18n';
+import { applyDocumentLanguage, lang } from './lib/i18n';
 import '@fontsource/barlow-condensed/latin-400.css';
 import '@fontsource/barlow-condensed/latin-ext-400.css';
 import '@fontsource/barlow-condensed/latin-600.css';
@@ -40,20 +40,20 @@ function paintFatalIfBlank(event: ErrorEvent | PromiseRejectionEvent) {
   const message = (event as ErrorEvent).message
     || String((event as PromiseRejectionEvent).reason || 'Unknown startup error');
   const panel = document.createElement('main');
-  panel.style.cssText = 'max-width:420px;margin:18vh auto 0;padding:1.6rem;text-align:center;font-family:system-ui,sans-serif;color:#e8e0f5;background:rgba(14,12,24,.95);border:1px solid rgba(232,58,90,.4);border-radius:16px';
+  panel.style.cssText = 'max-width:440px;margin:18vh auto 0;padding:1.6rem;text-align:center;font-family:Manrope,system-ui,sans-serif;color:#eeeae0;background:#111516;border:1px solid rgba(238,234,224,.34);clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px)';
 
   const title = document.createElement('h1');
-  title.textContent = 'CORELINE could not start';
-  title.style.cssText = 'font-size:1rem;letter-spacing:.08em;color:#ff8ca3;margin:.5rem 0';
+  title.textContent = lang === 'de' ? 'CORELINE konnte nicht starten' : 'CORELINE could not start';
+  title.style.cssText = 'font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-size:1.4rem;letter-spacing:.08em;color:#eeeae0;margin:.5rem 0;text-transform:uppercase';
   const copy = document.createElement('p');
-  copy.textContent = 'Your local data has not been changed. Reload the app to try again.';
-  copy.style.cssText = 'font-size:.76rem;color:#a094c4;line-height:1.5';
+  copy.textContent = lang === 'de' ? 'Deine lokalen Daten wurden nicht verändert. Lade die App neu, um es erneut zu versuchen.' : 'Your local data has not been changed. Reload the app to try again.';
+  copy.style.cssText = 'font-size:.78rem;color:#aaa79f;line-height:1.6';
   const detail = document.createElement('pre');
   detail.textContent = message;
-  detail.style.cssText = 'font-size:.62rem;color:#ff8ca3;white-space:pre-wrap;word-break:break-word;text-align:left;background:rgba(232,58,90,.07);padding:.5rem;border-radius:8px';
+  detail.style.cssText = 'font-size:.68rem;color:#ef8792;white-space:pre-wrap;word-break:break-word;text-align:left;background:rgba(239,102,117,.06);padding:.65rem;border:1px solid rgba(239,102,117,.3)';
   const retry = document.createElement('button');
-  retry.textContent = 'Reload app';
-  retry.style.cssText = 'padding:.55rem 1.1rem;border-radius:8px;cursor:pointer;border:1px solid #5eead4;background:transparent;color:#e8e0f5';
+  retry.textContent = lang === 'de' ? 'App neu laden' : 'Reload app';
+  retry.style.cssText = 'min-height:44px;padding:.55rem 1.1rem;cursor:pointer;border:1px solid #78e7ed;background:#78e7ed;color:#061012;font:700 .78rem Manrope,system-ui,sans-serif;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)';
   retry.addEventListener('click', () => location.reload());
 
   panel.append(title, copy, detail, retry);

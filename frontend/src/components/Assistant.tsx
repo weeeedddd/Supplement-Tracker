@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 
 import type { DietPreference, EquipmentOption, TrainingGoal } from '../lib/plans';
 import { getBackendUrl } from '../lib/backend';
+import { lang } from '../lib/i18n';
 import { requestRemoteAssistant } from '../lib/integrations';
 import { SystemIcon } from './SystemIcon';
 import '../assistant.css';
@@ -77,7 +78,11 @@ export type ProductSearchDraftResult =
   | { ok: true; value: ProductSearchRequest }
   | { ok: false; errors: Array<keyof ProductSearchDraft> };
 
-const LOCAL_DISCLOSURE = 'Local rules generate these suggestions on this device. This is not a live AI service, and live product search is not connected.';
+type AssistantLanguage = 'de' | 'en';
+
+const localDisclosure = (language: AssistantLanguage) => language === 'de'
+  ? 'Lokale Regeln erzeugen diese Hinweise auf diesem Gerät. Das ist kein Live-KI-Dienst; eine Live-Produktsuche ist nicht verbunden.'
+  : 'Local rules generate these suggestions on this device. This is not a live AI service, and live product search is not connected.';
 
 export function createProductSearchRequest(draft: ProductSearchDraft): ProductSearchDraftResult {
   const errors: Array<keyof ProductSearchDraft> = [];
@@ -126,58 +131,80 @@ function hasContext(context?: AssistantContext): context is AssistantContext {
   return Boolean(context && Object.keys(context).length > 0);
 }
 
-function foodProteinReply(contextUsed: boolean, context?: AssistantContext): string {
+function foodProteinReply(contextUsed: boolean, context?: AssistantContext, language: AssistantLanguage = 'en'): string {
   if (contextUsed && context?.weightKg && context.weightKg >= 35 && context.weightKg <= 250) {
     const low = Math.round(context.weightKg * 1.2);
     const high = Math.round(context.weightKg * 1.6);
+    if (language === 'de') {
+      return `Ein allgemeiner, lebensmittelbasierter Planungsbereich für eine aktive erwachsene Person mit ${context.weightKg} kg liegt bei ${low}–${high} g Protein über den Tag verteilt. Verteile proteinreiche Lebensmittel auf regelmäßige Mahlzeiten und passe sie an Appetit und Verträglichkeit an. Das ist ein Orientierungswert, keine Verordnung; bei Nierenerkrankung, Schwangerschaft, Essstörungsvorgeschichte oder anderen klinischen Anforderungen ist individuelle Beratung nötig.`;
+    }
     return `A general food-first planning range for an active adult at ${context.weightKg} kg is ${low}-${high} g of protein across the day. Spread protein foods across regular meals and adjust for appetite and tolerance. This is a planning reference, not a prescription; kidney disease, pregnancy, an eating-disorder history, or other clinical needs call for individual advice.`;
+  }
+  if (language === 'de') {
+    return 'Baue für die allgemeine Planung jede Hauptmahlzeit um ein proteinreiches Lebensmittel auf und verteile diese Lebensmittel über den Tag. Wenn Krankengeschichte, Schwangerschaft, Nierengesundheit oder eine Essstörungsvorgeschichte relevant sind, sollte eine qualifizierte Ernährungsfachkraft ein individuelles Ziel festlegen.';
   }
   return 'For general planning, build each main meal around a protein food and spread those foods across the day. A registered dietitian can set an individual target when medical history, pregnancy, kidney health, or an eating-disorder history may change what is appropriate.';
 }
 
-function substitutionReply(contextUsed: boolean, context?: AssistantContext): string {
+function substitutionReply(contextUsed: boolean, context?: AssistantContext, language: AssistantLanguage = 'en'): string {
   if (contextUsed && (context?.diet === 'vegetarian' || context?.diet === 'vegan')) {
+    if (language === 'de') {
+      return 'Als proteinreiche Alternative eignen sich zum Beispiel Tofu, Tempeh, Linsen, Bohnen, Sojagranulat oder eine Kombination aus Hülsenfrüchten und Getreide. Tausche nach Funktion in der Mahlzeit: fester Tofu oder Tempeh als Hauptkomponente, Linsen oder Bohnen für Bowls, Suppen und Saucen. Prüfe Allergene und Nährwertetiketten, statt zwei Produkte als identisch anzunehmen.';
+    }
     return 'For a protein-food swap, try tofu, tempeh, lentils, beans, textured soy, or a mixed bean-and-grain dish. Match the role in the meal: use firm tofu or tempeh for a main item, and lentils or beans for bowls, soups, and sauces. Check allergens and labels rather than assuming two products are nutritionally identical.';
+  }
+  if (language === 'de') {
+    return 'Tausche nach Funktion statt nach Marke: eine andere Proteinquelle für die Hauptkomponente, eine andere Kohlenhydratquelle als Trainingsenergie oder anderes Obst und Gemüse für Abwechslung. Vergleiche Portion, Allergene und Nährwertetikett; eine Alternative muss nicht nährwertgleich sein, um praktisch zu funktionieren.';
   }
   return 'Swap by function rather than by brand: choose another protein food for the main item, another carbohydrate source for training fuel, or another fruit or vegetable for variety. Compare portions, allergens, and the nutrition label; a substitution does not need to be nutritionally identical to be useful.';
 }
 
-function shoppingReply(contextUsed: boolean, context?: AssistantContext): string {
+function shoppingReply(contextUsed: boolean, context?: AssistantContext, language: AssistantLanguage = 'en'): string {
   const dietNote = contextUsed && context?.diet
     ? `For a ${context.diet.replace('_', ' ')} pattern, `
     : '';
+  if (language === 'de') {
+    const germanDietNote = contextUsed && context?.diet ? `Für deine Ernährungsform (${context.diet.replace('_', ' ')}) ` : '';
+    return `${germanDietNote}starte mit einer kurzen Liste: zwei flexible Proteinquellen, zwei Sorten Obst oder Gemüse, eine einfache Kohlenhydratbasis und eine schnelle Ersatzmahlzeit. Live-Preise und Produktlinks sind nicht verbunden; deshalb erfinde ich keine Produkte, Preise, Händler oder URLs. Land, Budget und bevorzugter Laden können unten für einen zukünftigen verifizierten Suchanbieter vorbereitet werden.`;
+  }
   return `${dietNote}start with a short list: two flexible protein foods, two produce options, one easy carbohydrate staple, and one backup meal. Live prices and links are not connected, so I will not invent a product, price, retailer result, or URL. Country, budget, and preferred store can be prepared for a future verified search provider below.`;
 }
 
 export function buildLocalAssistantReply(
   question: string,
-  options: { context?: AssistantContext; useContext?: boolean } = {},
+  options: { context?: AssistantContext; useContext?: boolean; language?: AssistantLanguage } = {},
 ): AssistantReply {
   const normalized = question.trim().toLowerCase();
   const contextUsed = Boolean(options.useContext && hasContext(options.context));
   const context = contextUsed ? options.context : undefined;
+  const language = options.language ?? 'en';
+  const disclosure = localDisclosure(language);
 
-  if (/pain|hurt|injur|dizz|faint|chest|numb|swelling/.test(normalized)) {
+  if (/pain|hurt|injur|dizz|faint|chest|numb|swelling|schmerz|weh|verletz|schwindel|ohnmacht|brust|taub|schwell/.test(normalized)) {
     return {
       topic: 'safety',
-      text: 'Stop the painful movement and do not use this assistant to diagnose or work around symptoms. Sudden or severe symptoms, chest pain, faintness, or trouble breathing need urgent medical attention; otherwise, ask a qualified clinician or physiotherapist to assess the issue before changing the plan.',
-      disclosure: LOCAL_DISCLOSURE,
+      text: language === 'de'
+        ? 'Stoppe die schmerzhafte Bewegung und nutze diesen Assistenten nicht, um Symptome zu diagnostizieren oder zu umgehen. Plötzliche oder starke Beschwerden, Brustschmerz, Ohnmacht oder Atemnot benötigen dringend medizinische Hilfe; andernfalls sollte eine qualifizierte ärztliche oder physiotherapeutische Fachperson die Situation prüfen, bevor du den Plan änderst.'
+        : 'Stop the painful movement and do not use this assistant to diagnose or work around symptoms. Sudden or severe symptoms, chest pain, faintness, or trouble breathing need urgent medical attention; otherwise, ask a qualified clinician or physiotherapist to assess the issue before changing the plan.',
+      disclosure,
       contextUsed,
     };
   }
   if (/shop|store|budget|cheap|price|buy|grocery|einkauf/.test(normalized)) {
-    return { topic: 'shopping', text: shoppingReply(contextUsed, context), disclosure: LOCAL_DISCLOSURE, contextUsed };
+    return { topic: 'shopping', text: shoppingReply(contextUsed, context, language), disclosure, contextUsed };
   }
   if (/substitut|replace|instead of|alternative|swap|ersetzen/.test(normalized)) {
-    return { topic: 'substitution', text: substitutionReply(contextUsed, context), disclosure: LOCAL_DISCLOSURE, contextUsed };
+    return { topic: 'substitution', text: substitutionReply(contextUsed, context, language), disclosure, contextUsed };
   }
   if (/protein|proteine|eiwei/.test(normalized)) {
-    return { topic: 'protein', text: foodProteinReply(contextUsed, context), disclosure: LOCAL_DISCLOSURE, contextUsed };
+    return { topic: 'protein', text: foodProteinReply(contextUsed, context, language), disclosure, contextUsed };
   }
   return {
     topic: 'general',
-    text: 'I can help with food-first protein planning, ingredient substitutions, a practical shopping list, or questions about your saved starter plan. Ask one specific question. For symptoms, diagnoses, medication interactions, pregnancy, or clinical nutrition, use a qualified professional.',
-    disclosure: LOCAL_DISCLOSURE,
+    text: language === 'de'
+      ? 'Ich helfe bei lebensmittelbasierter Proteinplanung, Zutaten-Alternativen, einer praktischen Einkaufsliste oder Fragen zu deinem gespeicherten Startplan. Stelle eine konkrete Frage. Bei Symptomen, Diagnosen, Wechselwirkungen mit Medikamenten, Schwangerschaft oder klinischer Ernährung brauchst du qualifizierte Fachberatung.'
+      : 'I can help with food-first protein planning, ingredient substitutions, a practical shopping list, or questions about your saved starter plan. Ask one specific question. For symptoms, diagnoses, medication interactions, pregnancy, or clinical nutrition, use a qualified professional.',
+    disclosure,
     contextUsed,
   };
 }
@@ -196,11 +223,10 @@ export interface AssistantProps {
   onOpenShopping?: () => void;
 }
 
-const QUICK_PROMPTS = [
-  'Plane proteinreiche Lebensmittel',
-  'Schlage eine Zutat-Alternative vor',
-  'Erstelle eine einfache Einkaufsliste',
-];
+const QUICK_PROMPTS = {
+  de: ['Plane proteinreiche Lebensmittel', 'Schlage eine Zutaten-Alternative vor', 'Erstelle eine einfache Einkaufsliste'],
+  en: ['Plan protein-rich foods', 'Suggest an ingredient substitution', 'Create a simple shopping list'],
+} as const;
 
 function remoteGoal(goal?: TrainingGoal): 'healthy_routine' | 'general_fitness' | 'fat_loss' | 'muscle_gain' | 'performance' {
   if (goal === 'build_muscle') return 'muscle_gain';
@@ -210,20 +236,22 @@ function remoteGoal(goal?: TrainingGoal): 'healthy_routine' | 'general_fitness' 
 }
 
 export function Assistant({ context, title = 'Plan Assistant', className = '', onOpenShopping }: AssistantProps) {
+  const language: AssistantLanguage = lang === 'de' ? 'de' : 'en';
+  const copy = (de: string, en: string) => language === 'de' ? de : en;
   const [useContext, setUseContext] = useState(false);
   const [question, setQuestion] = useState('');
   const [messages, setMessages] = useState<AssistantMessage[]>([
-    { id: 1, role: 'assistant', mode: 'system', text: 'Frag mich nach Proteinquellen, sinnvollen Lebensmittel-Alternativen oder deinem gespeicherten Plan.' },
+    { id: 1, role: 'assistant', mode: 'system', text: copy('Frag mich nach Proteinquellen, sinnvollen Lebensmittel-Alternativen oder deinem gespeicherten Plan.', 'Ask me about protein foods, useful ingredient substitutions, or your saved plan.') },
   ]);
   const [pending, setPending] = useState(false);
-  const [modeStatus, setModeStatus] = useState('Lokale Regeln sind aktiv. Es werden keine Daten übertragen.');
+  const [modeStatus, setModeStatus] = useState(copy('Lokale Regeln sind aktiv. Es werden keine Daten übertragen.', 'Local rules are active. No data is transmitted.'));
   const remoteAvailable = Boolean(getBackendUrl());
   const nextId = useMemo(() => messages.reduce((max, message) => Math.max(max, message.id), 0) + 1, [messages]);
 
   const ask = async (raw: string) => {
     const value = raw.trim();
     if (!value || pending) return;
-    const localReply = buildLocalAssistantReply(value, { context, useContext });
+    const localReply = buildLocalAssistantReply(value, { context, useContext, language });
     setMessages((current) => [
       ...current,
       { id: nextId, role: 'user', text: value },
@@ -232,24 +260,24 @@ export function Assistant({ context, title = 'Plan Assistant', className = '', o
 
     if (localReply.topic === 'safety') {
       setMessages((current) => [...current, { id: nextId + 1, role: 'assistant', mode: 'local', text: localReply.text }]);
-      setModeStatus('Sicherheitsfrage lokal abgefangen. Keine Profildaten wurden übertragen.');
+      setModeStatus(copy('Sicherheitsfrage lokal abgefangen. Keine Profildaten wurden übertragen.', 'Safety question handled locally. No profile data was transmitted.'));
       return;
     }
 
     if (!useContext || !remoteAvailable) {
       setMessages((current) => [...current, { id: nextId + 1, role: 'assistant', mode: 'local', text: localReply.text }]);
       setModeStatus(remoteAvailable
-        ? 'Lokale Antwort. Aktiviere die Einwilligung, wenn du die sichere KI mit Profilkontext nutzen möchtest.'
-        : 'Lokale Antwort. Für echte KI muss in den Einstellungen ein sicheres Backend verbunden werden.');
+        ? copy('Lokale Antwort. Aktiviere die Einwilligung, wenn du die sichere KI mit Profilkontext nutzen möchtest.', 'Local answer. Enable consent if you want to use secure AI with profile context.')
+        : copy('Lokale Antwort. Für echte KI muss in den Einstellungen ein sicheres Backend verbunden werden.', 'Local answer. Connect a secure backend in settings to use real AI.'));
       return;
     }
 
     setPending(true);
-    setModeStatus('Sichere KI wird kontaktiert. Der gewählte Kontext gilt nur für diese Anfrage.');
+    setModeStatus(copy('Sichere KI wird kontaktiert. Der gewählte Kontext gilt nur für diese Anfrage.', 'Contacting secure AI. The selected context applies only to this request.'));
     try {
       const response = await requestRemoteAssistant({
         consent_to_remote_ai: true,
-        response_language: 'de',
+        response_language: language,
         question: value,
         ...(context?.age && context.age >= 18 ? {
           profile_context: {
@@ -282,15 +310,18 @@ export function Assistant({ context, title = 'Plan Assistant', className = '', o
         mode: 'openai',
         text: [response.answer, ...response.safety_notes].filter(Boolean).join('\n\n'),
       }]);
-      setModeStatus(`Echte KI-Antwort über das sichere Backend · ${response.provider_storage_requested ? 'Speicherung angefordert' : 'keine Provider-Speicherung angefordert'}.`);
+      setModeStatus(copy(
+        `Echte KI-Antwort über das sichere Backend · ${response.provider_storage_requested ? 'Speicherung angefordert' : 'keine Provider-Speicherung angefordert'}.`,
+        `Real AI response through the secure backend · ${response.provider_storage_requested ? 'provider storage requested' : 'no provider storage requested'}.`,
+      ));
     } catch (error) {
       setMessages((current) => [...current, {
         id: nextId + 1,
         role: 'assistant',
         mode: 'local',
-        text: `${localReply.text}\n\nDie echte KI war nicht erreichbar; deshalb wurde transparent auf die lokale Hilfe zurückgefallen.`,
+        text: `${localReply.text}\n\n${copy('Die echte KI war nicht erreichbar; deshalb wurde transparent auf die lokale Hilfe zurückgefallen.', 'Real AI was unavailable, so the assistant transparently fell back to local guidance.')}`,
       }]);
-      setModeStatus(error instanceof Error ? error.message : 'Die echte KI ist momentan nicht erreichbar.');
+      setModeStatus(error instanceof Error ? error.message : copy('Die echte KI ist momentan nicht erreichbar.', 'Real AI is currently unavailable.'));
     } finally {
       setPending(false);
     }
@@ -320,49 +351,49 @@ export function Assistant({ context, title = 'Plan Assistant', className = '', o
           onChange={(event) => setUseContext(event.target.checked)}
         />
         <span>
-          <strong>Sichere KI mit meinem gespeicherten Kontext verwenden</strong>
+          <strong>{copy('Sichere KI mit meinem gespeicherten Kontext verwenden', 'Use secure AI with my saved context')}</strong>
           <small>{!context
-            ? 'Kein Profilkontext vorhanden.'
+            ? copy('Kein Profilkontext vorhanden.', 'No profile context available.')
             : !remoteAvailable
-              ? 'Verbinde zuerst ein Backend in den Einstellungen. Ein API-Schlüssel gehört niemals in den Browser.'
-              : 'Einwilligung für diese Sitzung: Alter, Ziel, Aktivität, Schlaf, Ernährung, Tagesablauf und aktuelle Plan-Zielwerte werden an das konfigurierte Backend gesendet. Standort und Adresse niemals.'}</small>
+              ? copy('Verbinde zuerst ein Backend in den Einstellungen. Ein API-Schlüssel gehört niemals in den Browser.', 'Connect a backend in settings first. An API key never belongs in the browser.')
+              : copy('Einwilligung für diese Sitzung: Alter, Ziel, Aktivität, Schlaf, Ernährung, Tagesablauf und aktuelle Plan-Zielwerte werden an das konfigurierte Backend gesendet. Standort und Adresse niemals.', 'Consent for this session: age, goal, activity, sleep, diet, daily routine, and current plan targets are sent to the configured backend. Location and address are never included.')}</small>
         </span>
       </label>
 
-      <div className="assistant-prompts" aria-label="Suggested questions">
-        {QUICK_PROMPTS.map((prompt) => (
+      <div className="assistant-prompts" aria-label={copy('Vorgeschlagene Fragen', 'Suggested questions')}>
+        {QUICK_PROMPTS[language].map((prompt) => (
           <button type="button" key={prompt} onClick={() => void ask(prompt)} disabled={pending}>{prompt}</button>
         ))}
       </div>
 
-      <div className="assistant-log" aria-live="polite" aria-label="Assistant conversation">
+      <div className="assistant-log" aria-live="polite" aria-label={copy('Assistentenverlauf', 'Assistant conversation')}>
         {messages.map((message) => (
           <div className={`assistant-message ${message.role}`} key={message.id}>
             <span>{message.role === 'assistant'
-              ? message.mode === 'openai' ? 'Secure AI' : message.mode === 'local' ? 'Local guide' : 'CORELINE'
-              : 'Du'}</span>
+              ? message.mode === 'openai' ? 'Secure AI' : message.mode === 'local' ? copy('Lokaler Guide', 'Local guide') : 'CORELINE'
+              : copy('Du', 'You')}</span>
             <p>{message.text}</p>
           </div>
         ))}
       </div>
 
       <form className="assistant-compose" onSubmit={submit}>
-        <label htmlFor="assistant-question">Deine Frage</label>
+        <label htmlFor="assistant-question">{copy('Deine Frage', 'Your question')}</label>
         <div>
           <input
             id="assistant-question"
             value={question}
             maxLength={280}
-            placeholder="Frage nach Protein, Alternativen oder deinem Plan …"
+            placeholder={copy('Frage nach Protein, Alternativen oder deinem Plan …', 'Ask about protein, substitutions, or your plan …')}
             onChange={(event) => setQuestion(event.target.value)}
           />
-          <button type="submit" disabled={pending}>{pending ? 'Analysiert …' : useContext && remoteAvailable ? 'Sicher fragen' : 'Lokal fragen'}</button>
+          <button type="submit" disabled={pending}>{pending ? copy('Analysiert …', 'Analyzing …') : useContext && remoteAvailable ? copy('Sicher fragen', 'Ask securely') : copy('Lokal fragen', 'Ask locally')}</button>
         </div>
       </form>
 
       {onOpenShopping && (
         <button type="button" className="system-button quiet" onClick={onOpenShopping}>
-          <SystemIcon name="store" /> Einkaufsradar öffnen
+          <SystemIcon name="store" /> {copy('Einkaufsradar öffnen', 'Open shopping radar')}
         </button>
       )}
     </section>

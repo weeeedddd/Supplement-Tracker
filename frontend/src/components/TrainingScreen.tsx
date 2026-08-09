@@ -1,29 +1,51 @@
-// ═══════════════════════════════════════════════════════════════════
-//  ◈ PROTOCOL TRAINING — Trainings-Hub mit Live-Set-Tracker (OLED)
-// ═══════════════════════════════════════════════════════════════════
 import { useEffect, useState } from 'react';
-import { t } from '../lib/i18n';
-import { refresh } from '../lib/store';
+import { createPortal } from 'react-dom';
+
 import {
-  fetchWorkouts, createWorkout, generatePlan, completeWorkoutSession,
-  createDailyWorkout, getWorkoutSessions, loadWorkoutDraft, saveWorkoutProgress,
-  type Workout, type Exercise, type PlanLevel, type PlanGoal, type PlanFocus,
-  type WorkoutCompletion, type WorkoutDraft, type WorkoutSession,
+  completeWorkoutSession,
+  createDailyWorkout,
+  createWorkout,
+  fetchWorkouts,
+  generatePlan,
+  getWorkoutSessions,
+  loadWorkoutDraft,
+  saveWorkoutProgress,
+  type Exercise,
+  type PlanFocus,
+  type PlanGoal,
+  type PlanLevel,
+  type Workout,
+  type WorkoutCompletion,
+  type WorkoutDraft,
+  type WorkoutSession,
 } from '../lib/fitness';
+import { lang, t } from '../lib/i18n';
+import { useModalIsolation } from '../lib/modal';
+import { S } from '../lib/storage';
+import { refresh } from '../lib/store';
+import { PerformanceHero } from './PerformanceHero';
+import { SystemIcon } from './SystemIcon';
 import '../training.css';
 
-const IconDumbbell = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6.5 6.5 11 11"/><path d="m21 21-1-1"/><path d="m3 3 1 1"/><path d="m18 22 4-4"/><path d="m2 6 4-4"/><path d="m3 10 7-7"/><path d="m14 21 7-7"/></svg>;
-const IconPlus = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const IconX = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const IconCheck = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
-const IconZap = <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>;
-const IconClock = <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
-const IconSpark = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8"/></svg>;
+const copy = (de: string, en: string) => lang === 'de' ? de : en;
+const ACTIVE_DAILY_WORKOUT_KEY = 'train_active_daily_workout';
 
-const copy = (key: string, fallback: string) => {
-  const value = t(key);
-  return value === key ? fallback : value;
-};
+function loadActiveDailyWorkout(): Workout | null {
+  const workout = S.get<Workout>(ACTIVE_DAILY_WORKOUT_KEY);
+  if (!workout || workout.source !== 'daily' || !Array.isArray(workout.exercises) || !workout.exercises.length) return null;
+  const valid = workout.exercises.every(exercise => (
+    typeof exercise.name === 'string'
+    && exercise.name.trim().length > 0
+    && Number.isInteger(exercise.sets)
+    && exercise.sets >= 1
+    && exercise.sets <= 10
+  ));
+  if (!valid) {
+    S.del(ACTIVE_DAILY_WORKOUT_KEY);
+    return null;
+  }
+  return workout;
+}
 
 export function TrainingScreen() {
   const [plans, setPlans] = useState<Workout[]>([]);
@@ -31,99 +53,149 @@ export function TrainingScreen() {
   const [creating, setCreating] = useState(false);
   const [manualDaily, setManualDaily] = useState(false);
   const [building, setBuilding] = useState(false);
+  const [dailyWorkout, setDailyWorkout] = useState<Workout | null>(() => loadActiveDailyWorkout());
   const [sessions, setSessions] = useState<WorkoutSession[]>(() => getWorkoutSessions());
   const [toast, setToast] = useState('');
 
-  const load = () => { fetchWorkouts().then(setPlans); };
+  useModalIsolation(Boolean(active || creating || manualDaily || building), {
+    backgroundSelectors: ['.training-page', '.system-topbar', '.system-bottom-nav'],
+    onEscape: () => { setActive(null); setCreating(false); setManualDaily(false); setBuilding(false); },
+  });
+
+  const modalIdentity = active
+    ? `tracker:${String(active.id)}`
+    : creating ? 'creator:plan' : manualDaily ? 'creator:daily' : building ? 'builder:local' : '';
+  useEffect(() => {
+    if (!modalIdentity) return;
+    const dialogs = Array.from(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]'));
+    dialogs[dialogs.length - 1]?.querySelector<HTMLElement>('.modal-close, button')?.focus();
+  }, [modalIdentity]);
+
+  const load = () => { void fetchWorkouts().then(setPlans); };
   useEffect(load, []);
 
-  const flash = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3200); };
+  const flash = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 3200);
+  };
 
-  const onFinish = async (w: Workout, draft: WorkoutDraft): Promise<WorkoutCompletion> => {
-    const result = await completeWorkoutSession(w, draft);
-    if (result.status === 'completed' && result.buff) {
+  const finishWorkout = async (workout: Workout, draft: WorkoutDraft): Promise<WorkoutCompletion> => {
+    const result = await completeWorkoutSession(workout, draft);
+    if (result.status === 'completed') {
+      if (workout.source === 'daily') {
+        S.del(ACTIVE_DAILY_WORKOUT_KEY);
+        setDailyWorkout(null);
+      }
       setActive(null);
       setSessions(getWorkoutSessions());
       refresh();
-      flash(`${result.buff.icon} ${result.buff.label} · ${result.buff.desc}`);
+      flash(copy(`${workout.name} mit ${result.session?.completedSets ?? 0} Sätzen gespeichert.`, `${workout.name} saved with ${result.session?.completedSets ?? 0} completed sets.`));
     } else if (result.status === 'already-completed') {
+      if (workout.source === 'daily') {
+        S.del(ACTIVE_DAILY_WORKOUT_KEY);
+        setDailyWorkout(null);
+      }
       setActive(null);
-      flash(copy('train_already_logged', 'Diese Einheit wurde bereits gespeichert.'));
+      flash(copy('Diese Einheit wurde bereits gespeichert.', 'This session was already saved.'));
     } else {
-      flash(copy('train_complete_sets', 'Schließe zuerst alle Sätze ab.'));
+      flash(copy('Schließe zuerst alle Sätze ab.', 'Complete every set first.'));
     }
     return result;
   };
 
-  const onGenerated = (w: Workout) => {
+  const useGeneratedPlan = (workout: Workout) => {
     setBuilding(false);
     load();
-    setActive(w);   // direkt live tracken
-    flash(`${IconZapTxt} Local plan ready`);
+    setActive(workout);
+    flash(copy('Der lokale Plan ist bereit.', 'The local plan is ready.'));
   };
 
   return (
-    <div className="screen active" id="screen-training">
-      <div className="hub-wrap">
-        <div className="ki-chat-hd">
-          <div className="ki-sigil-sm">{IconDumbbell}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="ki-chat-hd-title">Training</div>
-            <div className="ki-chat-hd-sub">Build manually or start a saved local plan.</div>
-          </div>
-        </div>
+    <section className="screen active system-screen" id="screen-training">
+      <div className="system-page training-page">
+        <PerformanceHero
+          variant="training"
+          icon="training"
+          title={copy('Training', 'Training')}
+          description={copy(
+            'Baue die heutige Einheit selbst oder nutze einen transparent erzeugten lokalen Plan. Gespeichert werden nur vollständig abgehakte Sätze.',
+            'Build today’s session yourself or use a transparently generated local plan. Only fully checked sets are saved.',
+          )}
+          status={(
+            <>
+              <span><small>{copy('Pläne', 'Plans')}</small><strong>{plans.length}</strong></span>
+              <span><small>{copy('Einheiten', 'Sessions')}</small><strong>{sessions.length}</strong></span>
+              <span><small>{copy('Letzte Einheit', 'Latest')}</small><strong>{sessions[0] ? new Date(sessions[0].completedAt).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB') : '–'}</strong></span>
+            </>
+          )}
+        />
 
-        <div className="hub-scroll">
-          <button className="ai-cta" onClick={() => setBuilding(true)}>
-            <span className="ai-cta-ic">{IconSpark}</span>
-            <span className="ai-cta-tx"><b>Local plan builder</b><span>Build from transparent training rules</span></span>
-            <span className="ai-cta-go">{IconPlus}</span>
+        <section className="training-mode-grid" aria-label={copy('Training auswählen', 'Choose training mode')}>
+          <button type="button" className="training-mode primary" onClick={() => dailyWorkout ? setActive(dailyWorkout) : setManualDaily(true)}>
+            <SystemIcon name="edit" />
+            <span>
+              <strong>{dailyWorkout ? copy('Tagestraining fortsetzen', 'Resume daily workout') : copy('Tagestraining bauen', 'Build today’s workout')}</strong>
+              <small>{dailyWorkout ? copy('Deine abgehakten Sätze sind lokal gespeichert', 'Your completed sets are saved locally') : copy('Übungen und Sätze selbst festlegen', 'Choose exercises and sets yourself')}</small>
+            </span>
+            <SystemIcon name="chevron" />
           </button>
-          <div className="hub-filters">
-            <button className="chip chip-daily" onClick={() => setManualDaily(true)}>
-              {IconDumbbell}{copy('train_manual_today', 'Tagestraining starten')}
-            </button>
-            <button className="chip chip-forge" onClick={() => setCreating(true)}>{IconPlus}{t('train_forge')}</button>
-          </div>
+          <button type="button" className="training-mode" onClick={() => setBuilding(true)}>
+            <SystemIcon name="spark" />
+            <span><strong>{copy('Lokalen Plan erzeugen', 'Generate local plan')}</strong><small>{copy('Regelbasiert, nachvollziehbar und offline', 'Rule-based, transparent, and offline')}</small></span>
+            <SystemIcon name="chevron" />
+          </button>
+          <button type="button" className="training-mode" onClick={() => setCreating(true)}>
+            <SystemIcon name="plus" />
+            <span><strong>{copy('Wiederverwendbaren Plan anlegen', 'Create reusable plan')}</strong><small>{copy('Für deine persönliche Bibliothek', 'For your personal library')}</small></span>
+            <SystemIcon name="chevron" />
+          </button>
+        </section>
+
+        <section className="system-ledger training-plan-ledger" aria-labelledby="training-plan-title">
+          <header className="ledger-heading">
+            <span aria-hidden="true"><SystemIcon name="plan" /></span>
+            <h2 id="training-plan-title">{copy('Gespeicherte Pläne', 'Saved plans')}</h2>
+            <small>{plans.length}</small>
+          </header>
           <div className="plan-list">
-            {plans.map(w => (
-              <button className="plan-card" key={String(w.id)} onClick={() => setActive(w)}>
-                <div className="plan-ic">{w.icon}</div>
-                <div className="plan-body">
-                  <div className="plan-name">{w.name}</div>
-                  <div className="plan-focus">{w.focus}</div>
-                </div>
-                <div className="plan-count"><b>{w.exercises.length}</b><span>{t('train_ex')}</span></div>
+            {plans.map(workout => (
+              <button className="plan-card" type="button" key={String(workout.id)} onClick={() => setActive(workout)}>
+                <span className="plan-ic" aria-hidden="true"><SystemIcon name="training" /></span>
+                <span className="plan-body"><strong className="plan-name">{workout.name}</strong><span className="plan-focus">{workout.focus || copy('Kein Fokus angegeben', 'No focus specified')}</span></span>
+                <span className="plan-count"><b>{workout.exercises.length}</b><small>{copy('Übungen', 'exercises')}</small></span>
+                <SystemIcon name="chevron" />
               </button>
             ))}
+            {!plans.length && (
+              <div className="system-empty compact"><SystemIcon name="training" /><div><strong>{copy('Noch keine Pläne', 'No plans yet')}</strong><p>{copy('Erstelle einen eigenen oder lokalen Plan.', 'Create your own or generate a local plan.')}</p></div></div>
+            )}
           </div>
-          {sessions.length > 0 && (
-            <section className="training-history" aria-labelledby="training-history-title">
-              <h2 id="training-history-title">{copy('train_history', 'Letzte Einheiten')}</h2>
-              {sessions.slice(0, 3).map(session => (
-                <div className="training-history-row" key={session.id}>
-                  <span>{session.name}</span>
-                  <span>{session.completedSets}/{session.totalSets} · {new Date(session.completedAt).toLocaleDateString()}</span>
-                </div>
-              ))}
-            </section>
-          )}
-        </div>
+        </section>
+
+        <section className="system-ledger training-history" aria-labelledby="training-history-title">
+          <header className="ledger-heading"><span aria-hidden="true"><SystemIcon name="history" /></span><h2 id="training-history-title">{copy('Letzte Einheiten', 'Recent sessions')}</h2></header>
+          {sessions.length ? sessions.slice(0, 5).map(session => (
+            <article className="training-history-row" key={session.id}>
+              <span><strong>{session.name}</strong><small>{new Date(session.completedAt).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-GB')}</small></span>
+              <span>{session.completedSets} / {session.totalSets} {copy('Sätze', 'sets')}</span>
+            </article>
+          )) : <div className="system-empty compact"><SystemIcon name="history" /><div><strong>{copy('Noch keine abgeschlossene Einheit', 'No completed session yet')}</strong><p>{copy('Erst vollständig abgehakte Sätze werden hier gespeichert.', 'Only fully checked sets are saved here.')}</p></div></div>}
+        </section>
       </div>
 
-      {active && <LiveTracker plan={active} onClose={() => setActive(null)} onFinish={draft => onFinish(active, draft)} />}
+      {active && <LiveTracker plan={active} onClose={() => setActive(null)} onFinish={draft => finishWorkout(active, draft)} />}
       {creating && <WorkoutCreator mode="plan" onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
       {manualDaily && <WorkoutCreator mode="daily" onClose={() => setManualDaily(false)} onStarted={workout => {
+        S.set(ACTIVE_DAILY_WORKOUT_KEY, workout);
+        setDailyWorkout(workout);
         setManualDaily(false);
         setActive(workout);
       }} />}
-      {building && <AIBuilder onClose={() => setBuilding(false)} onGenerated={onGenerated} />}
-      {toast && <div className="buff-toast" role="status" aria-live="polite">{IconZap}<span>{toast}</span></div>}
-    </div>
+      {building && <LocalPlanBuilder onClose={() => setBuilding(false)} onGenerated={useGeneratedPlan} />}
+      {toast && <div className="system-toast" role="status" aria-live="polite"><SystemIcon name="check" /><span>{toast}</span></div>}
+    </section>
   );
 }
-
-const IconZapTxt = '⚡';
 
 function LiveTracker({
   plan,
@@ -147,6 +219,7 @@ function LiveTracker({
       return next;
     });
   };
+
   const total = plan.exercises.reduce((sum, exercise) => sum + Math.max(0, exercise.sets), 0);
   const checked = Object.values(done).reduce((sum, sets) => sum + sets.filter(Boolean).length, 0);
   const canFinish = total > 0 && checked === total && !finishing;
@@ -158,47 +231,50 @@ function LiveTracker({
     if (result.status !== 'completed' && result.status !== 'already-completed') setFinishing(false);
   };
 
-  return (
-    <div className="hub-modal open" onClick={onClose}>
-      <div className="hub-box hub-box-lg" role="dialog" aria-modal="true" aria-labelledby="tracker-title" onClick={e => e.stopPropagation()}>
+  return createPortal(
+    <div className="hub-modal open" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="hub-box hub-box-lg" role="dialog" aria-modal="true" aria-labelledby="tracker-title" onMouseDown={event => event.stopPropagation()}>
         <div className="hub-box-hd">
-          <span className="hub-box-title" id="tracker-title">{plan.icon} {plan.name}</span>
-          <button className="modal-close" onClick={onClose} aria-label={copy('close', 'Schließen')}>{IconX}</button>
+          <span className="hub-box-title" id="tracker-title"><SystemIcon name="training" />{plan.name}</span>
+          <button className="modal-close" type="button" onClick={onClose} aria-label={copy('Training schließen', 'Close workout')}><SystemIcon name="close" /></button>
         </div>
         <div className="tracker-prog">
-          <div className="tracker-prog-bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={checked}>
-            <div style={{ width: (total ? checked / total * 100 : 0) + '%' }} />
+          <div className="tracker-prog-bar" role="progressbar" aria-label={copy('Abgeschlossene Sätze', 'Completed sets')} aria-valuemin={0} aria-valuemax={total} aria-valuenow={checked}>
+            <div style={{ transform: `scaleX(${total ? checked / total : 0})` }} />
           </div>
-          <span>{checked}/{total} {t('train_sets')}</span>
+          <span>{checked} / {total} {copy('Sätze', 'sets')}</span>
         </div>
         <div className="hub-box-body">
           {plan.exercises.map((exercise: Exercise, exerciseIndex) => (
-            <div className="tx-exercise" key={`${exercise.name}-${exerciseIndex}`}>
+            <section className="tx-exercise" key={`${exercise.name}-${exerciseIndex}`}>
               <div className="tx-head">
                 <span className="tx-name">{exercise.name}</span>
-                <span className="tx-spec">{exercise.reps} × {exercise.weight} · {IconClock}{exercise.rest}s</span>
+                <span className="tx-spec">{exercise.reps} × {exercise.weight || '–'} · <SystemIcon name="clock" />{exercise.rest}s</span>
               </div>
               <div className="tx-sets">
                 {(done[exerciseIndex] || []).map((isDone, setIndex) => (
-                  <button key={setIndex} className={`tx-set${isDone ? ' done' : ''}`}
+                  <button
+                    type="button"
+                    key={setIndex}
+                    className={`tx-set${isDone ? ' done' : ''}`}
                     onClick={() => toggle(exerciseIndex, setIndex)}
                     aria-pressed={isDone}
-                    aria-label={`${exercise.name}, ${copy('train_set', 'Satz')} ${setIndex + 1}`}>
-                    {isDone ? IconCheck : setIndex + 1}
+                    aria-label={`${exercise.name}, ${copy('Satz', 'set')} ${setIndex + 1}`}
+                  >
+                    {isDone ? <SystemIcon name="check" /> : setIndex + 1}
                   </button>
                 ))}
               </div>
-            </div>
+            </section>
           ))}
-          {!canFinish && !finishing && (
-            <p className="tracker-hint" role="status">{copy('train_complete_sets', 'Schließe alle Sätze ab, um das Training zu speichern.')}</p>
-          )}
-          <button className="action-btn hub-log-btn" onClick={finish} disabled={!canFinish}>
-            {IconZap} {finishing ? '…' : t('train_finish')}
+          {!canFinish && !finishing && <p className="tracker-hint" role="status">{copy('Schließe alle Sätze ab, um das Training zu speichern.', 'Complete every set to save the workout.')}</p>}
+          <button className="system-primary-action hub-log-btn" type="button" onClick={() => void finish()} disabled={!canFinish}>
+            <SystemIcon name="check" />{finishing ? copy('Speichern…', 'Saving…') : copy('Training speichern', 'Save workout')}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -213,19 +289,24 @@ function WorkoutCreator({
   onSaved?: () => void;
   onStarted?: (workout: Workout) => void;
 }) {
-  const [name, setName] = useState(mode === 'daily' ? copy('train_manual_today', 'Tagestraining') : '');
+  const [name, setName] = useState(mode === 'daily' ? copy('Heutiges Training', 'Today’s workout') : '');
   const [kind, setKind] = useState('split');
-  const [focus, setFocus] = useState(mode === 'daily' ? copy('train_today', 'Heute') : '');
+  const [focus, setFocus] = useState(mode === 'daily' ? copy('Heute', 'Today') : '');
   const [rows, setRows] = useState<Exercise[]>([{ name: '', sets: 3, reps: '10', weight: '', rest: 60 }]);
+  const [error, setError] = useState('');
 
-  const setRow = (i: number, patch: Partial<Exercise>) => setRows(rows.map((r, j) => j === i ? { ...r, ...patch } : r));
-  const addRow = () => setRows([...rows, { name: '', sets: 3, reps: '10', weight: '', rest: 60 }]);
-  const delRow = (i: number) => setRows(rows.filter((_, j) => j !== i));
+  const setRow = (index: number, patch: Partial<Exercise>) => setRows(current => current.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
+  const addRow = () => setRows(current => [...current, { name: '', sets: 3, reps: '10', weight: '', rest: 60 }]);
+  const deleteRow = (index: number) => setRows(current => current.filter((_, rowIndex) => rowIndex !== index));
 
   const save = async () => {
-    const ex = rows.filter(r => r.name.trim());
-    if (!name.trim() || !ex.length) return;
-    const input = { name: name.trim(), kind, focus: focus.trim(), exercises: ex, icon: '🏋', source: 'manual' as const };
+    setError('');
+    const exercises = rows.filter(row => row.name.trim()).map(row => ({ ...row, name: row.name.trim() }));
+    if (!name.trim() || !exercises.length) {
+      setError(copy('Gib dem Training einen Namen und füge mindestens eine Übung hinzu.', 'Name the workout and add at least one exercise.'));
+      return;
+    }
+    const input = { name: name.trim(), kind, focus: focus.trim(), exercises, icon: '', source: 'manual' as const };
     if (mode === 'daily') {
       onStarted?.(createDailyWorkout(input));
       return;
@@ -234,54 +315,50 @@ function WorkoutCreator({
     onSaved?.();
   };
 
-  return (
-    <div className="hub-modal open" onClick={onClose}>
-      <div className="hub-box hub-box-lg" onClick={e => e.stopPropagation()}>
+  return createPortal(
+    <div className="hub-modal open" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="hub-box hub-box-lg" role="dialog" aria-modal="true" aria-labelledby="workout-creator-title" onMouseDown={event => event.stopPropagation()}>
         <div className="hub-box-hd">
-          <span className="hub-box-title">◈ {t('train_forge')}</span>
-          <button className="modal-close" onClick={onClose}>{IconX}</button>
+          <span className="hub-box-title" id="workout-creator-title"><SystemIcon name="edit" />{mode === 'daily' ? copy('Tagestraining bauen', 'Build today’s workout') : copy('Plan anlegen', 'Create plan')}</span>
+          <button className="modal-close" type="button" onClick={onClose} aria-label={copy('Training-Editor schließen', 'Close workout editor')}><SystemIcon name="close" /></button>
         </div>
         <div className="hub-box-body">
-          <input className="hub-input" placeholder={t('train_f_name')} value={name} onChange={e => setName(e.target.value)} />
+          <label className="system-field wide"><span>{copy('Name', 'Name')}</span><input className="hub-input" required maxLength={100} value={name} onChange={event => setName(event.target.value)} /></label>
           <div className="hub-row2">
-            <select className="hub-input" value={kind} onChange={e => setKind(e.target.value)}>
-              {['split', 'fullbody', 'push', 'pull', 'legs'].map(x => <option key={x} value={x}>{t('kind_' + x)}</option>)}
-            </select>
-            <input className="hub-input" placeholder={t('train_f_focus')} value={focus} onChange={e => setFocus(e.target.value)} />
+            <label className="system-field"><span>{copy('Art', 'Type')}</span><select className="hub-input" value={kind} onChange={event => setKind(event.target.value)}>{['split', 'fullbody', 'push', 'pull', 'legs'].map(item => <option key={item} value={item}>{t(`kind_${item}`)}</option>)}</select></label>
+            <label className="system-field"><span>{copy('Fokus', 'Focus')}</span><input className="hub-input" maxLength={100} value={focus} onChange={event => setFocus(event.target.value)} /></label>
           </div>
           <div className="tx-editor">
-            {rows.map((r, i) => (
-              <div className="tx-erow" key={i}>
-                <input className="hub-input tx-en" placeholder={t('train_f_ex')} value={r.name} onChange={e => setRow(i, { name: e.target.value })} />
-                <input className="hub-input tx-es" type="number" inputMode="numeric" value={r.sets} onChange={e => setRow(i, { sets: Math.max(1, Math.min(10, parseInt(e.target.value, 10) || 1)) })} title="Sätze" />
-                <input className="hub-input tx-er" placeholder={t('train_f_reps')} value={r.reps} onChange={e => setRow(i, { reps: e.target.value })} />
-                <input className="hub-input tx-ew" placeholder="kg" value={r.weight} onChange={e => setRow(i, { weight: e.target.value })} />
-                {rows.length > 1 && <button className="tx-del" onClick={() => delRow(i)}>{IconX}</button>}
-              </div>
+            {rows.map((row, index) => (
+              <fieldset className="tx-erow" key={index}>
+                <legend>{copy('Übung', 'Exercise')} {index + 1}</legend>
+                <label className="system-field tx-en"><span>{copy('Name', 'Name')}</span><input className="hub-input" value={row.name} onChange={event => setRow(index, { name: event.target.value })} /></label>
+                <label className="system-field tx-es"><span>{copy('Sätze', 'Sets')}</span><input className="hub-input" type="number" inputMode="numeric" min="1" max="10" value={row.sets} onChange={event => setRow(index, { sets: Math.max(1, Math.min(10, Number.parseInt(event.target.value, 10) || 1)) })} /></label>
+                <label className="system-field tx-er"><span>{copy('Wdh.', 'Reps')}</span><input className="hub-input" maxLength={24} value={row.reps} onChange={event => setRow(index, { reps: event.target.value })} /></label>
+                <label className="system-field tx-ew"><span>{copy('Gewicht', 'Weight')}</span><input className="hub-input" maxLength={24} value={row.weight} onChange={event => setRow(index, { weight: event.target.value })} /></label>
+                {rows.length > 1 && <button className="tx-del" type="button" onClick={() => deleteRow(index)} aria-label={`${copy('Übung', 'Exercise')} ${index + 1} ${copy('löschen', 'delete')}`}><SystemIcon name="delete" /></button>}
+              </fieldset>
             ))}
-            <button className="chip chip-forge tx-add" onClick={addRow}>{IconPlus}{t('train_add_ex')}</button>
+            <button className="system-button quiet tx-add" type="button" onClick={addRow}><SystemIcon name="plus" />{copy('Übung hinzufügen', 'Add exercise')}</button>
           </div>
-          <button className="action-btn" onClick={save}>
-            {mode === 'daily' ? copy('train_start', 'Training starten') : t('train_f_save')}
-          </button>
+          {error && <p className="system-inline-error" role="alert">{error}</p>}
+          <button className="system-primary-action" type="button" onClick={() => void save()}>{mode === 'daily' ? copy('Training starten', 'Start workout') : copy('Plan speichern', 'Save plan')}</button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-// ── AI PROTOCOL BUILDER — KI-gestützter Trainingsplan-Generator ──────
-function AIBuilder({ onClose, onGenerated }: { onClose: () => void; onGenerated: (w: Workout) => void }) {
+function LocalPlanBuilder({ onClose, onGenerated }: { onClose: () => void; onGenerated: (workout: Workout) => void }) {
   const [level, setLevel] = useState<PlanLevel>('beginner');
   const [goal, setGoal] = useState<PlanGoal>('muscle');
   const [focus, setFocus] = useState<PlanFocus>('push');
   const [days, setDays] = useState(3);
   const [busy, setBusy] = useState(false);
-
   const levels: PlanLevel[] = ['beginner', 'advanced', 'elite'];
   const goals: PlanGoal[] = ['muscle', 'strength', 'endurance', 'definition'];
   const focuses: PlanFocus[] = ['push', 'pull', 'legs', 'fullbody'];
-
   const preview = generatePlan({ level, goal, focus, days });
 
   const generate = async () => {
@@ -290,65 +367,53 @@ function AIBuilder({ onClose, onGenerated }: { onClose: () => void; onGenerated:
     onGenerated(saved);
   };
 
-  return (
-    <div className="hub-modal open" onClick={onClose}>
-      <div className="hub-box hub-box-lg" onClick={e => e.stopPropagation()}>
+  return createPortal(
+    <div className="hub-modal open" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <div className="hub-box hub-box-lg" role="dialog" aria-modal="true" aria-labelledby="local-plan-title" onMouseDown={event => event.stopPropagation()}>
         <div className="hub-box-hd">
-          <span className="hub-box-title">{IconSpark} Local plan builder</span>
-          <button className="modal-close" onClick={onClose}>{IconX}</button>
+          <span className="hub-box-title" id="local-plan-title"><SystemIcon name="spark" />{copy('Lokalen Plan erzeugen', 'Generate local plan')}</span>
+          <button className="modal-close" type="button" onClick={onClose} aria-label={copy('Plan-Generator schließen', 'Close plan generator')}><SystemIcon name="close" /></button>
         </div>
         <div className="hub-box-body">
+          <p className="local-builder-note"><SystemIcon name="info" />{copy('Dieser Plan entsteht aus festen Trainingsregeln auf deinem Gerät – nicht aus einer entfernten KI.', 'This plan is built from fixed training rules on your device — not by remote AI.')}</p>
+          <OptionGroup label={copy('Erfahrung', 'Experience')} values={levels} selected={level} onSelect={value => setLevel(value as PlanLevel)} translationPrefix="lvl_" />
+          <OptionGroup label={copy('Ziel', 'Goal')} values={goals} selected={goal} onSelect={value => setGoal(value as PlanGoal)} translationPrefix="goal_" />
+          <OptionGroup label={copy('Fokus', 'Focus')} values={focuses} selected={focus} onSelect={value => setFocus(value as PlanFocus)} translationPrefix="kind_" />
           <div className="ai-field">
-            <label className="ai-label">{t('ai_level')}</label>
-            <div className="ai-seg">
-              {levels.map(l => (
-                <button key={l} className={`ai-opt${level === l ? ' sel' : ''}`} onClick={() => setLevel(l)}>{t('lvl_' + l)}</button>
-              ))}
-            </div>
+            <span className="ai-label">{copy('Trainingstage pro Woche', 'Training days per week')}: <b>{days}</b></span>
+            <div className="ai-seg">{[2, 3, 4, 5, 6].map(value => <button type="button" key={value} className={`ai-opt${days === value ? ' sel' : ''}`} aria-pressed={days === value} onClick={() => setDays(value)}>{value}</button>)}</div>
           </div>
-          <div className="ai-field">
-            <label className="ai-label">{t('ai_goal')}</label>
-            <div className="ai-seg ai-seg-2">
-              {goals.map(g => (
-                <button key={g} className={`ai-opt${goal === g ? ' sel' : ''}`} onClick={() => setGoal(g)}>{t('goal_' + g)}</button>
-              ))}
-            </div>
-          </div>
-          <div className="ai-field">
-            <label className="ai-label">{t('ai_focus')}</label>
-            <div className="ai-seg ai-seg-2">
-              {focuses.map(f => (
-                <button key={f} className={`ai-opt${focus === f ? ' sel' : ''}`} onClick={() => setFocus(f)}>{t('kind_' + f)}</button>
-              ))}
-            </div>
-          </div>
-          <div className="ai-field">
-            <label className="ai-label">{t('ai_days')}: <b className="ai-days-val">{days}×</b></label>
-            <div className="ai-seg">
-              {[2, 3, 4, 5, 6].map(d => (
-                <button key={d} className={`ai-opt${days === d ? ' sel' : ''}`} onClick={() => setDays(d)}>{d}</button>
-              ))}
-            </div>
-          </div>
-
-          {/* Live-Vorschau des generierten Protokolls */}
-          <div className="ai-preview">
-            <div className="ai-preview-hd">{IconSpark}<span>{preview.name}</span></div>
+          <section className="ai-preview" aria-labelledby="local-preview-title">
+            <div className="ai-preview-hd" id="local-preview-title"><SystemIcon name="plan" /><span>{preview.name}</span></div>
             <div className="ai-preview-focus">{preview.focus}</div>
-            <div className="ai-preview-list">
-              {preview.exercises.map((ex, i) => (
-                <div className="ai-preview-ex" key={i}>
-                  <span className="ai-px-n">{ex.name}</span>
-                  <span className="ai-px-s">{ex.sets}×{ex.reps} · {IconClock}{ex.rest}s</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <button className="action-btn ai-gen-btn" onClick={generate} disabled={busy}>
-            {IconSpark} {busy ? '…' : 'Save generated plan'}
-          </button>
+            <div className="ai-preview-list">{preview.exercises.map((exercise, index) => <div className="ai-preview-ex" key={`${exercise.name}-${index}`}><span className="ai-px-n">{exercise.name}</span><span className="ai-px-s">{exercise.sets} × {exercise.reps} · <SystemIcon name="clock" />{exercise.rest}s</span></div>)}</div>
+          </section>
+          <button className="system-primary-action ai-gen-btn" type="button" onClick={() => void generate()} disabled={busy}><SystemIcon name="check" />{busy ? copy('Speichern…', 'Saving…') : copy('Plan speichern und starten', 'Save and start plan')}</button>
         </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function OptionGroup({
+  label,
+  values,
+  selected,
+  onSelect,
+  translationPrefix,
+}: {
+  label: string;
+  values: string[];
+  selected: string;
+  onSelect: (value: string) => void;
+  translationPrefix: string;
+}) {
+  return (
+    <div className="ai-field">
+      <span className="ai-label">{label}</span>
+      <div className="ai-seg ai-seg-2">
+        {values.map(value => <button type="button" key={value} className={`ai-opt${selected === value ? ' sel' : ''}`} aria-pressed={selected === value} onClick={() => onSelect(value)}>{t(`${translationPrefix}${value}`)}</button>)}
       </div>
     </div>
   );
