@@ -1,4 +1,4 @@
-const CACHE_NAME = 'coreline-shell-v3';
+const CACHE_NAME = 'coreline-shell-v4';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -9,6 +9,24 @@ const STATIC_ASSETS = [
   './assets/coreline/profile-codex/action-plate.webp',
   './assets/coreline/system-world/performance-still-life.webp',
 ];
+
+async function builtAssetsFromManifest() {
+  try {
+    const response = await fetch('./asset-manifest.json', { cache: 'reload' });
+    if (!response.ok) return [];
+    const manifest = await response.json();
+    const paths = Object.values(manifest).flatMap(entry => [
+      entry.file,
+      ...(entry.css || []),
+      ...(entry.assets || []),
+    ]).filter(Boolean);
+    return [...new Set(paths)].map(path => new URL(path, self.registration.scope).href);
+  } catch {
+    // Development servers do not emit a build manifest. Runtime caching still
+    // keeps the local shell usable there.
+    return [];
+  }
+}
 
 async function cacheBuiltShell() {
   const cache = await caches.open(CACHE_NAME);
@@ -22,9 +40,10 @@ async function cacheBuiltShell() {
     .map(path => new URL(path, self.registration.scope))
     .filter(url => url.origin === self.location.origin)
     .map(url => url.href);
+  const builtAssets = await builtAssetsFromManifest();
 
   await cache.put(new URL('./index.html', self.registration.scope), indexResponse);
-  await Promise.all([...new Set([...STATIC_ASSETS, ...linkedAssets])].map(asset => cache.add(asset)));
+  await Promise.all([...new Set([...STATIC_ASSETS, ...linkedAssets, ...builtAssets])].map(asset => cache.add(asset)));
 }
 
 self.addEventListener('install', event => {
@@ -34,7 +53,9 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
+      .then(keys => Promise.all(keys
+        .filter(key => key.startsWith('coreline-shell-') && key !== CACHE_NAME)
+        .map(key => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });

@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Assistant } from './components/Assistant';
 import { OnboardScreen } from './components/AuthScreens';
 import { CompleteOverlay } from './components/Overlays';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { FuelScreen } from './components/FuelScreen';
 import { KiScreen } from './components/KiScreen';
 import { ProfileEditor } from './components/ProfileEditor';
-import { ProfileScreen } from './components/ProfileScreen';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ShoppingScreen } from './components/ShoppingScreen';
 import { SystemIcon, type SystemIconName } from './components/SystemIcon';
-import { TrainingScreen } from './components/TrainingScreen';
-import { getBackendUrl } from './lib/backend';
+import {
+  BACKEND_CONFIGURATION_EVENT,
+  checkCurrentBackendCapabilities,
+  getBackendUrl,
+  LOCAL_BACKEND_CAPABILITIES,
+  type BackendCapabilities,
+} from './lib/backend';
 import { lang } from './lib/i18n';
 import { removeLegacyPseudoAuth, resolveInitialScreen } from './lib/localMode';
 import { useModalIsolation } from './lib/modal';
@@ -37,6 +40,10 @@ const NAVIGATION: NavigationItem[] = [
   { screen: 'ki', label: { de: 'Supps', en: 'Supps' }, icon: 'supplements' },
   { screen: 'profile', label: { de: 'Profil', en: 'Profile' }, icon: 'profile' },
 ];
+
+const FuelScreen = lazy(() => import('./components/FuelScreen').then((module) => ({ default: module.FuelScreen })));
+const TrainingScreen = lazy(() => import('./components/TrainingScreen').then((module) => ({ default: module.TrainingScreen })));
+const ProfileScreen = lazy(() => import('./components/ProfileScreen').then((module) => ({ default: module.ProfileScreen })));
 
 function localCopy(de: string, en: string): string {
   return lang === 'de' ? de : en;
@@ -64,6 +71,31 @@ function activityLevel(profile: ReturnType<typeof loadUserProfile>): 'low' | 'mo
   return 'moderate';
 }
 
+function backendLabel(capabilities: BackendCapabilities): string {
+  if (!capabilities.configured) return localCopy('Nur lokal', 'Local only');
+  if (!capabilities.reachable) return localCopy('Backend nicht erreichbar', 'Backend unavailable');
+  if (capabilities.ai && capabilities.nearbyStores) return localCopy('KI + Einkauf freigegeben', 'AI + shopping enabled');
+  if (capabilities.ai) return localCopy('KI freigegeben', 'AI enabled');
+  if (capabilities.nearbyStores) return localCopy('Einkauf freigegeben', 'Shopping enabled');
+  return localCopy('Backend erreichbar', 'Backend reachable');
+}
+
+function ScreenLoading() {
+  return (
+    <div className="screen active system-screen">
+      <section className="system-page" role="status" aria-live="polite" aria-busy="true">
+        <header className="system-page-header">
+          <span className="system-heading-mark" aria-hidden="true"><SystemIcon name="today" /></span>
+          <div>
+            <h1>{localCopy('Bereich wird geladen', 'Loading section')}</h1>
+            <p>{localCopy('Deine lokalen Daten bleiben verfügbar.', 'Your local data remains available.')}</p>
+          </div>
+        </header>
+      </section>
+    </div>
+  );
+}
+
 export default function App() {
   useAppState();
   const screen = getScreen();
@@ -71,10 +103,15 @@ export default function App() {
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [completeStreak, setCompleteStreak] = useState<number | null>(null);
+  const backendCheckGeneration = useRef(0);
+  const [backendCapabilities, setBackendCapabilities] = useState<BackendCapabilities>(() => (
+    getBackendUrl()
+      ? { ...LOCAL_BACKEND_CAPABILITIES, configured: true }
+      : LOCAL_BACKEND_CAPABILITIES
+  ));
   const profile = loadUserProfile();
   const initialPlan = S.get<InitialPlan>('initial_plan');
   const onApp = Boolean(profile) && screen !== 'onboard';
-  const secureBackendConfigured = Boolean(getBackendUrl());
   const assetBase = (import.meta as ImportMeta & { env: { BASE_URL: string } }).env.BASE_URL;
   const textureUrl = new URL(`${assetBase}assets/coreline/profile-codex/obsidian-vellum.webp`, window.location.href).href;
   const actionPlateUrl = new URL(`${assetBase}assets/coreline/profile-codex/action-plate.webp`, window.location.href).href;
@@ -84,6 +121,20 @@ export default function App() {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
     onEscape: () => setAssistantOpen(false),
   });
+
+  const verifyBackend = useCallback(async () => {
+    const generation = ++backendCheckGeneration.current;
+    const capabilities = await checkCurrentBackendCapabilities();
+    if (generation === backendCheckGeneration.current && capabilities) {
+      setBackendCapabilities(capabilities);
+    }
+  }, []);
+
+  useEffect(() => {
+    void verifyBackend();
+    window.addEventListener(BACKEND_CONFIGURATION_EVENT, verifyBackend);
+    return () => window.removeEventListener(BACKEND_CONFIGURATION_EVENT, verifyBackend);
+  }, [verifyBackend]);
 
   useEffect(() => {
     applyTheme(getCurrentTheme());
@@ -148,9 +199,7 @@ export default function App() {
         <span className="system-sigil" aria-hidden="true" />
         <div className="system-top-actions">
           <span className="system-sync-state">
-            {secureBackendConfigured
-              ? localCopy('Backend konfiguriert', 'Backend configured')
-              : localCopy('Nur lokal', 'Local only')}
+            {backendLabel(backendCapabilities)}
           </span>
           {onApp && (
             <button className="system-icon-button" type="button" onClick={() => setAssistantOpen(true)} aria-label={localCopy('CORELINE Guide öffnen', 'Open CORELINE Guide')}>
@@ -166,22 +215,29 @@ export default function App() {
       <main id="coreline-main" tabIndex={-1}>
         <ErrorBoundary label={screen}>
           {screen === 'onboard' && (
-            <OnboardScreen onAiPlanRequest={secureBackendConfigured ? requestAiInitialPlan : undefined} />
+            <OnboardScreen onAiPlanRequest={backendCapabilities.ai ? requestAiInitialPlan : undefined} />
           )}
           {screen === 'dashboard' && <Dashboard onComplete={setCompleteStreak} />}
-          {screen === 'fuel' && <FuelScreen />}
-          {screen === 'training' && <TrainingScreen />}
+          {screen === 'fuel' && <Suspense fallback={<ScreenLoading />}><FuelScreen /></Suspense>}
+          {screen === 'training' && <Suspense fallback={<ScreenLoading />}><TrainingScreen /></Suspense>}
           {screen === 'ki' && <KiScreen />}
-          {screen === 'shopping' && <ShoppingScreen />}
-          {screen === 'profile' && (
-            <ProfileScreen
-              onEditProfile={openProfileEditor}
-              onOpenTraining={() => showScreen('training')}
-              onOpenFood={() => showScreen('fuel')}
-              onOpenSupplements={() => showScreen('ki')}
-              onOpenShopping={openShopping}
-              onAdjustPlan={openProfileEditor}
+          {screen === 'shopping' && (
+            <ShoppingScreen
+              providerAvailable={backendCapabilities.nearbyStores}
+              addressSearchAvailable={backendCapabilities.addressSearch}
             />
+          )}
+          {screen === 'profile' && (
+            <Suspense fallback={<ScreenLoading />}>
+              <ProfileScreen
+                onEditProfile={openProfileEditor}
+                onOpenTraining={() => showScreen('training')}
+                onOpenFood={() => showScreen('fuel')}
+                onOpenSupplements={() => showScreen('ki')}
+                onOpenShopping={openShopping}
+                onAdjustPlan={openProfileEditor}
+              />
+            </Suspense>
           )}
         </ErrorBoundary>
       </main>
@@ -213,7 +269,12 @@ export default function App() {
                 <button className="icon-button assistant-close" type="button" onClick={() => setAssistantOpen(false)} aria-label={localCopy('Guide schließen', 'Close Guide')}>
                   <SystemIcon name="close" />
                 </button>
-                <Assistant context={assistantContext} title="CORELINE Guide" onOpenShopping={openShopping} />
+                <Assistant
+                  context={assistantContext}
+                  title="CORELINE Guide"
+                  onOpenShopping={openShopping}
+                  remoteAvailable={backendCapabilities.ai}
+                />
               </div>
             </div>
           )}
@@ -228,7 +289,12 @@ export default function App() {
           refresh();
         }}
       />
-      <SettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)} onLocalReset={resetWorkspace} />
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onLocalReset={resetWorkspace}
+        onBackendStatusChange={setBackendCapabilities}
+      />
       <CompleteOverlay streak={completeStreak} onDismiss={() => setCompleteStreak(null)} />
     </div>
   );

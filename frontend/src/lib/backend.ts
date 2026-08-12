@@ -6,6 +6,24 @@
 // ═══════════════════════════════════════════════════════════════════
 import { S, timeoutSignal } from './storage';
 
+export const BACKEND_CONFIGURATION_EVENT = 'coreline:backend-configuration';
+
+export interface BackendCapabilities {
+  configured: boolean;
+  reachable: boolean;
+  ai: boolean;
+  nearbyStores: boolean;
+  addressSearch: boolean;
+}
+
+export const LOCAL_BACKEND_CAPABILITIES: BackendCapabilities = Object.freeze({
+  configured: false,
+  reachable: false,
+  ai: false,
+  nearbyStores: false,
+  addressSearch: false,
+});
+
 export function getBackendUrl(): string {
   const stored = S.get<string>('backend_url');
   const envUrl = (import.meta as any).env?.VITE_BACKEND_URL || '';
@@ -14,15 +32,59 @@ export function getBackendUrl(): string {
 }
 export function setBackendUrl(url: string): void {
   S.set('backend_url', url.trim().replace(/\/+$/, ''));
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(BACKEND_CONFIGURATION_EVENT));
+  }
+}
+
+function providerFlag(value: unknown, key: string): boolean {
+  return Boolean(value && typeof value === 'object' && (value as Record<string, unknown>)[key] === true);
+}
+
+export function parseBackendCapabilities(
+  status: unknown,
+  configured = true,
+): BackendCapabilities {
+  const payload = status && typeof status === 'object' ? status as Record<string, unknown> : {};
+  const ai = payload.ai;
+  const stores = payload.stores;
+  return {
+    configured,
+    reachable: true,
+    ai: providerFlag(ai, 'available'),
+    nearbyStores: providerFlag(stores, 'available'),
+    addressSearch: providerFlag(stores, 'address_search_available'),
+  };
+}
+
+export async function checkBackendCapabilities(
+  base = getBackendUrl(),
+): Promise<BackendCapabilities> {
+  if (!base) return LOCAL_BACKEND_CAPABILITIES;
+  try {
+    const health = await fetch(`${base}/api/health`, { signal: timeoutSignal(5000) });
+    if (!health.ok) throw new Error('health check failed');
+
+    const status = await fetch(`${base}/api/v1/integrations/status`, { signal: timeoutSignal(6000) });
+    if (!status.ok) return { ...LOCAL_BACKEND_CAPABILITIES, configured: true, reachable: true };
+    try {
+      return parseBackendCapabilities(await status.json());
+    } catch {
+      return { ...LOCAL_BACKEND_CAPABILITIES, configured: true, reachable: true };
+    }
+  } catch {
+    return { ...LOCAL_BACKEND_CAPABILITIES, configured: true };
+  }
+}
+
+export async function checkCurrentBackendCapabilities(): Promise<BackendCapabilities | null> {
+  const checkedUrl = getBackendUrl();
+  const capabilities = await checkBackendCapabilities(checkedUrl);
+  return getBackendUrl() === checkedUrl ? capabilities : null;
 }
 
 export async function backendHealth(): Promise<boolean> {
-  const base = getBackendUrl();
-  if (!base) return false;
-  try {
-    const res = await fetch(`${base}/api/health`, { signal: timeoutSignal(5000) });
-    return res.ok;
-  } catch { return false; }
+  return (await checkBackendCapabilities()).reachable;
 }
 
 // Scan-Historie best-effort ans Backend spiegeln (fire-and-forget)

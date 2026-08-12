@@ -1,26 +1,52 @@
-# ◈ SHADOW~1 Backend (Python / FastAPI)
+# CORELINE Backend (Python / FastAPI)
 
-Server-Seite der Full-Stack-App: Auth, SQL-Persistenz, Live-Marktpreise,
-präzise Food-Analyse und der Community-Chat mit Shadow-Bot-Moderation.
+Für die aktuelle offline-first App ist `app.integration_app:app` der empfohlene
+öffentliche Einstiegspunkt. Er stellt ausschließlich die begrenzten KI- und
+Standort-Integrationen sowie Healthchecks bereit. Profil, Mahlzeiten, Training
+und Supplement-Tracking bleiben lokal im Browser.
 
-## Starten
+`app.main:app` enthält weiterhin historische Auth-, SQL-, Scan- und Chat-Routen
+für lokale Kompatibilität. Dieser Legacy-Server ist ohne zusätzliche
+Authentifizierung und Autorisierung **kein** empfohlenes öffentliches Ziel.
+
+## Minimalen Integrationsserver starten
 
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+pip install -r requirements-integrations.txt
+uvicorn app.integration_app:app --host 0.0.0.0 --port 8000
 ```
 
-Danach im Frontend (Tab „👥 NEXUS") die Server-URL eintragen, z. B.
-`http://localhost:8000` — sie wird lokal gespeichert. Alternativ beim
-Frontend-Build `VITE_BACKEND_URL` setzen.
+Alternativ baut `docker build -t coreline-integrations .` den minimalen,
+unprivilegiert laufenden Container. Danach im Frontend unter
+**Einstellungen → Integrationen** die HTTPS-Server-URL eintragen. Lokal ist
+auch `http://localhost:8000` erlaubt. Alternativ kann der Frontend-Build
+`VITE_BACKEND_URL` erhalten; dort gehört nur die Server-URL hinein, nie ein
+Provider-Schlüssel.
+
+Der minimale Server kennt diese Betriebsrouten:
+
+| Route | Zweck |
+|---|---|
+| `GET /api/health` | Liveness plus ehrlicher Provider-Status |
+| `GET /api/health/ready` | Readiness des zustandslosen API-Prozesses |
+| `GET /api/v1/integrations/status` | Verfügbare KI-/Maps-Fähigkeiten ohne Secrets |
+
+## Historischer Full-Backend-Einstiegspunkt
+
+Für ausschließlich lokale Entwicklungs- und Migrationsarbeit:
+
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
 ## Endpunkte
 
 | Route | Zweck |
 |---|---|
-| `GET /api/health` | Healthcheck (Frontend-Verbindungstest) |
+| `GET /api/health` | Legacy-Liveness/Frontend-Verbindungstest; prüft bewusst keine Provider |
 | `POST /api/auth/register` / `login` | Konten (pbkdf2-Hash, Token in SQL) |
 | `GET /api/prices/live` | Live-Marktpreise — Proxy auf die **Open Prices API** (Open Food Facts), 12h-Cache in SQL |
 | `GET /api/food/analyze?q=…&barcode=…` | Nährwert-Analyse — Proxy auf **Open Food Facts** (Barcode exakt, Volltext validiert, Gramm-Parsing) |
@@ -92,14 +118,34 @@ und [Nearby Search (New)](https://developers.google.com/maps/documentation/place
   Sichere Defaults erlauben die öffentliche GitHub-Pages-Origin und lokale
   Vite-Ports.
 - Die drei teuren anonymen Endpoints haben Body-, Timeout-, Token- und
-  Prozess-Ratenlimits. Das In-Memory-Limit gilt nur pro Prozess. Mehrere Worker
-  benötigen einen gemeinsamen Store (z. B. Redis) plus Limits am Reverse Proxy.
+  Prozess-Ratenlimits sowie eine maximale Provider-Antwortgröße. Das
+  In-Memory-Limit gilt nur pro Prozess. Mehrere Worker benötigen einen
+  gemeinsamen Store (z. B. Redis) plus Limits am Reverse Proxy.
 - Der Produktionshost muss HTTPS, Secret-Management, Provider-Quoten/Budgets,
   Monitoring ohne sensible Payloads und eine vertrauenswürdig konfigurierte
   Proxy-IP-Kette bereitstellen.
 - Google-Maps-Billing, Key-Restriktionen und die für den Betreiber geltenden
   EWR-Nutzungsbedingungen müssen vor dem öffentlichen Start eingerichtet bzw.
   geprüft werden.
+
+> **Noch keine öffentliche KI-Freigabe:** Die Integrationsrouten sind aktuell
+> anonym. CORS und das Prozess-Ratenlimit sind keine Authentifizierung und
+> verhindern keine direkten Script-Aufrufe. Setze auf einem öffentlich
+> erreichbaren Host deshalb noch keine kostenpflichtigen Provider-Schlüssel,
+> bis eine echte Zugangsentscheidung umgesetzt ist: bevorzugt reale Konten mit
+> serverseitiger Session und Nutzer-/Tagesquoten; alternativ ein bewusst
+> begrenzter Gastzugang mit Edge-Limit, Bot-Schutz und hartem Kostenbudget.
+> Ein gemeinsames Geheimnis im Browser wäre keine sichere Lösung.
+
+Selbst mit hinterlegten Provider-Schlüsseln bleiben die kostenpflichtigen
+Routen standardmäßig gesperrt. `PUBLIC_INTEGRATIONS_ENABLED=true` ist der
+bewusste Kill-Switch für einen bereits abgesicherten Rollout – kein Ersatz für
+Konten, Quoten oder Edge-Schutz.
+
+Für Container-/Load-Balancer-Probes: `/api/health` als Liveness und
+`/api/health/ready` als Readiness verwenden. HSTS, CSP/weitere Edge-Header,
+Request-IDs, vertrauenswürdige Proxy-IP-Auflösung und zentrale Logs/Metriken
+werden am HTTPS-Reverse-Proxy bzw. auf der Hosting-Plattform konfiguriert.
 
 Konfiguration siehe [`.env.example`](.env.example). Tests:
 
@@ -108,9 +154,9 @@ cd backend
 python -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 # Windows: .venv\Scripts\activate
-pip install -r requirements-dev.txt
+pip install -r requirements-integrations-dev.txt
 pytest -q
-ruff check app tests
+ruff check app/api_v1.py app/integration_app.py app/integration_models.py app/integrations.py app/security.py tests/test_integrations.py
 ```
 
 ## SQL-Schema

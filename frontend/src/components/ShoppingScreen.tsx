@@ -32,7 +32,15 @@ function safeMapsUrl(value: string): string | null {
   }
 }
 
-export function ShoppingScreen() {
+interface ShoppingScreenProps {
+  providerAvailable?: boolean;
+  addressSearchAvailable?: boolean;
+}
+
+export function ShoppingScreen({
+  providerAvailable = false,
+  addressSearchAvailable = false,
+}: ShoppingScreenProps) {
   const [country, setCountry] = useState('DE');
   const [budget, setBudget] = useState('40');
   const [currency, setCurrency] = useState('EUR');
@@ -45,6 +53,10 @@ export function ShoppingScreen() {
   const [pending, setPending] = useState(false);
   const [locating, setLocating] = useState(false);
   const backendConfigured = Boolean(getBackendUrl());
+  const currentLocationCanSearch = providerAvailable;
+  const selectedLocationCanSearch = location.kind === 'coordinates'
+    ? currentLocationCanSearch
+    : providerAvailable && addressSearchAvailable;
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -82,6 +94,14 @@ export function ShoppingScreen() {
       setStatus(copy('Bitte bestätige zuerst die einmalige Standortfreigabe für diese Suche.', 'Confirm the one-time location consent for this search first.'));
       return;
     }
+    if (!providerAvailable) {
+      setStatus(copy('Der Kartenanbieter ist serverseitig noch nicht freigegeben.', 'The maps provider is not enabled server-side yet.'));
+      return;
+    }
+    if (location.kind === 'address' && !addressSearchAvailable) {
+      setStatus(copy('Die Adresssuche ist nicht freigegeben. Nutze den aktuellen Standort oder ergänze den Geocoding-Zugang im Backend.', 'Address search is not enabled. Use your current location or configure geocoding on the backend.'));
+      return;
+    }
     if (!/^[A-Z]{2}$/.test(normalizedCountry) || !/^[A-Z]{3}$/.test(normalizedCurrency)) {
       setStatus(copy('Prüfe Länder- und Währungscode. Erwartet werden z. B. DE und EUR.', 'Check the country and currency codes, for example DE and EUR.'));
       return;
@@ -116,7 +136,7 @@ export function ShoppingScreen() {
       });
       setResult(response);
       setStatus(response.results.length
-        ? copy(`${response.results.length} echte Standorte gefunden.`, `${response.results.length} verified locations found.`)
+        ? copy(`${response.results.length} Standorte gefunden.`, `${response.results.length} locations found.`)
         : copy('Keine passenden Standorte im Suchradius gefunden.', 'No matching locations found within the search radius.'));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : copy('Die Standortsuche ist momentan nicht verfügbar.', 'Location search is currently unavailable.'));
@@ -137,12 +157,20 @@ export function ShoppingScreen() {
         </header>
 
         <div className="system-notice" role="note">
-          <SystemIcon name={backendConfigured ? 'shield' : 'warning'} />
+          <SystemIcon name={providerAvailable ? 'shield' : 'warning'} />
           <div>
-            <strong>{backendConfigured ? copy('Sichere Verbindung vorbereitet', 'Secure connection prepared') : copy('Backend noch nicht verbunden', 'Backend not connected yet')}</strong>
-            <span>{backendConfigured
-              ? copy('Adressen werden nur für die einzelne Suche verarbeitet und weder im Browserprofil noch im KI-Kontext gespeichert.', 'Addresses are processed only for the individual search and are not stored in the browser profile or AI context.')
-              : copy('GitHub Pages kann keinen geheimen Karten-Schlüssel hosten. Hinterlege in den Einstellungen die URL eines sicheren CORELINE-Backends.', 'GitHub Pages cannot host a secret maps key. Add the URL of a secure CORELINE backend in settings.')}</span>
+            <strong>{providerAvailable
+              ? copy('Kartenanbieter freigegeben', 'Maps provider enabled')
+              : backendConfigured
+                ? copy('Kartenanbieter nicht freigegeben', 'Maps provider not enabled')
+                : copy('Backend noch nicht verbunden', 'Backend not connected yet')}</strong>
+            <span>{providerAvailable
+              ? addressSearchAvailable
+                ? copy('Adresse und Standort sind verfügbar. Angaben werden nur für die einzelne Suche verarbeitet und nie im KI-Kontext gespeichert.', 'Address and current-location search are available. Details are processed only for the individual search and never enter AI context.')
+                : copy('Die Standortsuche ist verfügbar; für Adressen fehlt serverseitig noch Geocoding.', 'Current-location search is available; server-side geocoding is still missing for addresses.')
+              : backendConfigured
+                ? copy('Das Backend antwortet, hat Google Maps aber nicht serverseitig freigegeben. Die Suche bleibt deshalb gesperrt.', 'The backend responds but Google Maps is not enabled server-side, so search remains locked.')
+                : copy('GitHub Pages kann keinen geheimen Karten-Schlüssel hosten. Hinterlege in den Einstellungen die URL eines sicheren CORELINE-Backends.', 'GitHub Pages cannot host a secret maps key. Add the URL of a secure CORELINE backend in settings.')}</span>
           </div>
         </div>
 
@@ -189,7 +217,7 @@ export function ShoppingScreen() {
             </div>
 
             <div className="shopping-location-actions">
-              <button className="system-button quiet" type="button" onClick={useCurrentLocation} disabled={locating}>
+              <button className="system-button quiet" type="button" onClick={useCurrentLocation} disabled={locating || !currentLocationCanSearch}>
                 <SystemIcon name="location" /> {locating ? copy('Standort wird gelesen …', 'Reading location …') : copy('Aktuellen Standort nutzen', 'Use current location')}
               </button>
               {location.kind === 'coordinates' && (
@@ -202,7 +230,7 @@ export function ShoppingScreen() {
               <span>{copy('Ich stimme zu, dass Standort oder Adresse einmalig an den konfigurierten Kartenanbieter gesendet werden, um Supermärkte zu finden. Die Angabe wird nicht im Profil gespeichert.', 'I consent to sending the location or address once to the configured maps provider to find supermarkets. It is not stored in the profile.')}</span>
             </label>
 
-            <button className="system-primary-action" type="submit" disabled={pending || !backendConfigured}>
+            <button className="system-primary-action" type="submit" disabled={pending || !selectedLocationCanSearch}>
               <SystemIcon name="search" /> {pending ? copy('Suche läuft', 'Searching') : copy('Supermärkte finden', 'Find supermarkets')}
             </button>
             {status && <p className="shopping-budget-note" role="status">{status}</p>}

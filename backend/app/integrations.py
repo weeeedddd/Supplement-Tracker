@@ -64,6 +64,17 @@ def _timeout_seconds() -> int:
     return _bounded_env_int("INTEGRATION_TIMEOUT_SECONDS", 15, 3, 25)
 
 
+def _max_response_bytes() -> int:
+    return _bounded_env_int(
+        "INTEGRATION_MAX_RESPONSE_BYTES", 512 * 1024, 64 * 1024, 2 * 1024 * 1024
+    )
+
+
+def public_integrations_enabled() -> bool:
+    """Require an explicit operator decision before cost-bearing routes run."""
+    return _env("PUBLIC_INTEGRATIONS_ENABLED").casefold() in {"1", "true", "yes"}
+
+
 def _openai_config() -> tuple[str, str]:
     return _env("OPENAI_API_KEY"), _env("OPENAI_MODEL")
 
@@ -79,22 +90,40 @@ def _google_keys() -> tuple[str, str]:
 def integration_status() -> dict:
     openai_key, openai_model = _openai_config()
     geocoding_key, places_key = _google_keys()
-    ai_available = bool(openai_key and openai_model)
+    public_access = public_integrations_enabled()
+    ai_available = public_access and bool(openai_key and openai_model)
+    stores_available = public_access and bool(places_key)
+    unavailable_reason = (
+        "public_access_disabled" if not public_access else "server_not_configured"
+    )
     return {
         "ai": {
             "available": ai_available,
             "provider": "openai",
             "mode": "remote" if ai_available else "unavailable",
-            "reason": None if ai_available else "server_not_configured",
+            "reason": None if ai_available else unavailable_reason,
         },
         "stores": {
-            "available": bool(places_key),
+            "available": stores_available,
             "provider": "google_maps",
-            "coordinate_search_available": bool(places_key),
-            "address_search_available": bool(places_key and geocoding_key),
-            "reason": None if places_key else "server_not_configured",
+            "coordinate_search_available": stores_available,
+            "address_search_available": stores_available and bool(geocoding_key),
+            "reason": None if stores_available else unavailable_reason,
         },
     }
+
+
+def _decode_provider_json(payload: bytes) -> dict:
+    """Decode one bounded provider response as a JSON object."""
+    if len(payload) > _max_response_bytes():
+        raise InvalidProviderResponse("provider response exceeded the size limit")
+    try:
+        data = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise InvalidProviderResponse("provider returned invalid JSON") from exc
+    if not isinstance(data, dict):
+        raise InvalidProviderResponse("provider returned an invalid object")
+    return data
 
 
 async def _request_json(
@@ -110,23 +139,42 @@ async def _request_json(
 
     async def send() -> dict:
         timeout = httpx.Timeout(timeout_seconds, connect=min(5, timeout_seconds))
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            response = await client.request(
+        async with (
+            httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client,
+            client.stream(
                 method,
                 url,
                 headers=headers,
                 params=params,
                 json=json_body,
-            )
+            ) as response,
+        ):
             if response.status_code < 200 or response.status_code >= 300:
                 raise ProviderFailure("provider request failed")
-            try:
-                data = response.json()
-            except ValueError as exc:
-                raise InvalidProviderResponse("provider returned invalid JSON") from exc
-            if not isinstance(data, dict):
-                raise InvalidProviderResponse("provider returned an invalid object")
-            return data
+
+            maximum = _max_response_bytes()
+            content_length = response.headers.get("content-length")
+            if content_length:
+                try:
+                    if int(content_length) > maximum:
+                        raise InvalidProviderResponse(
+                            "provider response exceeded the size limit"
+                        )
+                except ValueError as exc:
+                    raise InvalidProviderResponse(
+                        "provider returned an invalid content length"
+                    ) from exc
+
+            chunks: list[bytes] = []
+            received = 0
+            async for chunk in response.aiter_bytes():
+                received += len(chunk)
+                if received > maximum:
+                    raise InvalidProviderResponse(
+                        "provider response exceeded the size limit"
+                    )
+                chunks.append(chunk)
+            return _decode_provider_json(b"".join(chunks))
 
     try:
         return await asyncio.wait_for(send(), timeout=timeout_seconds + 1)

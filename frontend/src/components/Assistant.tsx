@@ -1,7 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 
 import type { DietPreference, EquipmentOption, TrainingGoal } from '../lib/plans';
-import { getBackendUrl } from '../lib/backend';
 import { lang } from '../lib/i18n';
 import { requestRemoteAssistant } from '../lib/integrations';
 import { SystemIcon } from './SystemIcon';
@@ -221,6 +220,7 @@ export interface AssistantProps {
   title?: string;
   className?: string;
   onOpenShopping?: () => void;
+  remoteAvailable?: boolean;
 }
 
 const QUICK_PROMPTS = {
@@ -235,7 +235,7 @@ function remoteGoal(goal?: TrainingGoal): 'healthy_routine' | 'general_fitness' 
   return goal === 'general_fitness' ? 'general_fitness' : 'healthy_routine';
 }
 
-export function Assistant({ context, title = 'Plan Assistant', className = '', onOpenShopping }: AssistantProps) {
+export function Assistant({ context, title = 'Plan Assistant', className = '', onOpenShopping, remoteAvailable = false }: AssistantProps) {
   const language: AssistantLanguage = lang === 'de' ? 'de' : 'en';
   const copy = (de: string, en: string) => language === 'de' ? de : en;
   const [useContext, setUseContext] = useState(false);
@@ -245,7 +245,6 @@ export function Assistant({ context, title = 'Plan Assistant', className = '', o
   ]);
   const [pending, setPending] = useState(false);
   const [modeStatus, setModeStatus] = useState(copy('Lokale Regeln sind aktiv. Es werden keine Daten übertragen.', 'Local rules are active. No data is transmitted.'));
-  const remoteAvailable = Boolean(getBackendUrl());
   const nextId = useMemo(() => messages.reduce((max, message) => Math.max(max, message.id), 0) + 1, [messages]);
 
   const ask = async (raw: string) => {

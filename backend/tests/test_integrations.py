@@ -8,12 +8,12 @@ from fastapi.testclient import TestClient
 
 from app import integrations
 from app.api_v1 import reset_rate_limiters
+from app.integration_app import app
 from app.integration_models import (
     AssistantRespondRequest,
     NearbyStoresRequest,
     PlanDraftRequest,
 )
-from app.main import app
 from app.security import InMemoryRateLimiter, parse_cors_origins
 
 client = TestClient(app)
@@ -23,6 +23,7 @@ client = TestClient(app)
 def clean_integration_environment(monkeypatch: pytest.MonkeyPatch):
     reset_rate_limiters()
     for name in (
+        "PUBLIC_INTEGRATIONS_ENABLED",
         "OPENAI_API_KEY",
         "OPENAI_MODEL",
         "GOOGLE_MAPS_API_KEY",
@@ -30,6 +31,7 @@ def clean_integration_environment(monkeypatch: pytest.MonkeyPatch):
         "GOOGLE_PLACES_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("PUBLIC_INTEGRATIONS_ENABLED", "true")
 
 
 def plan_request_payload() -> dict:
@@ -158,6 +160,84 @@ def test_status_is_honest_when_integrations_are_unconfigured():
         "reason": "server_not_configured",
     }
     assert response.json()["stores"]["available"] is False
+
+
+def test_public_integration_app_is_minimal_and_reports_capabilities():
+    response = client.get("/api/health")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "ok": True,
+        "service": "coreline-integrations",
+        "version": "1.0.0",
+        "integrations": {
+            "ai": {
+                "available": False,
+                "provider": "openai",
+                "mode": "unavailable",
+                "reason": "server_not_configured",
+            },
+            "stores": {
+                "available": False,
+                "provider": "google_maps",
+                "coordinate_search_available": False,
+                "address_search_available": False,
+                "reason": "server_not_configured",
+            },
+        },
+    }
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert client.post("/api/auth/register", json={}).status_code == 404
+    assert client.post("/api/scans", json={}).status_code == 404
+    assert client.get("/docs").status_code == 404
+
+
+def test_health_and_readiness_are_not_cached_and_have_security_headers():
+    for path in ("/api/health", "/api/health/ready"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.json()["ok"] is True
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["x-frame-options"] == "DENY"
+        assert response.headers["referrer-policy"] == "no-referrer"
+        assert response.headers["permissions-policy"] == (
+            "camera=(), microphone=(), geolocation=()"
+        )
+
+
+def test_provider_response_decoder_rejects_oversized_or_non_object_json(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("INTEGRATION_MAX_RESPONSE_BYTES", str(64 * 1024))
+    with pytest.raises(integrations.InvalidProviderResponse):
+        integrations._decode_provider_json(b"x" * (64 * 1024 + 1))
+    with pytest.raises(integrations.InvalidProviderResponse):
+        integrations._decode_provider_json(b"[]")
+    assert integrations._decode_provider_json(b'{"ok":true}') == {"ok": True}
+
+
+def test_cost_bearing_routes_are_default_deny_even_when_keys_exist(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("PUBLIC_INTEGRATIONS_ENABLED", raising=False)
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key-not-a-secret")
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "maps-test-key")
+
+    status = client.get("/api/v1/integrations/status")
+    assert status.status_code == 200
+    assert status.json()["ai"]["available"] is False
+    assert status.json()["ai"]["reason"] == "public_access_disabled"
+    assert status.json()["stores"]["available"] is False
+    assert status.json()["stores"]["reason"] == "public_access_disabled"
+
+    response = client.post("/api/v1/assistant/respond", json=assistant_request_payload())
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "Public provider access is disabled on this server."
+    }
 
 
 def test_plan_endpoint_rejects_under_18_and_location_fields():

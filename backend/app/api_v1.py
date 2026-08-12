@@ -24,6 +24,7 @@ from .integrations import (
     generate_assistant_reply,
     generate_plan_draft,
     integration_status,
+    public_integrations_enabled,
 )
 from .security import InMemoryRateLimiter
 
@@ -86,6 +87,14 @@ def reset_rate_limiters() -> None:
     _assistant_limiter.clear()
 
 
+def _require_public_provider_access() -> None:
+    if not public_integrations_enabled():
+        raise HTTPException(
+            503,
+            "Public provider access is disabled on this server.",
+        )
+
+
 @router.get("/integrations/status")
 async def get_integration_status() -> dict:
     return integration_status()
@@ -96,6 +105,7 @@ async def create_plan_draft(
     body: PlanDraftRequest,
     _: None = Depends(_limit_plan),
 ) -> PlanDraftEnvelope:
+    _require_public_provider_access()
     try:
         draft, model = await generate_plan_draft(body)
     except IntegrationUnavailable as exc:
@@ -126,6 +136,7 @@ async def assistant_respond(
     body: AssistantRespondRequest,
     _: None = Depends(_limit_assistant),
 ) -> AssistantReplyEnvelope:
+    _require_public_provider_access()
     try:
         reply, model = await generate_assistant_reply(body)
     except IntegrationUnavailable as exc:
@@ -152,6 +163,7 @@ async def nearby_stores(
     body: NearbyStoresRequest,
     _: None = Depends(_limit_stores),
 ) -> NearbyStoresEnvelope:
+    _require_public_provider_access()
     try:
         result = await find_nearby_stores(body)
     except IntegrationUnavailable as exc:

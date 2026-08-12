@@ -11,5 +11,6 @@ export default defineConfig({
     outDir: 'dist',
     emptyOutDir: true,
     assetsDir: 'assets',
+    manifest: 'asset-manifest.json',
   },
 });

@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
-import { backendHealth, getBackendUrl, setBackendUrl } from '../lib/backend';
+import {
+  checkBackendCapabilities,
+  getBackendUrl,
+  setBackendUrl,
+  type BackendCapabilities,
+} from '../lib/backend';
 import { LANG_NAMES, lang, setLang } from '../lib/i18n';
 import { collectExportableLocalData, LOCAL_SYNC_STATE } from '../lib/localMode';
 import { useModalIsolation } from '../lib/modal';
@@ -21,6 +26,7 @@ interface SettingsPanelProps {
   open: boolean;
   onClose: () => void;
   onLocalReset: () => void;
+  onBackendStatusChange?: (capabilities: BackendCapabilities) => void;
 }
 
 function validSecureBackendUrl(value: string): boolean {
@@ -33,7 +39,7 @@ function validSecureBackendUrl(value: string): boolean {
   }
 }
 
-export function SettingsPanel({ open, onClose, onLocalReset }: SettingsPanelProps) {
+export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChange }: SettingsPanelProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [resetArmed, setResetArmed] = useState(false);
   const [backendDraft, setBackendDraft] = useState('');
@@ -98,17 +104,31 @@ export function SettingsPanel({ open, onClose, onLocalReset }: SettingsPanelProp
     }
     setCheckingBackend(true);
     setBackendStatus(copy('Verbindung wird geprüft …', 'Checking connection …'));
-    const healthy = await backendHealth();
+    const capabilities = await checkBackendCapabilities();
+    onBackendStatusChange?.(capabilities);
     setCheckingBackend(false);
-    setBackendStatus(healthy
-      ? copy(
-        'Backend erreichbar. KI und Standortsuche werden pro Anfrage weiterhin separat geprüft.',
-        'Backend reachable. AI and location search are still checked separately for every request.',
-      )
-      : copy(
+    if (!capabilities.reachable) {
+      setBackendStatus(copy(
         'Backend nicht erreichbar. URL wurde gespeichert; die App fällt weiterhin sicher auf lokale Funktionen zurück.',
         'Backend unavailable. The URL was saved; the app continues to fall back safely to local features.',
       ));
+      return;
+    }
+    if (capabilities.ai && capabilities.nearbyStores) {
+      setBackendStatus(copy(
+        'Backend erreichbar. OpenAI und Google Maps sind serverseitig freigegeben; jede echte Anfrage wird weiterhin separat geprüft.',
+        'Backend reachable. OpenAI and Google Maps are enabled server-side; every real request is still checked separately.',
+      ));
+      return;
+    }
+    const missing = [
+      !capabilities.ai ? copy('OpenAI', 'OpenAI') : '',
+      !capabilities.nearbyStores ? copy('Google Maps', 'Google Maps') : '',
+    ].filter(Boolean).join(' + ');
+    setBackendStatus(copy(
+      `Backend erreichbar. ${missing} ist serverseitig nicht freigegeben; lokale Funktionen bleiben aktiv.`,
+      `Backend reachable. ${missing} is not enabled server-side; local features remain active.`,
+    ));
   };
 
   return (
