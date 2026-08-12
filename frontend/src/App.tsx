@@ -26,6 +26,7 @@ import { requestAiInitialPlan } from './lib/remotePlan';
 import { S } from './lib/storage';
 import { getScreen, refresh, showScreen, type Screen, useAppState } from './lib/store';
 import { applyTheme, getCurrentTheme } from './lib/themes';
+import type { ProfileTab } from './components/ProfileScreen';
 
 interface NavigationItem {
   screen: Extract<Screen, 'dashboard' | 'fuel' | 'training' | 'ki' | 'profile'>;
@@ -102,6 +103,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
+  const [profileInitialTab, setProfileInitialTab] = useState<ProfileTab>('overview');
   const [completeStreak, setCompleteStreak] = useState<number | null>(null);
   const backendCheckGeneration = useRef(0);
   const [backendCapabilities, setBackendCapabilities] = useState<BackendCapabilities>(() => (
@@ -188,6 +190,10 @@ export default function App() {
   };
 
   const openProfileEditor = () => setProfileEditorOpen(true);
+  const openProgressPhotos = () => {
+    setProfileInitialTab('progress');
+    showScreen('profile');
+  };
 
   return (
     <div className="coreline-app">
@@ -217,7 +223,7 @@ export default function App() {
           {screen === 'onboard' && (
             <OnboardScreen onAiPlanRequest={backendCapabilities.ai ? requestAiInitialPlan : undefined} />
           )}
-          {screen === 'dashboard' && <Dashboard onComplete={setCompleteStreak} />}
+          {screen === 'dashboard' && <Dashboard onComplete={setCompleteStreak} onOpenProgressPhotos={openProgressPhotos} />}
           {screen === 'fuel' && <Suspense fallback={<ScreenLoading />}><FuelScreen /></Suspense>}
           {screen === 'training' && <Suspense fallback={<ScreenLoading />}><TrainingScreen /></Suspense>}
           {screen === 'ki' && <KiScreen />}
@@ -230,6 +236,7 @@ export default function App() {
           {screen === 'profile' && (
             <Suspense fallback={<ScreenLoading />}>
               <ProfileScreen
+                initialTab={profileInitialTab}
                 onEditProfile={openProfileEditor}
                 onOpenTraining={() => showScreen('training')}
                 onOpenFood={() => showScreen('fuel')}
@@ -249,7 +256,10 @@ export default function App() {
               key={item.screen}
               type="button"
               className={screen === item.screen ? 'system-nav-item active' : 'system-nav-item'}
-              onClick={() => showScreen(item.screen)}
+              onClick={() => {
+                if (item.screen === 'profile') setProfileInitialTab('overview');
+                showScreen(item.screen);
+              }}
               aria-current={screen === item.screen ? 'page' : undefined}
             >
               <SystemIcon name={item.icon} />

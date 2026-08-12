@@ -29,6 +29,14 @@ import {
 import { S } from '../lib/storage';
 import { lang } from '../lib/i18n';
 import { showScreen } from '../lib/store';
+import {
+  DEFAULT_PROGRESS_PHOTO_REMINDER_WEEKS,
+  saveProgressPhotoCheckIn,
+  type ProgressPhotoReminderWeeks,
+} from '../lib/progressPhotos';
+import { setProgressPhotoCadence } from '../lib/progressPhotoPreferences';
+import { ProgressPhotoCapture, type ProgressPhotoDraft } from './ProgressPhotoCapture';
+import { SystemIcon } from './SystemIcon';
 import '../onboarding.css';
 
 export interface OfflineProfileWelcomeProps {
@@ -61,7 +69,7 @@ export interface OnboardScreenProps {
   onAiConsentChange?: (consented: boolean) => void;
 }
 
-type OnboardingStep = 1 | 2 | 3 | 4;
+type OnboardingStep = 1 | 2 | 3 | 4 | 5;
 type PlanErrors = ReturnType<typeof validatePlanInput>['errors'];
 
 interface LifestyleDraft {
@@ -82,13 +90,14 @@ interface LifestyleDraft {
 type LifestyleErrorKey = keyof LifestyleDraft;
 type LifestyleErrors = Partial<Record<LifestyleErrorKey, string>>;
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
 const STEP_TITLES: Record<OnboardingStep, { de: string; en: string }> = {
   1: { de: 'Wähle deinen Planungsweg', en: 'Choose your planning path' },
   2: { de: 'Erstelle dein Trainingsdossier', en: 'Build your training dossier' },
-  3: { de: 'Beschreibe deine echte Woche', en: 'Describe your real week' },
-  4: { de: 'Prüfe deine erste Woche', en: 'Review your first week' },
+  3: { de: 'Optionaler Foto-Startpunkt', en: 'Optional photo baseline' },
+  4: { de: 'Beschreibe deine echte Woche', en: 'Describe your real week' },
+  5: { de: 'Prüfe deine erste Woche', en: 'Review your first week' },
 };
 
 const DIFFICULTIES: Array<{ id: PlanDifficulty; label: string; detail: string }> = [
@@ -481,6 +490,11 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
   const [generationNote, setGenerationNote] = useState('');
   const [generationOrigin, setGenerationOrigin] = useState<PlanGenerationOrigin>('local-rules');
   const [plan, setPlan] = useState<InitialPlan | null>(null);
+  const [progressPhotos, setProgressPhotos] = useState<ProgressPhotoDraft>({});
+  const [photoCadenceWeeks, setPhotoCadenceWeeks] = useState<ProgressPhotoReminderWeeks>(DEFAULT_PROGRESS_PHOTO_REMINDER_WEEKS);
+  const [photoSaveError, setPhotoSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [photoProcessing, setPhotoProcessing] = useState(false);
 
   useEffect(() => { headingRef.current?.focus(); }, [step]);
 
@@ -528,6 +542,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     const result = validatePlanInput(input);
     setErrors(localizedPlanErrors(result.errors));
     if (!result.valid) return;
+    if (input.age < 18) setProgressPhotos({});
     setStep(3);
   };
 
@@ -579,21 +594,38 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     setGenerationOrigin(nextOrigin);
     setGenerationNote(nextNote);
     setIsGenerating(false);
-    setStep(4);
+    setStep(5);
   };
 
-  const finish = () => {
+  const finish = async (withoutPhotos = false) => {
     if (!plan) return;
     const profile = userProfileFromPlanInput(input, {
       dietaryPreferences: stringList(lifestyleDraft.dietaryPreferences),
       lifestyle: lifestyleFromDraft(lifestyleDraft),
     });
     const payload: OnboardingCompletePayload = { input, plan, profile, generationOrigin };
+    const selectedPhotos = Object.values(progressPhotos).some((photo) => photo instanceof Blob);
+    setIsSaving(true);
+    setPhotoSaveError('');
+    if (!withoutPhotos && selectedPhotos && input.age >= 18) {
+      try {
+        await saveProgressPhotoCheckIn({ photos: progressPhotos });
+        setProgressPhotoCadence(photoCadenceWeeks);
+      } catch {
+        setPhotoSaveError(copy(
+          'Dein Plan ist bereit, aber die Fotos konnten im privaten Browserspeicher nicht gesichert werden. Du kannst es erneut versuchen oder ohne Fotos fortfahren.',
+          'Your plan is ready, but the photos could not be saved in private browser storage. Try again or continue without photos.',
+        ));
+        setIsSaving(false);
+        return;
+      }
+    }
     if (onComplete) onComplete(payload);
     else {
       persistLocalResult(payload);
       showScreen('dashboard');
     }
+    setIsSaving(false);
   };
 
   const toggleEquipment = (item: EquipmentOption) => {
@@ -610,6 +642,8 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
 
   const firstError = Object.values(errors)[0] ?? Object.values(lifestyleErrors)[0];
   const aiEligible = input.age >= 18;
+  const photoEligible = input.age >= 18;
+  const hasProgressPhotos = Object.values(progressPhotos).some((photo) => photo instanceof Blob);
 
   return (
     <section className="screen active onboarding-screen" id="screen-onboard" aria-labelledby="onboarding-title">
@@ -713,6 +747,52 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
         </>}
 
         {step === 3 && <>
+          <p className="onboarding-section-intro">{copy(
+            'Wenn du möchtest, legst du jetzt einen privaten visuellen Startpunkt an. Jedes der vier Fotos ist einzeln optional; es gibt keine Körperanalyse, Bewertung oder Übertragung.',
+            'If you want, create a private visual baseline now. Each of the four photos is individually optional; there is no body analysis, scoring, or transfer.',
+          )}</p>
+          {photoEligible ? (
+            <>
+              <ProgressPhotoCapture
+                value={progressPhotos}
+                onChange={setProgressPhotos}
+                cadenceWeeks={photoCadenceWeeks}
+                onCadenceChange={setPhotoCadenceWeeks}
+                onBusyChange={setPhotoProcessing}
+                showCadence
+                locale={lang === 'de' ? 'de' : 'en'}
+              />
+              <div className="onboarding-photo-privacy system-notice">
+                <SystemIcon name="shield" aria-hidden="true" />
+                <p>{copy(
+                  'Die komprimierten Fotos bleiben in diesem Browserprofil und sind nicht Teil des JSON-Backups, des KI-Kontexts oder einer Backend-Anfrage. Dieser lokale Speicher ist nicht zusätzlich durch CORELINE verschlüsselt; wer Zugriff auf dein entsperrtes Browserprofil hat, kann auf Website-Daten zugreifen. Das Löschen von Website-Daten kann die Fotos entfernen.',
+                  'Compressed photos stay in this browser profile and are not part of the JSON backup, AI context, or any backend request. This local storage is not additionally encrypted by CORELINE; anyone with access to your unlocked browser profile may be able to access site data. Clearing site data can remove the photos.',
+                )}</p>
+              </div>
+            </>
+          ) : (
+            <div className="system-notice">
+              <SystemIcon name="shield" aria-hidden="true" />
+              <p>{copy(
+                'Fortschrittsfotos sind in dieser ersten Version auf Erwachsene beschränkt. Du kannst die Einrichtung ohne Fotos vollständig abschließen.',
+                'Progress photos are limited to adults in this first release. You can complete setup fully without photos.',
+              )}</p>
+            </div>
+          )}
+          <div className="onboarding-actions">
+            <button className="local-secondary" type="button" disabled={photoProcessing} onClick={() => setStep(2)}>{copy('Zurück', 'Back')}</button>
+            {hasProgressPhotos && (
+              <button className="local-secondary" type="button" disabled={photoProcessing} onClick={() => { setProgressPhotos({}); setStep(4); }}>
+                {copy('Ohne Fotos weiter', 'Continue without photos')}
+              </button>
+            )}
+            <button className="local-primary" type="button" disabled={photoProcessing} onClick={() => setStep(4)}>
+              {photoProcessing ? copy('Foto wird verarbeitet …', 'Processing photo…') : hasProgressPhotos ? copy('Fotos vormerken & weiter', 'Keep photos & continue') : copy('Jetzt überspringen', 'Skip for now')}
+            </button>
+          </div>
+        </>}
+
+        {step === 4 && <>
           <p className="onboarding-section-intro">{copy('Teile nur Angaben, die du für die Planung verwenden möchtest. Freitext bleibt lokal, solange du der KI-Anfrage unten nicht ausdrücklich zustimmst.', 'Share only what you are comfortable using for planning. Free-text context stays local unless you explicitly approve the AI request below.')}</p>
 
           <fieldset className="onboarding-fieldset onboarding-dossier-group">
@@ -788,13 +868,13 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
           </section>}
 
           <div className="onboarding-actions">
-            <button className="local-secondary" type="button" onClick={() => setStep(2)} disabled={isGenerating}>{copy('Zurück', 'Back')}</button>
+            <button className="local-secondary" type="button" onClick={() => setStep(3)} disabled={isGenerating}>{copy('Zurück', 'Back')}</button>
             <button className="local-primary" type="button" onClick={() => void preview()} disabled={isGenerating}>{isGenerating ? copy('Vorschau wird erstellt …', 'Building preview…') : mode === 'guided' && onAiPlanRequest && aiConsent && aiEligible ? copy('KI-Vorschau erzeugen', 'Generate AI preview') : copy('Lokale Vorschau erstellen', 'Build local preview')}</button>
           </div>
           <p className="onboarding-generation-status" aria-live="polite">{isGenerating ? copy('Dein Plan wird erstellt. Lasse diese Seite geöffnet.', 'Generating your plan. Keep this page open.') : ''}</p>
         </>}
 
-        {step === 4 && plan && <>
+        {step === 5 && plan && <>
           <div className="onboarding-summary">
             <span>{generationOrigin === 'remote-ai' ? copy('VERBUNDENE KI-ANTWORT', 'CONNECTED AI RESPONSE') : copy('VORSCHAU AUS LOKALEN REGELN', 'LOCAL RULES PREVIEW')}</span>
             <strong>{plan.emphasis}</strong>
@@ -814,7 +894,12 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
           <div className="onboarding-plan-list">{plan.sessions.map((session) => <article key={session.day}><header><span>{copy('TAG', 'DAY')} {session.day}</span><strong>{session.focus}</strong><small>{copy('Etwa', 'About')} {session.durationMinutes} min</small></header><ul>{session.exercises.map((exercise) => <li key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.sets} {copy('Sätze', 'sets')} / {exercise.reps} / {exercise.effort}</span></li>)}</ul></article>)}</div>
           <div className="onboarding-safety"><strong>{copy('Sicherheitsgrenze', 'Safety boundary')}</strong><ul>{plan.safetyNotes.map((note) => <li key={note}>{note}</li>)}</ul></div>
           <p className="onboarding-hint">{copy('Es wird kein Supplement-Protokoll und keine Dosierung erstellt. Supplement-Tracking bleibt eine separate, bewusste Auswahl.', 'No supplement protocol or dose is created. Supplement tracking remains a separate, explicit choice.')}</p>
-          <div className="onboarding-actions"><button className="local-secondary" type="button" onClick={() => setStep(3)}>{copy('Angaben bearbeiten', 'Edit details')}</button><button className="local-primary" type="button" onClick={finish}>{copy('Lokalen Plan speichern', 'Save local plan')}</button></div>
+          {photoSaveError && <p className="onboarding-error" role="alert">{photoSaveError}</p>}
+          <div className="onboarding-actions">
+            <button className="local-secondary" type="button" onClick={() => setStep(4)} disabled={isSaving}>{copy('Angaben bearbeiten', 'Edit details')}</button>
+            {photoSaveError && <button className="local-secondary" type="button" onClick={() => void finish(true)} disabled={isSaving}>{copy('Ohne Fotos fortfahren', 'Continue without photos')}</button>}
+            <button className="local-primary" type="button" onClick={() => void finish()} disabled={isSaving}>{isSaving ? copy('Wird lokal gespeichert …', 'Saving locally…') : copy('Lokalen Plan speichern', 'Save local plan')}</button>
+          </div>
         </>}
       </div>
     </section>

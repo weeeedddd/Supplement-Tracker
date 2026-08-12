@@ -9,6 +9,7 @@ import {
 import { LANG_NAMES, lang, setLang } from '../lib/i18n';
 import { collectExportableLocalData, LOCAL_SYNC_STATE } from '../lib/localMode';
 import { useModalIsolation } from '../lib/modal';
+import { deleteAllProgressPhotos } from '../lib/progressPhotos';
 import { S } from '../lib/storage';
 import { applyTheme, getCurrentTheme } from '../lib/themes';
 import { SystemIcon } from './SystemIcon';
@@ -45,6 +46,8 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
   const [backendDraft, setBackendDraft] = useState('');
   const [backendStatus, setBackendStatus] = useState('');
   const [checkingBackend, setCheckingBackend] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [resetStatus, setResetStatus] = useState('');
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -54,6 +57,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
   useEffect(() => {
     if (!open) {
       setResetArmed(false);
+      setResetStatus('');
       return;
     }
     setBackendDraft(getBackendUrl());
@@ -74,7 +78,19 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     URL.revokeObjectURL(url);
   };
 
-  const resetLocalData = () => {
+  const resetLocalData = async () => {
+    setResetting(true);
+    setResetStatus('');
+    try {
+      await deleteAllProgressPhotos();
+    } catch {
+      setResetStatus(copy(
+        'Die private Fotobibliothek konnte nicht gelöscht werden. Andere Daten wurden deshalb noch nicht verändert. Prüfe den Browserspeicher und versuche es erneut.',
+        'The private photo library could not be deleted. Other data was left unchanged. Check browser storage and try again.',
+      ));
+      setResetting(false);
+      return;
+    }
     const appKeys: string[] = [];
     for (let index = 0; index < localStorage.length; index++) {
       const key = localStorage.key(index);
@@ -216,7 +232,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
         <div className="settings-section data-actions">
           <div>
             <strong>{copy('Lokales Backup', 'Local backup')}</strong>
-            <p>{copy('Lade eine JSON-Sicherung herunter. Veraltete Demo-Anmeldedaten werden immer ausgeschlossen.', 'Download a JSON backup. Obsolete demo credentials are always excluded.')}</p>
+            <p>{copy('Lade eine JSON-Sicherung herunter. Fortschrittsfotos und veraltete Demo-Anmeldedaten sind bewusst nicht enthalten.', 'Download a JSON backup. Progress photos and obsolete demo credentials are deliberately excluded.')}</p>
           </div>
           <button className="secondary-button" type="button" onClick={exportData}>{copy('Daten exportieren', 'Export data')}</button>
         </div>
@@ -224,16 +240,17 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
         <div className="settings-section danger-zone">
           <div>
             <strong>{copy('Dieses Gerät zurücksetzen', 'Reset this device')}</strong>
-            <p>{copy('Löscht alle CORELINE-Daten in diesem Browser. Exportiere vorher ein Backup, wenn du sie behalten möchtest.', 'Deletes all CORELINE data in this browser. Export a backup first if you want to keep it.')}</p>
+            <p>{copy('Löscht alle CORELINE-Daten einschließlich Fortschrittsfotos in diesem Browser. Fotos sind nicht im JSON-Backup enthalten und werden endgültig entfernt.', 'Deletes all CORELINE data, including progress photos, in this browser. Photos are not part of the JSON backup and will be permanently removed.')}</p>
           </div>
           {!resetArmed ? (
             <button className="danger-button" type="button" onClick={() => setResetArmed(true)}>{copy('Zurücksetzen vorbereiten', 'Prepare reset')}</button>
           ) : (
             <div className="confirm-actions">
               <button className="secondary-button" type="button" onClick={() => setResetArmed(false)}>{copy('Abbrechen', 'Cancel')}</button>
-              <button className="danger-button" type="button" onClick={resetLocalData}>{copy('Lokale Daten löschen', 'Delete local data')}</button>
+              <button className="danger-button" type="button" disabled={resetting} onClick={() => void resetLocalData()}>{resetting ? copy('Wird gelöscht …', 'Deleting…') : copy('Lokale Daten löschen', 'Delete local data')}</button>
             </div>
           )}
+          {resetStatus && <p className="system-inline-error" role="alert">{resetStatus}</p>}
         </div>
       </section>
     </div>

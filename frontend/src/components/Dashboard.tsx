@@ -26,7 +26,9 @@ import { analyzeImageLocally, analyzeTextLocally } from '../lib/scanner';
 import { dateKey, S } from '../lib/storage';
 import { refresh, useAppState } from '../lib/store';
 import { PerformanceHero } from './PerformanceHero';
+import { ProgressPhotoReminder } from './ProgressPhotoReminder';
 import { SystemIcon } from './SystemIcon';
+import { loadUserProfile } from '../lib/profile';
 
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
 const MAX_FOOD_PHOTO_BYTES = 8 * 1024 * 1024;
@@ -59,7 +61,13 @@ function progressStyle(value: number): CSSProperties {
   return { transform: `scaleX(${Math.max(0, Math.min(1, value))})` };
 }
 
-export function Dashboard({ onComplete }: { onComplete: (streak: number) => void }) {
+export function Dashboard({
+  onComplete,
+  onOpenProgressPhotos,
+}: {
+  onComplete: (streak: number) => void;
+  onOpenProgressPhotos: () => void;
+}) {
   useAppState();
   const currentDateKey = dateKey();
   const protocol = asArray<ProtocolItem>(S.get('protocol'));
@@ -74,6 +82,7 @@ export function Dashboard({ onComplete }: { onComplete: (streak: number) => void
     day: '2-digit',
     month: 'long',
   }).format(new Date());
+  const photoEligible = (loadUserProfile()?.age ?? 0) >= 18;
 
   useEffect(() => {
     const checkDate = () => {
@@ -132,6 +141,12 @@ export function Dashboard({ onComplete }: { onComplete: (streak: number) => void
               <span><small>{copy('Energie', 'Energy')}</small><strong>{Math.round(consumed.kcal)} kcal</strong></span>
             </>
           )}
+        />
+
+        <ProgressPhotoReminder
+          onOpen={onOpenProgressPhotos}
+          eligible={photoEligible}
+          locale={lang === 'de' ? 'de' : 'en'}
         />
 
         <div className="today-command-grid">

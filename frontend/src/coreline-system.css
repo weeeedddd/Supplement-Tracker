@@ -565,7 +565,7 @@ h3,
 .profile-summary-row strong { display: block; color: var(--cl-bone); font-size: .77rem; }
 .profile-summary-row span { display: block; margin-top: 3px; color: var(--cl-dim); font-size: .67rem; }
 
-.codex-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: -1px 18px 0; border: 1px solid var(--cl-line-strong); background: var(--cl-obsidian); }
+.codex-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: -1px 18px 0; border: 1px solid var(--cl-line-strong); background: var(--cl-obsidian); }
 .codex-tab { position: relative; min-height: 58px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; color: var(--cl-muted); background: transparent; border: 0; border-right: 1px solid var(--cl-line); cursor: pointer; }
 .codex-tab:last-child { border-right: 0; }
 .codex-tab.active { color: var(--cl-cyan); }

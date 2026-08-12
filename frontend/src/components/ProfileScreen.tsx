@@ -1,13 +1,14 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { getFoodLog } from '../lib/engine';
 import { getWorkoutSessions, type WorkoutSession } from '../lib/fitness';
 import { lang } from '../lib/i18n';
 import { loadUserProfile, type UserProfileV3 } from '../lib/profile';
 import { dateKey, S } from '../lib/storage';
 import { useAppState } from '../lib/store';
+import { ProgressPhotoPanel } from './ProgressPhotoPanel';
 import { SystemIcon, type SystemIconName } from './SystemIcon';
 
-type ProfileTab = 'overview' | 'plan' | 'history';
+export type ProfileTab = 'overview' | 'plan' | 'history' | 'progress';
 
 export interface ProfileScreenProps {
   onEditProfile: () => void;
@@ -15,6 +16,7 @@ export interface ProfileScreenProps {
   onOpenFood: () => void;
   onOpenSupplements: () => void;
   onOpenShopping: () => void;
+  initialTab?: ProfileTab;
   /** Opens a review/edit flow. The Profile Codex never replaces stored plans itself. */
   onAdjustPlan: () => void;
 }
@@ -46,6 +48,7 @@ const TABS: Array<{ id: ProfileTab; icon: SystemIconName; de: string; en: string
   { id: 'overview', icon: 'profile', de: 'Übersicht', en: 'Overview' },
   { id: 'plan', icon: 'plan', de: 'Plan', en: 'Plan' },
   { id: 'history', icon: 'history', de: 'Verlauf', en: 'History' },
+  { id: 'progress', icon: 'camera', de: 'Fotos', en: 'Photos' },
 ];
 
 const copy = (de: string, en: string): string => lang === 'de' ? de : en;
@@ -225,11 +228,14 @@ export function ProfileScreen({
   onOpenSupplements,
   onOpenShopping,
   onAdjustPlan,
+  initialTab = 'overview',
 }: ProfileScreenProps) {
   useAppState();
-  const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+  const [activeTab, setActiveTab] = useState<ProfileTab>(initialTab);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const profile = loadUserProfile();
+
+  useEffect(() => setActiveTab(initialTab), [initialTab]);
 
   if (!profile) {
     return (
@@ -495,6 +501,17 @@ export function ProfileScreen({
                 </article>
               )}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'progress' && (
+          <div
+            id="profile-panel-progress"
+            role="tabpanel"
+            aria-labelledby="profile-tab-progress"
+            tabIndex={0}
+          >
+            <ProgressPhotoPanel age={profile.age} locale={lang === 'de' ? 'de' : 'en'} />
           </div>
         )}
 
