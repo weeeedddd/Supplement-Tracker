@@ -8,6 +8,13 @@ export type EquipmentOption = 'bodyweight' | 'dumbbells' | 'resistance_bands' | 
 export type DietPreference = 'flexible' | 'omnivore' | 'vegetarian' | 'vegan';
 export type TrainingGoal = 'general_fitness' | 'build_muscle' | 'get_stronger' | 'fat_loss';
 export type PlanLanguage = 'de' | 'en';
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'high' | 'very_high';
+
+export interface NutritionCalculationContext {
+  gender?: 'm' | 'f' | 'x';
+  activityLevel?: ActivityLevel;
+  activityContext?: string;
+}
 
 export interface InspirationProfile {
   id: InspirationProfileId;
@@ -131,7 +138,13 @@ export interface NutritionTargets {
   carbs: number;
   fat: number;
   sugar: number;
-  method: 'neutral-mifflin-estimate-v1' | 'openai-estimate-v1';
+  maintenanceCalories?: number;
+  goalAdjustmentCalories?: number;
+  goalAdjustmentPercent?: number;
+  proteinPerKg?: number;
+  activityLevel?: ActivityLevel;
+  activityFactor?: number;
+  method: 'neutral-mifflin-estimate-v1' | 'mifflin-st-jeor-profile-v2' | 'openai-estimate-v1';
   note: string;
 }
 
@@ -159,44 +172,110 @@ const EQUIPMENT = new Set<EquipmentOption>(['bodyweight', 'dumbbells', 'resistan
 const DIETS = new Set<DietPreference>(['flexible', 'omnivore', 'vegetarian', 'vegan']);
 const GOALS = new Set<TrainingGoal>(['general_fitness', 'build_muscle', 'get_stronger', 'fat_loss']);
 
-export function calculateNutritionTargets(input: PlanInput, language: PlanLanguage = 'en'): NutritionTargets {
+const ACTIVITY_FACTORS: Record<ActivityLevel, number> = {
+  sedentary: 1.2,
+  light: 1.35,
+  moderate: 1.5,
+  high: 1.65,
+  very_high: 1.8,
+};
+
+const roundTo = (value: number, step: number): number => Math.round(value / step) * step;
+const clamp = (value: number, minimum: number, maximum: number): number => Math.min(maximum, Math.max(minimum, value));
+
+export function resolveActivityLevel(
+  explicit: ActivityLevel | undefined,
+  context = '',
+  daysPerWeek = 3,
+): ActivityLevel {
+  if (explicit && explicit in ACTIVITY_FACTORS) return explicit;
+  const value = context.toLowerCase();
+  if (/very[ -]?active|athlete|two workouts|15k|15000|schwer körperlich|leistungssport|zweimal täglich/.test(value)) return 'very_high';
+  if (/high|active|physical|manual|10k|10000|viel beweg|körperlich|fahrrad|cycling/.test(value)) return 'high';
+  if (/light|walk|6k|6000|stehend|spazier|leicht aktiv/.test(value)) return 'light';
+  if (/low|sedentary|seated|desk|office|wenig beweg|sitz|büro/.test(value)) return 'sedentary';
+  if (daysPerWeek >= 5) return 'high';
+  if (daysPerWeek <= 2) return 'light';
+  return 'moderate';
+}
+
+function goalAdjustmentPercent(input: PlanInput, bmi: number): number {
+  if (input.age < 18) return 0;
+  if (input.goal === 'build_muscle') {
+    return input.experience === 'advanced' ? .05 : input.experience === 'intermediate' ? .06 : .08;
+  }
+  if (input.goal === 'get_stronger') return .03;
+  if (input.goal !== 'fat_loss') return 0;
+  if (bmi < 18.5) return 0;
+  if (bmi < 22) return -.1;
+  if (bmi >= 30) return -.18;
+  return -.15;
+}
+
+export function calculateNutritionTargets(
+  input: PlanInput,
+  language: PlanLanguage = 'en',
+  context: NutritionCalculationContext = {},
+): NutritionTargets {
   const validation = validatePlanInput(input);
   if (!validation.valid) throw new Error(`Invalid nutrition input: ${Object.keys(validation.errors).join(', ')}`);
 
-  // Sex is intentionally not requested. The midpoint of the two Mifflin-St Jeor
-  // constants is used as a neutral planning estimate, then adjusted conservatively
-  // for scheduled training days and goal. It is a starting point, not a diagnosis.
-  const restingEstimate = 10 * input.weightKg + 6.25 * input.heightCm - 5 * input.age - 78;
-  const activityFactor = ({ 2: 1.4, 3: 1.48, 4: 1.55, 5: 1.62, 6: 1.68 } as Record<number, number>)[input.daysPerWeek];
-  const goalFactor: Record<TrainingGoal, number> = {
-    general_fitness: 1,
-    build_muscle: 1.08,
-    get_stronger: 1.03,
-    fat_loss: .9,
-  };
-  const rawCalories = restingEstimate * activityFactor * goalFactor[input.goal];
-  const targetCalories = Math.max(1_200, Math.min(4_500, Math.round(rawCalories / 10) * 10));
+  // Mifflin-St Jeor remains an estimate. The neutral option uses the midpoint
+  // between the published male and female constants instead of guessing sex.
+  const sexConstant = context.gender === 'f' ? -161 : context.gender === 'm' ? 5 : -78;
+  const restingEstimate = 10 * input.weightKg + 6.25 * input.heightCm - 5 * input.age + sexConstant;
+  const activityLevel = resolveActivityLevel(context.activityLevel, context.activityContext, input.daysPerWeek);
+  const trainingAdjustment = clamp((input.daysPerWeek - 3) * .025, -.025, .075);
+  const activityFactor = clamp(ACTIVITY_FACTORS[activityLevel] + trainingAdjustment, 1.2, 1.9);
+  const maintenanceCalories = clamp(roundTo(restingEstimate * activityFactor, 10), 1_200, 4_500);
+  const bmi = input.weightKg / Math.pow(input.heightCm / 100, 2);
+  const requestedAdjustment = goalAdjustmentPercent(input, bmi);
+  const plannedCalories = clamp(
+    roundTo(maintenanceCalories * (1 + requestedAdjustment), 10),
+    Math.max(1_200, roundTo(restingEstimate * 1.1, 10)),
+    4_500,
+  );
   const proteinFactor: Record<TrainingGoal, number> = {
     general_fitness: 1.6,
     build_muscle: 1.8,
     get_stronger: 1.7,
-    fat_loss: 1.9,
+    fat_loss: 2,
   };
-  const protein = Math.min(250, Math.round(input.weightKg * proteinFactor[input.goal]));
-  const fat = Math.min(140, Math.max(40, Math.round(Math.max(input.weightKg * .7, targetCalories * .22 / 9))));
-  const carbs = Math.max(80, Math.round((targetCalories - protein * 4 - fat * 9) / 4));
+  const effectiveProteinFactor = input.age < 18
+    ? Math.min(1.6, proteinFactor[input.goal])
+    : proteinFactor[input.goal];
+  const protein = Math.min(240, roundTo(input.weightKg * effectiveProteinFactor, 5));
+  const fatEnergyShare = input.goal === 'fat_loss' ? .25 : .27;
+  const fat = Math.min(140, Math.max(40, roundTo(Math.max(input.weightKg * .7, plannedCalories * fatEnergyShare / 9), 5)));
+  const carbs = Math.max(80, roundTo((plannedCalories - protein * 4 - fat * 9) / 4, 5));
   const calories = protein * 4 + carbs * 4 + fat * 9;
+  const actualAdjustmentCalories = calories - maintenanceCalories;
+  const actualAdjustmentPercent = maintenanceCalories > 0 ? actualAdjustmentCalories / maintenanceCalories : 0;
+
+  const adjustmentCopy = actualAdjustmentCalories > 0
+    ? language === 'de' ? `kontrollierter Überschuss von ${actualAdjustmentCalories} kcal/Tag` : `controlled surplus of ${actualAdjustmentCalories} kcal/day`
+    : actualAdjustmentCalories < 0
+      ? language === 'de' ? `moderates Defizit von ${Math.abs(actualAdjustmentCalories)} kcal/Tag` : `moderate deficit of ${Math.abs(actualAdjustmentCalories)} kcal/day`
+      : language === 'de' ? 'Erhaltungsniveau ohne geplanten Überschuss oder Defizit' : 'maintenance level with no planned surplus or deficit';
 
   return {
     calories,
     protein,
     carbs,
     fat,
-    sugar: Math.min(carbs, Math.round(carbs * .2)),
-    method: 'neutral-mifflin-estimate-v1',
+    // This is a free-sugar planning ceiling. Product databases often expose
+    // total sugar, so the UI explains that the two values are not identical.
+    sugar: Math.min(carbs, roundTo(calories * .1 / 4, 5)),
+    maintenanceCalories,
+    goalAdjustmentCalories: actualAdjustmentCalories,
+    goalAdjustmentPercent: Math.round(actualAdjustmentPercent * 1_000) / 10,
+    proteinPerKg: Math.round(protein / input.weightKg * 10) / 10,
+    activityLevel,
+    activityFactor: Math.round(activityFactor * 1_000) / 1_000,
+    method: 'mifflin-st-jeor-profile-v2',
     note: language === 'de'
-      ? 'Ein neutraler Startwert auf Basis von Alter, Größe, Gewicht, Trainingstagen und Ziel. Prüfe ihn anhand echter Gewichts-, Hunger-, Energie- und Trainingsverläufe.'
-      : 'A neutral starting estimate based on age, height, weight, training days, and goal. Review it against real weight, hunger, energy, and training trends.',
+      ? `Startschätzung nach Mifflin-St. Jeor mit Gewicht, Größe, Alter, Körpermodell, Aktivität, ${input.daysPerWeek} Trainingstagen und Ziel: ${adjustmentCopy}. Nach 2–3 Wochen anhand des echten Gewichtsverlaufs prüfen.`
+      : `Mifflin-St Jeor starting estimate using weight, height, age, body model, activity, ${input.daysPerWeek} training days, and goal: ${adjustmentCopy}. Review against the real 2–3 week weight trend.`,
   };
 }
 
@@ -514,7 +593,11 @@ function sessionFocus(input: PlanInput, index: number, language: PlanLanguage): 
   return labels[index % labels.length];
 }
 
-export function generateInitialPlan(input: PlanInput, language: PlanLanguage = 'en'): InitialPlan {
+export function generateInitialPlan(
+  input: PlanInput,
+  language: PlanLanguage = 'en',
+  nutritionContext: NutritionCalculationContext = {},
+): InitialPlan {
   const validation = validatePlanInput(input);
   if (!validation.valid) throw new Error(`Invalid plan input: ${Object.keys(validation.errors).join(', ')}`);
 
@@ -581,7 +664,7 @@ export function generateInitialPlan(input: PlanInput, language: PlanLanguage = '
     experience: input.experience,
     daysPerWeek: input.daysPerWeek,
     sessions,
-    nutritionTargets: calculateNutritionTargets(input, language),
+    nutritionTargets: calculateNutritionTargets(input, language, nutritionContext),
     recoveryGuidance: language === 'de'
       ? `Plane nach der forderndsten Einheit mindestens einen leichteren oder freien Tag ein. Die Intensität „${input.difficulty}“ verändert das Volumen, nicht ein versprochenes Ergebnis.`
       : `Place at least one easier or rest day after your most demanding session. The ${input.difficulty} setting changes volume, not a promised outcome.`,

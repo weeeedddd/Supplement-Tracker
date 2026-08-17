@@ -4,6 +4,8 @@ import {
   estimateCaloriesFromMacros,
   logMeal,
   normalizeNutrition,
+  scaleIngredientLine,
+  scaleNutrition,
   validateNutrition,
 } from './fitness';
 
@@ -76,5 +78,17 @@ describe('nutrition calculations and persistence', () => {
     await logMeal({ name: 'Balanced bowl', kcal: 510, prot: 32, carb: 58, fat: 17, sug: 9 });
 
     expect(calcConsumed()).toEqual({ kcal: 510, prot: 32, carb: 58, fat: 17, sug: 9 });
+  });
+
+  it('recalculates every nutrient and ingredient amount for fractional servings', () => {
+    expect(scaleNutrition({ kcal: 510, prot: 32, carb: 58, fat: 17, sug: 9 }, 1.5)).toEqual({
+      kcal: 765,
+      prot: 48,
+      carb: 87,
+      fat: 25.5,
+      sug: 13.5,
+    });
+    expect(scaleIngredientLine('160 g Hähnchenbrust', 1.5)).toBe('240 g Hähnchenbrust');
+    expect(scaleIngredientLine('1 Stück Wrap', .5)).toBe('0,5 Stück Wrap');
   });
 });

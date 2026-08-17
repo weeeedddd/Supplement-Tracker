@@ -27,7 +27,7 @@ import {
   processDueNotifications,
 } from './lib/notifications';
 import type { InitialPlan } from './lib/plans';
-import { loadUserProfile } from './lib/profile';
+import { calculateNutritionTargetsForProfile, loadUserProfile } from './lib/profile';
 import { requestAiInitialPlan } from './lib/remotePlan';
 import { S } from './lib/storage';
 import { getScreen, refresh, showScreen, type Screen, useAppState } from './lib/store';
@@ -61,6 +61,7 @@ function lifestyleSummary(profile: ReturnType<typeof loadUserProfile>): string |
   return [
     profile.lifestyle.workStudyPattern,
     profile.lifestyle.typicalDay,
+    profile.lifestyle.activityLevel ? `${profile.lifestyle.activityLevel} activity level` : undefined,
     profile.lifestyle.activityContext,
     profile.lifestyle.sleepDurationHours === undefined ? undefined : `${profile.lifestyle.sleepDurationHours} h sleep`,
     profile.lifestyle.sleepQuality ? `${profile.lifestyle.sleepQuality} sleep quality` : undefined,
@@ -72,6 +73,10 @@ function lifestyleSummary(profile: ReturnType<typeof loadUserProfile>): string |
 }
 
 function activityLevel(profile: ReturnType<typeof loadUserProfile>): 'low' | 'moderate' | 'high' {
+  const selected = profile?.lifestyle.activityLevel;
+  if (selected === 'high' || selected === 'very_high') return 'high';
+  if (selected === 'sedentary' || selected === 'light') return 'low';
+  if (selected === 'moderate') return 'moderate';
   const value = `${profile?.lifestyle.activityContext ?? ''} ${profile?.lifestyle.workStudyPattern ?? ''}`.toLowerCase();
   if (/physical|active|10k|10000|körperlich|viel beweg/.test(value)) return 'high';
   if (/desk|seated|sitting|büro|sitz|wenig beweg/.test(value)) return 'low';
@@ -126,6 +131,19 @@ export default function App() {
   const textureUrl = new URL(`${assetBase}assets/coreline/profile-codex/obsidian-vellum.webp`, window.location.href).href;
   const actionPlateUrl = new URL(`${assetBase}assets/coreline/profile-codex/action-plate.webp`, window.location.href).href;
   const performanceStillLifeUrl = new URL(`${assetBase}assets/coreline/system-world/performance-still-life.webp`, window.location.href).href;
+  const nutritionProfileSignature = profile ? [
+    profile.age,
+    profile.heightCm,
+    profile.weightKg,
+    profile.gender,
+    profile.goal,
+    profile.experience,
+    profile.daysPerWeek,
+    profile.lifestyle.activityLevel,
+    profile.lifestyle.activityContext,
+    profile.lifestyle.workStudyPattern,
+    profile.lifestyle.typicalDay,
+  ].join('|') : '';
 
   useModalIsolation(assistantOpen && onApp, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -179,6 +197,32 @@ export default function App() {
     );
     showScreen(loadUserProfile() ? 'dashboard' : resolveInitialScreen((key) => S.get(key)));
   }, [actionPlateUrl, performanceStillLifeUrl, textureUrl]);
+
+  useEffect(() => {
+    const current = loadUserProfile();
+    if (!current) return;
+    const targets = calculateNutritionTargetsForProfile(current, lang === 'de' ? 'de' : 'en');
+    const previous = S.get<InitialPlan['nutritionTargets']>('nutrition_targets_v2');
+    const unchanged = previous?.method === targets.method
+      && previous.calories === targets.calories
+      && previous.protein === targets.protein
+      && previous.carbs === targets.carbs
+      && previous.fat === targets.fat
+      && previous.sugar === targets.sugar
+      && previous.activityLevel === targets.activityLevel;
+    if (unchanged) return;
+    S.set('nutrition_targets_v2', targets);
+    S.set('macros', {
+      kcal: targets.calories,
+      prot: targets.protein,
+      carb: targets.carbs,
+      fat: targets.fat,
+      sug: targets.sugar,
+    });
+    const plan = S.get<InitialPlan>('initial_plan');
+    if (plan) S.set('initial_plan', { ...plan, nutritionTargets: targets });
+    refresh();
+  }, [nutritionProfileSignature]);
 
   const assistantContext = useMemo(() => ({
     displayName: profile?.displayName,

@@ -19,15 +19,22 @@ const validRecipe = {
 } satisfies RecipeCatalogEntry;
 
 describe('typed recipe catalog', () => {
-  it('ships a small, complete, internally valid curated sample', () => {
-    expect(CURATED_RECIPES.length).toBeGreaterThanOrEqual(3);
-    expect(CURATED_RECIPES.length).toBeLessThanOrEqual(8);
+  it('ships a varied, complete, internally consistent high-protein library', () => {
+    expect(CURATED_RECIPES.length).toBeGreaterThanOrEqual(12);
+    expect(CURATED_RECIPES.length).toBeLessThanOrEqual(20);
     expect(new Set(CURATED_RECIPES.map(recipe => recipe.id)).size).toBe(CURATED_RECIPES.length);
     for (const recipe of CURATED_RECIPES) {
       expect(recipe.ingredients.length).toBeGreaterThanOrEqual(2);
       expect(recipe.steps.length).toBeGreaterThanOrEqual(2);
       expect(recipe.nutritionPerServing.sugar).toBeLessThanOrEqual(recipe.nutritionPerServing.carbs);
+      expect(recipe.nutritionPerServing.protein).toBeGreaterThanOrEqual(25);
+      const macroCalories = recipe.nutritionPerServing.protein * 4
+        + recipe.nutritionPerServing.carbs * 4
+        + recipe.nutritionPerServing.fat * 9;
+      expect(Math.abs(macroCalories - recipe.nutritionPerServing.kcal)).toBeLessThanOrEqual(25);
     }
+    expect(CURATED_RECIPES.some(recipe => recipe.diets?.includes('vegan'))).toBe(true);
+    expect(CURATED_RECIPES.some(recipe => recipe.category === 'dessert')).toBe(true);
   });
 
   it('imports valid versioned recipes, de-duplicates ids, and reports rejected rows', () => {
@@ -57,6 +64,7 @@ describe('typed recipe catalog', () => {
       carb: 50,
       fat: 10,
       sug: 12,
+      servings: 1,
     });
     expect(dish.ingredients[0]).toContain('rolled oats');
   });

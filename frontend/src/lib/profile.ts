@@ -1,6 +1,9 @@
 import { S } from './storage';
 import {
+  calculateNutritionTargets,
+  resolveActivityLevel,
   validatePlanInput,
+  type ActivityLevel,
   type DietPreference,
   type EquipmentOption,
   type ExperienceLevel,
@@ -9,6 +12,8 @@ import {
   type PlanInput,
   type PlanMode,
   type TrainingGoal,
+  type NutritionTargets,
+  type PlanLanguage,
 } from './plans';
 
 export const USER_PROFILE_SCHEMA_VERSION = 3 as const;
@@ -27,6 +32,7 @@ export type CookingAccess = 'none' | 'limited' | 'full';
 export interface LifestyleProfile {
   workStudyPattern?: string;
   typicalDay?: string;
+  activityLevel?: ActivityLevel;
   activityContext?: string;
   sleepDurationHours?: number;
   sleepQuality?: SleepQuality;
@@ -66,6 +72,7 @@ export interface UserProfileV3 {
 export interface LifestyleProfilePatch {
   workStudyPattern?: string | null;
   typicalDay?: string | null;
+  activityLevel?: ActivityLevel | null;
   activityContext?: string | null;
   sleepDurationHours?: number | null;
   sleepQuality?: SleepQuality | null;
@@ -139,6 +146,7 @@ const INSPIRATION_PROFILES = new Set<InspirationProfileId>(['toji', 'goku', 'tan
 const GENDERS = new Set<ProfileGender>(['m', 'f', 'x']);
 const SLEEP_QUALITY = new Set<SleepQuality>(['poor', 'fair', 'good', 'variable']);
 const COOKING_ACCESS = new Set<CookingAccess>(['none', 'limited', 'full']);
+const ACTIVITY_LEVELS = new Set<ActivityLevel>(['sedentary', 'light', 'moderate', 'high', 'very_high']);
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -272,6 +280,7 @@ function normalizeLifestyle(value: unknown, fallback: LifestyleProfile = {}): Li
   const lifestyle: LifestyleProfile = {};
   const workStudyPattern = optionalText(source.workStudyPattern, PROFILE_LIMITS.shortText, fallback.workStudyPattern);
   const typicalDay = optionalText(source.typicalDay, PROFILE_LIMITS.typicalDay, fallback.typicalDay);
+  const activityLevel = optionalEnumValue(source.activityLevel, ACTIVITY_LEVELS, fallback.activityLevel);
   const activityContext = optionalText(source.activityContext, PROFILE_LIMITS.activityContext, fallback.activityContext);
   const sleepDurationHours = optionalBoundedNumber(source.sleepDurationHours, 0, 16, fallback.sleepDurationHours);
   const sleepQuality = optionalEnumValue(source.sleepQuality, SLEEP_QUALITY, fallback.sleepQuality);
@@ -291,6 +300,7 @@ function normalizeLifestyle(value: unknown, fallback: LifestyleProfile = {}): Li
 
   if (workStudyPattern !== undefined) lifestyle.workStudyPattern = workStudyPattern;
   if (typicalDay !== undefined) lifestyle.typicalDay = typicalDay;
+  if (activityLevel !== undefined) lifestyle.activityLevel = activityLevel;
   if (activityContext !== undefined) lifestyle.activityContext = activityContext;
   if (sleepDurationHours !== undefined) lifestyle.sleepDurationHours = sleepDurationHours;
   if (sleepQuality !== undefined) lifestyle.sleepQuality = sleepQuality;
@@ -391,6 +401,12 @@ function lifestyleFromLegacy(profile: UnknownRecord, preferences: UnknownRecord)
       preferences.activityContext,
       oldLifestyle.activityContext,
       profile.activityContext,
+    ),
+    activityLevel: firstDefined(
+      preferenceLifestyle.activityLevel,
+      preferences.activityLevel,
+      oldLifestyle.activityLevel,
+      profile.activityLevel,
     ),
     sleepDurationHours: firstDefined(
       preferenceLifestyle.sleepDurationHours,
@@ -608,4 +624,27 @@ export function userProfileToPlanInput(profile: UserProfileV3): PlanInput {
     goal: normalized.goal,
     difficulty: normalized.difficulty,
   };
+}
+
+/** One source of truth for profile-driven energy and macro targets. */
+export function calculateNutritionTargetsForProfile(
+  profile: UserProfileV3,
+  language: PlanLanguage = 'en',
+): NutritionTargets {
+  const normalized = normalizeUserProfile(profile);
+  if (!normalized) throw new Error('Cannot calculate nutrition targets from an invalid local profile.');
+  const activityText = [
+    normalized.lifestyle.activityContext,
+    normalized.lifestyle.workStudyPattern,
+    normalized.lifestyle.typicalDay,
+  ].filter(Boolean).join(' ');
+  return calculateNutritionTargets(userProfileToPlanInput(normalized), language, {
+    gender: normalized.gender,
+    activityLevel: resolveActivityLevel(
+      normalized.lifestyle.activityLevel,
+      activityText,
+      normalized.daysPerWeek,
+    ),
+    activityContext: activityText,
+  });
 }

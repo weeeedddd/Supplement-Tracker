@@ -7,12 +7,22 @@
 import { S, timeoutSignal } from './storage';
 import type { Macros } from './engine';
 
-export interface ScanResult { name: string; macros: Macros; }
+export interface ScanDetails {
+  source: 'barcode-database' | 'local-reference' | 'legacy-estimate';
+  confidence: 'database' | 'estimated';
+  servingGrams?: number;
+  fiber?: number;
+  saturatedFat?: number;
+  sodiumMg?: number;
+  components?: number;
+}
+
+export interface ScanResult { name: string; macros: Macros; details?: ScanDetails; }
 
 const FOOD_API = {
   product: 'https://world.openfoodfacts.org/api/v2/product/',
   search: 'https://world.openfoodfacts.org/cgi/search.pl',
-  fields: 'product_name,brands,nutriments,serving_quantity',
+  fields: 'product_name,brands,nutriments,serving_quantity,nutrition_data_per',
   timeoutMs: 7000,
   cacheTtl: 7 * 24 * 60 * 60 * 1000,
 };
@@ -34,16 +44,45 @@ async function offFetch(url: string): Promise<any> {
   return res.json();
 }
 
-export function macrosFromOFF(prod: any, grams: number | null): { grams: number; macros: Macros } | null {
+export function macrosFromOFF(prod: any, grams: number | null): { grams: number; macros: Macros; details: Omit<ScanDetails, 'source' | 'confidence'> } | null {
   const n = prod?.nutriments || {};
-  const kcal100 = n['energy-kcal_100g'] ?? (n['energy_100g'] ? n['energy_100g'] / 4.184 : null);
-  if (kcal100 == null || !(kcal100 > 0)) return null;
-  const g = grams || Number(prod.serving_quantity) || 100;
+  const finite = (value: unknown): number | null => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  };
+  const kcal100 = finite(n['energy-kcal_100g']) ?? (() => {
+    const kilojoules = finite(n['energy_100g']);
+    return kilojoules === null ? null : kilojoules / 4.184;
+  })();
+  if (kcal100 == null || !(kcal100 > 0) || kcal100 > 1_000) return null;
+  const serving = finite(prod.serving_quantity);
+  const g = grams || (serving && serving >= 5 && serving <= 2_000 ? serving : 100);
   const f = g / 100;
-  const r = (v: any) => Math.round((Number(v) || 0) * f);
+  const r = (value: unknown, maximum = 100) => {
+    const parsed = finite(value);
+    if (parsed === null || parsed > maximum) return 0;
+    return Math.round(parsed * f * 10) / 10;
+  };
+  const carbs = r(n.carbohydrates_100g);
+  const fat = r(n.fat_100g);
+  const sugar = Math.min(carbs, r(n.sugars_100g));
+  const saturatedFat = Math.min(fat, r(n['saturated-fat_100g']));
+  const sodium100 = finite(n.sodium_100g);
   return {
     grams: g,
-    macros: { kcal: Math.round(kcal100 * f), prot: r(n.proteins_100g), carb: r(n.carbohydrates_100g), fat: r(n.fat_100g), sug: r(n.sugars_100g) },
+    macros: {
+      kcal: Math.round(kcal100 * f),
+      prot: r(n.proteins_100g),
+      carb: carbs,
+      fat,
+      sug: sugar,
+    },
+    details: {
+      servingGrams: g,
+      fiber: r(n.fiber_100g),
+      saturatedFat,
+      sodiumMg: sodium100 === null || sodium100 > 10 ? undefined : Math.round(sodium100 * f * 1_000),
+    },
   };
 }
 export function offName(prod: any, grams: number): string {
@@ -274,6 +313,117 @@ const FOOD_PER100: { w: string[]; g: number; m: Macros }[] = [
   { w: ['bagel'], g: 100, m: { kcal: 280, prot: 10, carb: 54, fat: 3, sug: 6 } },
 ];
 
+interface ReferenceFood {
+  id: string;
+  aliases: string[];
+  defaultGrams: number;
+  per100: Macros;
+  fiber100?: number;
+  saturatedFat100?: number;
+}
+
+// Generic reference values are deliberately limited to foods whose usual
+// plain form is reasonably predictable. Branded products still require a
+// barcode/label because recipes, oil and processing can change the result.
+const REFERENCE_FOODS: ReferenceFood[] = [
+  { id: 'skyr', aliases: ['skyr'], defaultGrams: 250, per100: { kcal: 63, prot: 11, carb: 3.6, fat: .2, sug: 3.6 } },
+  { id: 'quark', aliases: ['magerquark', 'low fat quark', 'quark'], defaultGrams: 250, per100: { kcal: 67, prot: 12, carb: 4, fat: .2, sug: 4 } },
+  { id: 'greek-yogurt', aliases: ['greek yogurt', 'greek yoghurt', 'griechischer joghurt'], defaultGrams: 200, per100: { kcal: 73, prot: 9.5, carb: 3.6, fat: 2, sug: 3.6 }, saturatedFat100: 1.3 },
+  { id: 'cottage-cheese', aliases: ['cottage cheese', 'hüttenkäse', 'huettenkaese'], defaultGrams: 200, per100: { kcal: 90, prot: 12.4, carb: 3.4, fat: 2.5, sug: 2.7 }, saturatedFat100: 1.6 },
+  { id: 'whey', aliases: ['whey isolate', 'whey protein', 'protein powder', 'proteinpulver'], defaultGrams: 30, per100: { kcal: 380, prot: 82, carb: 7, fat: 4, sug: 4 } },
+  { id: 'protein-shake', aliases: ['protein shake', 'proteinshake'], defaultGrams: 300, per100: { kcal: 60, prot: 10, carb: 2.7, fat: 1, sug: 1 } },
+  { id: 'oats', aliases: ['rolled oats', 'oatmeal', 'haferflocken', 'oats'], defaultGrams: 60, per100: { kcal: 372, prot: 13.5, carb: 58.7, fat: 7, sug: 1 }, fiber100: 10 },
+  { id: 'milk', aliases: ['semi skimmed milk', 'low fat milk', 'milch', 'milk'], defaultGrams: 250, per100: { kcal: 47, prot: 3.4, carb: 4.8, fat: 1.5, sug: 4.8 }, saturatedFat100: 1 },
+  { id: 'berries', aliases: ['mixed berries', 'beeren', 'berries'], defaultGrams: 100, per100: { kcal: 50, prot: 1, carb: 10, fat: .5, sug: 7 }, fiber100: 4.5 },
+  { id: 'banana', aliases: ['banane', 'banana'], defaultGrams: 120, per100: { kcal: 89, prot: 1.1, carb: 22.8, fat: .3, sug: 12.2 }, fiber100: 2.6 },
+  { id: 'apple', aliases: ['apfel', 'apple'], defaultGrams: 180, per100: { kcal: 52, prot: .3, carb: 13.8, fat: .2, sug: 10.4 }, fiber100: 2.4 },
+  { id: 'egg-whites', aliases: ['egg whites', 'eiklar'], defaultGrams: 150, per100: { kcal: 52, prot: 10.9, carb: .7, fat: .2, sug: .7 } },
+  { id: 'eggs', aliases: ['eggs', 'eier', 'egg', 'ei'], defaultGrams: 60, per100: { kcal: 143, prot: 12.6, carb: .7, fat: 9.5, sug: .4 }, saturatedFat100: 3.1 },
+  { id: 'chicken', aliases: ['chicken breast', 'hähnchenbrust', 'haehnchenbrust', 'chicken', 'hähnchen'], defaultGrams: 150, per100: { kcal: 165, prot: 31, carb: 0, fat: 3.6, sug: 0 }, saturatedFat100: 1 },
+  { id: 'turkey', aliases: ['turkey breast', 'putenbrust', 'turkey', 'pute'], defaultGrams: 150, per100: { kcal: 135, prot: 29, carb: 0, fat: 1.6, sug: 0 }, saturatedFat100: .5 },
+  { id: 'tuna', aliases: ['tuna in water', 'thunfisch im eigenen saft', 'thunfisch', 'tuna'], defaultGrams: 130, per100: { kcal: 116, prot: 26, carb: 0, fat: 1, sug: 0 }, saturatedFat100: .3 },
+  { id: 'salmon', aliases: ['lachs', 'salmon'], defaultGrams: 150, per100: { kcal: 208, prot: 20.4, carb: 0, fat: 13.4, sug: 0 }, saturatedFat100: 3.1 },
+  { id: 'lean-beef', aliases: ['lean beef', 'mageres rind', 'steak'], defaultGrams: 150, per100: { kcal: 217, prot: 26, carb: 0, fat: 12, sug: 0 }, saturatedFat100: 4.8 },
+  { id: 'tofu', aliases: ['firm tofu', 'naturtofu', 'tofu'], defaultGrams: 180, per100: { kcal: 144, prot: 17, carb: 3, fat: 9, sug: .5 }, fiber100: 2.3, saturatedFat100: 1.3 },
+  { id: 'lentils', aliases: ['cooked lentils', 'gekochte linsen', 'linsen', 'lentils'], defaultGrams: 180, per100: { kcal: 116, prot: 9, carb: 20.1, fat: .4, sug: 1.8 }, fiber100: 7.9 },
+  { id: 'chickpeas', aliases: ['chickpeas', 'kichererbsen'], defaultGrams: 180, per100: { kcal: 164, prot: 8.9, carb: 27.4, fat: 2.6, sug: 4.8 }, fiber100: 7.6 },
+  { id: 'rice', aliases: ['cooked rice', 'gekochter reis', 'basmati rice', 'basmatireis', 'rice', 'reis'], defaultGrams: 180, per100: { kcal: 130, prot: 2.7, carb: 28.2, fat: .3, sug: .1 }, fiber100: .4 },
+  { id: 'potato', aliases: ['boiled potato', 'gekochte kartoffel', 'kartoffeln', 'potato'], defaultGrams: 250, per100: { kcal: 87, prot: 1.9, carb: 20.1, fat: .1, sug: .9 }, fiber100: 1.8 },
+  { id: 'pasta', aliases: ['cooked pasta', 'gekochte nudeln', 'pasta', 'nudeln'], defaultGrams: 200, per100: { kcal: 158, prot: 5.8, carb: 30.9, fat: .9, sug: .6 }, fiber100: 1.8 },
+  { id: 'wholegrain-bread', aliases: ['wholegrain bread', 'whole wheat bread', 'vollkornbrot'], defaultGrams: 80, per100: { kcal: 247, prot: 13, carb: 41, fat: 4.2, sug: 5 }, fiber100: 7 },
+  { id: 'avocado', aliases: ['avocado'], defaultGrams: 100, per100: { kcal: 160, prot: 2, carb: 8.5, fat: 14.7, sug: .7 }, fiber100: 6.7, saturatedFat100: 2.1 },
+  { id: 'olive-oil', aliases: ['olive oil', 'olivenöl', 'olivenoel'], defaultGrams: 10, per100: { kcal: 884, prot: 0, carb: 0, fat: 100, sug: 0 }, saturatedFat100: 14 },
+  { id: 'peanut-butter', aliases: ['peanut butter', 'erdnussbutter'], defaultGrams: 30, per100: { kcal: 588, prot: 25, carb: 20, fat: 50, sug: 9 }, fiber100: 6, saturatedFat100: 10 },
+  { id: 'broccoli', aliases: ['brokkoli', 'broccoli'], defaultGrams: 200, per100: { kcal: 35, prot: 2.4, carb: 7.2, fat: .4, sug: 1.4 }, fiber100: 3.3 },
+  { id: 'mixed-vegetables', aliases: ['mixed vegetables', 'gemischtes gemüse', 'gemischtes gemuese'], defaultGrams: 200, per100: { kcal: 50, prot: 2.5, carb: 9, fat: .5, sug: 4 }, fiber100: 3.5 },
+  { id: 'soda', aliases: ['coca-cola', 'coke', 'cola', 'fanta', 'sprite', 'soda'], defaultGrams: 330, per100: { kcal: 42, prot: 0, carb: 10.6, fat: 0, sug: 10.6 } },
+  { id: 'juice', aliases: ['orange juice', 'apple juice', 'orangensaft', 'apfelsaft', 'saft', 'juice'], defaultGrams: 250, per100: { kcal: 45, prot: .7, carb: 10.4, fat: .2, sug: 8.4 } },
+];
+
+const oneDecimal = (value: number): number => Math.round(value * 10) / 10;
+
+function aliasPosition(text: string, alias: string): number {
+  const escaped = alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = new RegExp(`(^|[^a-z0-9äöüß])(${escaped})(?=$|[^a-z0-9äöüß])`, 'i').exec(text);
+  return match ? match.index + match[1].length : -1;
+}
+
+function quantityNearAlias(text: string, aliasIndex: number, aliasLength: number, fallback: number): number {
+  const before = text.slice(Math.max(0, aliasIndex - 24), aliasIndex);
+  const after = text.slice(aliasIndex + aliasLength, aliasIndex + aliasLength + 18);
+  const beforeGrams = before.match(/(\d+(?:[.,]\d+)?)\s*(?:g|gramm|grams?)\s*$/i);
+  const afterGrams = after.match(/^\s*(?:[:=-]?\s*)?(\d+(?:[.,]\d+)?)\s*(?:g|gramm|grams?)\b/i);
+  const grams = beforeGrams?.[1] ?? afterGrams?.[1];
+  if (grams) return Math.min(2_000, Math.max(5, Number(grams.replace(',', '.'))));
+  const count = before.match(/(?:^|\s)(\d+)\s*(?:x\s*)?$/i)?.[1];
+  return count ? Math.min(10, Math.max(1, Number(count))) * fallback : fallback;
+}
+
+function referenceFoodEstimate(text: string): ScanResult | null {
+  const normalized = text.toLowerCase();
+  const candidates = REFERENCE_FOODS.flatMap(food => {
+    const alias = [...food.aliases].sort((a, b) => b.length - a.length).find(candidate => aliasPosition(normalized, candidate) >= 0);
+    if (!alias) return [];
+    return [{ food, alias, index: aliasPosition(normalized, alias) }];
+  }).sort((a, b) => b.alias.length - a.alias.length);
+  const matches = candidates.filter((candidate, index, all) => !all.slice(0, index).some(selected => {
+    const selectedEnd = selected.index + selected.alias.length;
+    const candidateEnd = candidate.index + candidate.alias.length;
+    return candidate.index < selectedEnd && candidateEnd > selected.index;
+  })).sort((a, b) => a.index - b.index);
+  if (!matches.length) return null;
+
+  const totals: Macros = { kcal: 0, prot: 0, carb: 0, fat: 0, sug: 0 };
+  let totalGrams = 0;
+  let fiber = 0;
+  let saturatedFat = 0;
+  for (const match of matches) {
+    const grams = quantityNearAlias(normalized, match.index, match.alias.length, match.food.defaultGrams);
+    const factor = grams / 100;
+    totalGrams += grams;
+    (Object.keys(totals) as Array<keyof Macros>).forEach(key => {
+      totals[key] += match.food.per100[key] * factor;
+    });
+    fiber += (match.food.fiber100 ?? 0) * factor;
+    saturatedFat += (match.food.saturatedFat100 ?? 0) * factor;
+  }
+  (Object.keys(totals) as Array<keyof Macros>).forEach(key => { totals[key] = oneDecimal(totals[key]); });
+  totals.kcal = Math.round(totals.kcal);
+  totals.sug = Math.min(totals.carb, totals.sug);
+  return {
+    name: `${text.trim()} · ${Math.round(totalGrams)} g`,
+    macros: totals,
+    details: {
+      source: 'local-reference',
+      confidence: 'estimated',
+      servingGrams: oneDecimal(totalGrams),
+      fiber: oneDecimal(fiber),
+      saturatedFat: oneDecimal(saturatedFat),
+      components: matches.length,
+    },
+  };
+}
+
 // Portionsbasierte Alt-DB (letzte Text-Stufe)
 export function dummyFoodMacros(input: string): Macros | null {
   const s = input.toLowerCase();
@@ -300,6 +450,8 @@ export function dummyFoodMacros(input: string): Macros | null {
 }
 
 export function keywordFoodEstimate(text: string): ScanResult | null {
+  const reference = referenceFoodEstimate(text);
+  if (reference) return reference;
   const s = (text || '').toLowerCase();
   const grams = parseGrams(s);
   const mult = parseMultiplier(s);
@@ -308,13 +460,17 @@ export function keywordFoodEstimate(text: string): ScanResult | null {
       const g = grams || e.g * mult;
       const f = g / 100;
       const r = (v: number) => Math.round(v * f);
-      return { name: `${text} (${g} g)`, macros: { kcal: r(e.m.kcal), prot: r(e.m.prot), carb: r(e.m.carb), fat: r(e.m.fat), sug: r(e.m.sug) } };
+      return {
+        name: `${text} (${g} g)`,
+        macros: { kcal: r(e.m.kcal), prot: r(e.m.prot), carb: r(e.m.carb), fat: r(e.m.fat), sug: r(e.m.sug) },
+        details: { source: 'legacy-estimate', confidence: 'estimated', servingGrams: g, components: 1 },
+      };
     }
   }
   const base = dummyFoodMacros(text || '');
   if (!base) return null;
   if (mult > 1) (Object.keys(base) as (keyof Macros)[]).forEach(k => { base[k] = Math.round(base[k] * mult); });
-  return { name: text, macros: base };
+  return { name: text, macros: base, details: { source: 'legacy-estimate', confidence: 'estimated' } };
 }
 
 // Retained as a compatibility shim for older callers. A failed image analysis
@@ -337,7 +493,16 @@ export async function analyzeImageLocally(imageB64: string, hint: string): Promi
       const prod = await offProductByBarcode(code);
       if (prod) {
         const r = macrosFromOFF(prod, parseGrams(hint));
-        if (r) return { name: '◈ ' + offName(prod, r.grams), macros: r.macros };
+        if (r) return {
+          name: offName(prod, r.grams),
+          macros: r.macros,
+          details: {
+            ...r.details,
+            source: 'barcode-database',
+            confidence: 'database',
+            components: 1,
+          },
+        };
       }
     } catch { /* weiter in der Kaskade */ }
   }

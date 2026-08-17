@@ -17,7 +17,10 @@ function inferWorkPattern(text = ''): RemotePlanRequest['lifestyle']['work_patte
   return 'mixed';
 }
 
-function inferActivity(text = ''): RemotePlanRequest['lifestyle']['activity_level'] {
+function inferActivity(text = '', explicit?: AiPlanRequest['context']['lifestyle']['activityLevel']): RemotePlanRequest['lifestyle']['activity_level'] {
+  if (explicit === 'high' || explicit === 'very_high') return 'high';
+  if (explicit === 'sedentary' || explicit === 'light') return 'low';
+  if (explicit === 'moderate') return 'moderate';
   const value = text.toLowerCase();
   if (/high|active|physical|10k|10000|viel|körperlich/.test(value)) return 'high';
   if (/low|sedentary|seated|desk|wenig|sitz/.test(value)) return 'low';
@@ -148,7 +151,7 @@ export function buildRemotePlanRequest({ context, responseLanguage }: AiPlanRequ
     lifestyle: {
       daily_routine: routine,
       work_pattern: inferWorkPattern(context.lifestyle.workStudyPattern),
-      activity_level: inferActivity(activity),
+      activity_level: inferActivity(activity, context.lifestyle.activityLevel),
       average_sleep_hours: context.lifestyle.sleepDurationHours ?? 7.5,
       sleep_quality: context.lifestyle.sleepQuality === 'good'
         ? 'good'

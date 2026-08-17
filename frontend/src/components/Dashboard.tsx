@@ -22,7 +22,8 @@ import {
 } from '../lib/engine';
 import { lang, t } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
-import { analyzeImageLocally, analyzeTextLocally } from '../lib/scanner';
+import { assessFoodForGoal } from '../lib/nutritionScoring';
+import { analyzeImageLocally, analyzeTextLocally, type ScanResult } from '../lib/scanner';
 import { dateKey, S } from '../lib/storage';
 import { refresh, useAppState } from '../lib/store';
 import { PerformanceHero } from './PerformanceHero';
@@ -320,6 +321,7 @@ function NutritionEntryPanel() {
   const [imageData, setImageData] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [preview, setPreview] = useState<ScanResult | null>(null);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const log = getFoodLog();
@@ -339,6 +341,7 @@ function NutritionEntryPanel() {
     }
     setBusy(true);
     setError('');
+    setPreview(null);
     try {
       setImageData(await prepareFoodPhoto(file));
     } catch {
@@ -351,6 +354,12 @@ function NutritionEntryPanel() {
   const clearImage = () => {
     setImageData(null);
     if (fileRef.current) fileRef.current.value = '';
+  };
+
+  const resetScan = () => {
+    setPreview(null);
+    setText('');
+    clearImage();
   };
 
   const submit = async () => {
@@ -368,26 +377,29 @@ function NutritionEntryPanel() {
         return;
       }
 
-      const entry = normalizeFoodEntry({
-        id: Date.now(),
-        name: result.name || query,
-        ...result.macros,
-        ts: Date.now(),
-      });
-      if (!entry) {
-        setError(copy('Der Eintrag war unvollständig und wurde nicht gespeichert.', 'The entry was incomplete and was not saved.'));
-        return;
-      }
-
-      saveFoodLog([...getFoodLog(), entry]);
-      setText('');
-      clearImage();
-      gainXP(3);
-      checkAchievements();
-      refresh();
+      setPreview(result);
     } finally {
       setBusy(false);
     }
+  };
+
+  const confirmPreview = () => {
+    if (!preview) return;
+    const entry = normalizeFoodEntry({
+      id: Date.now(),
+      name: preview.name,
+      ...preview.macros,
+      ts: Date.now(),
+    });
+    if (!entry) {
+      setError(copy('Der Eintrag war unvollständig und wurde nicht gespeichert.', 'The entry was incomplete and was not saved.'));
+      return;
+    }
+    saveFoodLog([...getFoodLog(), entry]);
+    resetScan();
+    gainXP(3);
+    checkAchievements();
+    refresh();
   };
 
   const deleteEntry = (id: number) => {
@@ -411,7 +423,7 @@ function NutritionEntryPanel() {
             type="text"
             value={text}
             placeholder={copy('z. B. 250 g Skyr mit Beeren', 'e.g. 250 g skyr with berries')}
-            onChange={event => setText(event.target.value)}
+            onChange={event => { setText(event.target.value); setPreview(null); }}
             onKeyDown={event => { if (event.key === 'Enter') void submit(); }}
           />
         </label>
@@ -436,6 +448,16 @@ function NutritionEntryPanel() {
         </div>
       )}
       {error && <p className="system-inline-error" role="alert">{error}</p>}
+      {preview && (
+        <FoodScanPreview
+          result={preview}
+          targets={S.get<Macros>('macros')}
+          consumed={calcConsumed()}
+          goal={loadUserProfile()?.goal ?? 'general_fitness'}
+          onConfirm={confirmPreview}
+          onDiscard={resetScan}
+        />
+      )}
 
       <div className="food-entry-list">
         {!log.length && (
@@ -457,6 +479,68 @@ function NutritionEntryPanel() {
       </div>
       {editing && <EditFoodDialog entry={editing} onSave={saveEntry} onClose={() => setEditing(null)} />}
     </section>
+  );
+}
+
+function FoodScanPreview({
+  result,
+  targets,
+  consumed,
+  goal,
+  onConfirm,
+  onDiscard,
+}: {
+  result: ScanResult;
+  targets: Macros | null;
+  consumed: Macros;
+  goal: NonNullable<ReturnType<typeof loadUserProfile>>['goal'];
+  onConfirm: () => void;
+  onDiscard: () => void;
+}) {
+  const assessment = assessFoodForGoal(result, targets, consumed, goal, lang === 'de' ? 'de' : 'en');
+  const source = result.details?.confidence === 'database'
+    ? copy('Barcode-Datenbank', 'Barcode database')
+    : copy('Lokale Referenzschätzung', 'Local reference estimate');
+  const gaugeStyle = { '--scan-score': `${assessment.score * 3.6}deg` } as CSSProperties;
+  return (
+    <article className={`food-scan-result rating-${assessment.rating}`} aria-labelledby="scan-result-title">
+      <header className="food-scan-result-header">
+        <span><SystemIcon name="target" />{copy('SYSTEM-ANALYSE', 'SYSTEM ANALYSIS')}</span>
+        <small>{source}</small>
+      </header>
+      <div className="food-scan-result-main">
+        <div className="food-rating-meter" role="meter" aria-label={copy('Ziel-Fit Bewertung', 'Goal-fit rating')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={assessment.score} style={gaugeStyle}>
+          <div><strong>{assessment.score}</strong><span>/ 100</span></div>
+          <small>{assessment.label}</small>
+        </div>
+        <div className="food-scan-verdict">
+          <small>{copy('FIT FÜR', 'FIT FOR')} {assessment.goalLabel}</small>
+          <h3 id="scan-result-title">{result.name}</h3>
+          <p>{assessment.verdict}</p>
+        </div>
+      </div>
+      <div className="food-scan-macros" aria-label={copy('Erkannte Nährwerte', 'Detected nutrition')}>
+        {([
+          ['kcal', Math.round(result.macros.kcal), 'kcal'],
+          ['P', Math.round(result.macros.prot * 10) / 10, 'g'],
+          ['C', Math.round(result.macros.carb * 10) / 10, 'g'],
+          ['F', Math.round(result.macros.fat * 10) / 10, 'g'],
+          [copy('Zucker', 'Sugar'), Math.round(result.macros.sug * 10) / 10, 'g'],
+        ] as Array<[string, number, string]>).map(([label, value, unit]) => (
+          <span key={label}><small>{label}</small><strong>{value}<em>{unit}</em></strong></span>
+        ))}
+      </div>
+      <ul className="food-scan-facts">
+        {assessment.facts.map(fact => <li key={fact}><SystemIcon name="check" /><span>{fact}</span></li>)}
+      </ul>
+      <p className="food-scan-caveat"><SystemIcon name="info" />{result.details?.confidence === 'database'
+        ? copy('Datenbankwerte können vom Etikett abweichen. Prüfe Portion und Herstellerangaben.', 'Database values can differ from the label. Verify the serving and manufacturer values.')
+        : copy('Referenzschätzung für unverarbeitete Standardlebensmittel. Mengen prüfen und bei Bedarf nach dem Speichern bearbeiten.', 'Reference estimate for standard unprocessed foods. Verify amounts and edit after saving if needed.')}</p>
+      <footer>
+        <button className="system-button quiet" type="button" onClick={onDiscard}>{copy('Verwerfen', 'Discard')}</button>
+        <button className="system-button" type="button" onClick={onConfirm}><SystemIcon name="plus" />{copy('Für heute eintragen', 'Add to today')}</button>
+      </footer>
+    </article>
   );
 }
 
