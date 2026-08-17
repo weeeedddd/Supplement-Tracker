@@ -24,6 +24,7 @@ import { useModalIsolation } from '../lib/modal';
 import { S } from '../lib/storage';
 import { refresh } from '../lib/store';
 import { PerformanceHero } from './PerformanceHero';
+import { MuscleConditionMonitor } from './MuscleConditionMonitor';
 import { SystemIcon } from './SystemIcon';
 import '../training.css';
 
@@ -129,6 +130,8 @@ export function TrainingScreen() {
             </>
           )}
         />
+
+        <MuscleConditionMonitor />
 
         <section className="training-mode-grid" aria-label={copy('Training auswählen', 'Choose training mode')}>
           <button type="button" className="training-mode primary" onClick={() => dailyWorkout ? setActive(dailyWorkout) : setManualDaily(true)}>
