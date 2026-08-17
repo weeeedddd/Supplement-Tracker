@@ -181,6 +181,182 @@ export const CHARACTER_PATHS: Record<InspirationProfileId, CharacterPathDefiniti
       },
     ],
   },
+  kaneki: {
+    id: 'kaneki',
+    name: 'Ken Kaneki',
+    title: { de: 'Der adaptive Kontroll-Athlet', en: 'The Adaptive Control Athlete' },
+    focus: {
+      de: 'Zugkraft, Griffausdauer, Rumpfspannung, kontrollierte Bewegung und anpassungsfähige Kondition.',
+      en: 'Pulling strength, grip endurance, trunk tension, controlled movement, and adaptable conditioning.',
+    },
+    systemMessage: {
+      de: 'Standardpläne wurden ausgeblendet. Dein Pfad priorisiert Rudervarianten, Carries, Rumpfkontrolle und ruhig gesteigerte Kondition.',
+      en: 'Standard plans have been hidden. Your path prioritizes rows, carries, trunk control, and gradually progressed conditioning.',
+    },
+    tags: [
+      { de: 'Zugkraft', en: 'Pull strength' },
+      { de: 'Rumpfkontrolle', en: 'Trunk control' },
+      { de: 'Anpassung', en: 'Adaptation' },
+    ],
+    recommendations: [
+      {
+        id: 'protein',
+        label: { de: 'Proteinpulver', en: 'Protein powder' },
+        reason: {
+          de: 'Eine praktische Lebensmitteloption, wenn normale Mahlzeiten die geplante Proteinzufuhr nicht abdecken.',
+          en: 'A convenient food option when regular meals do not cover the protein intake you planned.',
+        },
+      },
+      {
+        id: 'kreatin',
+        label: { de: 'Kreatin-Monohydrat', en: 'Creatine monohydrate' },
+        reason: {
+          de: 'Kann wiederholte kurze Kraftbelastungen bei manchen Erwachsenen unterstützen; individuelle Eignung bleibt wichtig.',
+          en: 'May support repeated short strength efforts for some adults; individual suitability still matters.',
+        },
+      },
+      {
+        id: 'magnesium',
+        label: { de: 'Magnesium', en: 'Magnesium' },
+        reason: {
+          de: 'Lebensmittel zuerst; eine ausreichende Zufuhr unterstützt normale Muskel- und Nervenfunktion.',
+          en: 'Food first; adequate intake supports normal muscle and nerve function.',
+        },
+      },
+    ],
+  },
+  sanji: {
+    id: 'sanji',
+    name: 'Sanji',
+    title: { de: 'Der präzise Bein-Athlet', en: 'The Precision Leg Athlete' },
+    focus: {
+      de: 'Einbeinige Kraft, Beinkontrolle, Balance, Fußarbeit, Wadenkapazität und athletische Kondition.',
+      en: 'Unilateral strength, leg control, balance, footwork, calf capacity, and athletic conditioning.',
+    },
+    systemMessage: {
+      de: 'Standardpläne wurden ausgeblendet. Dein Pfad verschiebt den Schwerpunkt auf Beine, Hüfte, Waden und stabile Landungen.',
+      en: 'Standard plans have been hidden. Your path shifts the emphasis toward legs, hips, calves, and stable landings.',
+    },
+    tags: [
+      { de: 'Beinkraft', en: 'Leg power' },
+      { de: 'Balance', en: 'Balance' },
+      { de: 'Fußarbeit', en: 'Footwork' },
+    ],
+    recommendations: [
+      {
+        id: 'protein',
+        label: { de: 'Proteinpulver', en: 'Protein powder' },
+        reason: {
+          de: 'Nur als praktische Lebensmitteloption, wenn normale Mahlzeiten die geplante Proteinzufuhr nicht abdecken.',
+          en: 'Only as a convenient food option when regular meals do not cover the protein intake you planned.',
+        },
+      },
+      {
+        id: 'kreatin',
+        label: { de: 'Kreatin-Monohydrat', en: 'Creatine monohydrate' },
+        reason: {
+          de: 'Kann wiederholte kurze, intensive Bein- und Powerbelastungen bei manchen Erwachsenen unterstützen.',
+          en: 'May support repeated short, intense leg and power efforts for some adults.',
+        },
+      },
+      {
+        id: 'magnesium',
+        label: { de: 'Magnesium', en: 'Magnesium' },
+        reason: {
+          de: 'Die gesamte Ernährung bleibt entscheidend; ein Charakter-Pfad begründet keinen Supplementbedarf.',
+          en: 'The complete food pattern remains decisive; a character path does not establish a supplement need.',
+        },
+      },
+    ],
+  },
+  baki: {
+    id: 'baki',
+    name: 'Baki Hanma',
+    title: { de: 'Der Ganzkörper-Kraftathlet', en: 'The Total-Body Strength Athlete' },
+    focus: {
+      de: 'Ganzkörperkraft, Rumpfspannung, kontrollierte Beweglichkeit, Carries und kurze intensive Arbeitsblöcke.',
+      en: 'Full-body strength, bracing, controlled mobility, carries, and short intense work blocks.',
+    },
+    systemMessage: {
+      de: 'Standardpläne wurden ausgeblendet. Dein Pfad verbindet Drücken, Ziehen, Hüftkraft, Carries und Beweglichkeit ohne Extremversprechen.',
+      en: 'Standard plans have been hidden. Your path combines pushing, pulling, hip strength, carries, and mobility without extreme promises.',
+    },
+    tags: [
+      { de: 'Ganzkörperkraft', en: 'Full-body strength' },
+      { de: 'Rumpfspannung', en: 'Bracing' },
+      { de: 'Mobilität', en: 'Mobility' },
+    ],
+    recommendations: [
+      {
+        id: 'protein',
+        label: { de: 'Proteinpulver', en: 'Protein powder' },
+        reason: {
+          de: 'Eine optionale Hilfe, um die geplante Proteinzufuhr praktisch zu ergänzen.',
+          en: 'An optional convenience for completing the protein intake you planned.',
+        },
+      },
+      {
+        id: 'kreatin',
+        label: { de: 'Kreatin-Monohydrat', en: 'Creatine monohydrate' },
+        reason: {
+          de: 'Kann bestimmte wiederholte Kraft- und Powerbelastungen unterstützen; CORELINE erstellt keine Dosierung.',
+          en: 'May support certain repeated strength and power efforts; CORELINE does not create a dose.',
+        },
+      },
+      {
+        id: 'preworkout',
+        label: { de: 'Pre-Workout / Koffein', en: 'Pre-workout / caffeine' },
+        reason: {
+          de: 'Kontextabhängig: Gesamtmenge, Schlaf, Medikamente und individuelle Empfindlichkeit müssen zuerst geprüft werden.',
+          en: 'Context dependent: total amount, sleep, medications, and individual sensitivity must be checked first.',
+        },
+      },
+    ],
+  },
+  mikasa: {
+    id: 'mikasa',
+    name: 'Mikasa Ackerman',
+    title: { de: 'Die taktische Ausdauer-Athletin', en: 'The Tactical Endurance Athlete' },
+    focus: {
+      de: 'Zugkraft, Carries, Rumpfstabilität, einbeinige Kontrolle und wiederholbare Ganzkörperausdauer.',
+      en: 'Pulling strength, carries, core stability, unilateral control, and repeatable full-body endurance.',
+    },
+    systemMessage: {
+      de: 'Standardpläne wurden ausgeblendet. Dein Pfad priorisiert effiziente Zugbewegungen, Carries, stabile Beine und kontrollierte Intervalle.',
+      en: 'Standard plans have been hidden. Your path prioritizes efficient pulling, carries, stable legs, and controlled intervals.',
+    },
+    tags: [
+      { de: 'Taktische Ausdauer', en: 'Tactical endurance' },
+      { de: 'Zugkraft', en: 'Pull strength' },
+      { de: 'Rumpfstabilität', en: 'Core stability' },
+    ],
+    recommendations: [
+      {
+        id: 'protein',
+        label: { de: 'Proteinpulver', en: 'Protein powder' },
+        reason: {
+          de: 'Eine praktische Lebensmitteloption, falls die geplante Proteinzufuhr über Mahlzeiten schwer erreichbar ist.',
+          en: 'A convenient food option if the protein intake you planned is difficult to reach through meals.',
+        },
+      },
+      {
+        id: 'kreatin',
+        label: { de: 'Kreatin-Monohydrat', en: 'Creatine monohydrate' },
+        reason: {
+          de: 'Kann wiederholte kurze intensive Belastungen unterstützen; Nutzen und Eignung sind individuell.',
+          en: 'May support repeated short intense efforts; usefulness and suitability are individual.',
+        },
+      },
+      {
+        id: 'omega',
+        label: { de: 'Omega-3', en: 'Omega-3' },
+        reason: {
+          de: 'Lebensmittel bleiben der erste Bezugspunkt; ein Supplement hängt von Ernährung und individuellem Kontext ab.',
+          en: 'Food remains the first reference point; a supplement depends on diet and individual context.',
+        },
+      },
+    ],
+  },
 };
 
 export function getCharacterPath(id?: InspirationProfileId): CharacterPathDefinition | null {
