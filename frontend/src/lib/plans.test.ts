@@ -104,7 +104,7 @@ describe('generateInitialPlan', () => {
   });
 
   it('uses text-only inspiration profiles to adjust emphasis without artwork', () => {
-    expect(INSPIRATION_PROFILES.map((profile) => profile.id)).toEqual(['toji', 'goku', 'tanjiro']);
+    expect(INSPIRATION_PROFILES.map((profile) => profile.id)).toEqual(['toji', 'goku', 'tanjiro', 'kaneki', 'sanji', 'baki', 'mikasa']);
     expect(INSPIRATION_PROFILES.every((profile) => !('image' in profile))).toBe(true);
 
     const plan = generateInitialPlan({
@@ -117,14 +117,30 @@ describe('generateInitialPlan', () => {
   });
 
   it('creates exclusive exercise pools for each equipped character path', () => {
-    const toji = generateInitialPlan({ ...guidedInput, mode: 'inspiration', inspirationProfile: 'toji' });
-    const goku = generateInitialPlan({ ...guidedInput, mode: 'inspiration', inspirationProfile: 'goku' });
-    const tojiIds = toji.sessions.flatMap(session => session.exercises.map(exercise => exercise.id));
-    const gokuIds = goku.sessions.flatMap(session => session.exercises.map(exercise => exercise.id));
+    const plans = INSPIRATION_PROFILES.map(profile => ({
+      id: profile.id,
+      plan: generateInitialPlan({ ...guidedInput, mode: 'inspiration', inspirationProfile: profile.id }),
+    }));
+    const exercisePools = plans.map(({ id, plan }) => {
+      const exercises = plan.sessions.flatMap(session => session.exercises);
+      expect(exercises.every(exercise => exercise.id.startsWith(`${id}-`))).toBe(true);
+      return exercises.map(exercise => exercise.id);
+    });
 
-    expect(tojiIds.every(id => id.startsWith('toji-'))).toBe(true);
-    expect(gokuIds.every(id => id.startsWith('goku-'))).toBe(true);
-    expect(new Set(tojiIds)).not.toEqual(new Set(gokuIds));
+    expect(new Set(exercisePools.map(pool => pool.join('|'))).size).toBe(INSPIRATION_PROFILES.length);
+  });
+
+  it('keeps character-specific muscle distributions on generated exercises', () => {
+    const sanji = generateInitialPlan({
+      ...guidedInput,
+      mode: 'inspiration',
+      inspirationProfile: 'sanji',
+      equipment: ['bodyweight'],
+    });
+    const calfRaise = sanji.sessions.flatMap(session => session.exercises)
+      .find(exercise => exercise.id === 'sanji-calf-raise');
+
+    expect(calfRaise?.muscleTargets?.[0]).toEqual({ muscleId: 'calves', role: 'primary', share: .85 });
   });
 });
 
