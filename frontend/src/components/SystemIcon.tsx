@@ -7,7 +7,7 @@ export type SystemIconName =
   | 'sleep' | 'chevron' | 'check' | 'plus' | 'info' | 'store'
   | 'location' | 'budget' | 'assistant' | 'close' | 'search'
   | 'sync' | 'warning' | 'equipment' | 'leaf' | 'back' | 'external'
-  | 'water' | 'camera' | 'delete' | 'share' | 'list' | 'flame';
+  | 'water' | 'camera' | 'delete' | 'share' | 'list' | 'flame' | 'bell';
 
 export interface SystemIconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: SystemIconName;
@@ -56,6 +56,7 @@ function Glyph({ name }: { name: SystemIconName }) {
     case 'share': return <><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></>;
     case 'list': return <><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/></>;
     case 'flame': return <path d="M13 3c.2 3-1.7 4.4-3 6.2-1.2 1.7-.3 3.2 1.2 4.2-.1-2.4 1.5-3.2 2.8-4.8 2.7 2 4 4.4 4 6.7A6 6 0 0 1 6 15c0-2.1 1-4 2.8-5.8-.2 2 .8 3 1.7 3.5C9 8.2 11 5 13 3z"/>;
+    case 'bell': return <><path d="M6 17h12l-1.5-2.2V10a4.5 4.5 0 0 0-9 0v4.8z"/><path d="M10 20h4"/><path d="M9.2 5.8A3.2 3.2 0 0 1 12 4.3a3.2 3.2 0 0 1 2.8 1.5"/></>;
   }
 }
 
