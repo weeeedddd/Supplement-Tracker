@@ -38,6 +38,7 @@ import { loadUserProfile } from '../lib/profile';
 import { MUSCLE_IDS, calculateMuscleLoads, muscleLoadColor, type ExerciseMuscleTarget, type MuscleId } from '../lib/muscleLoad';
 import { lang, t } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
+import { scheduleRecoveryReminder } from '../lib/notifications';
 import { S } from '../lib/storage';
 import { refresh } from '../lib/store';
 import { PerformanceHero } from './PerformanceHero';
@@ -131,6 +132,7 @@ export function TrainingScreen() {
   const finishWorkout = async (workout: Workout, draft: WorkoutDraft): Promise<WorkoutCompletion> => {
     const result = await completeWorkoutSession(workout, draft);
     if (result.status === 'completed') {
+      if (result.session) scheduleRecoveryReminder(workout.name, result.session.completedAt);
       if (workout.source === 'daily') {
         S.del(ACTIVE_DAILY_WORKOUT_KEY);
         setDailyWorkout(null);
