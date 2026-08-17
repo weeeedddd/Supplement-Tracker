@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { calcConsumed, type Macros } from '../lib/engine';
@@ -10,12 +10,16 @@ import {
   logMeal,
   normalizeNutrition,
   nutritionFromDish,
+  scaleIngredientLine,
+  scaleNutrition,
   validateNutrition,
   type Dish,
 } from '../lib/fitness';
 import { lang, t } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
 import { NUTRITION_LIMITS } from '../lib/nutritionBounds';
+import type { NutritionTargets, TrainingGoal } from '../lib/plans';
+import { loadUserProfile } from '../lib/profile';
 import { S } from '../lib/storage';
 import { refresh } from '../lib/store';
 import { PerformanceHero } from './PerformanceHero';
@@ -26,6 +30,32 @@ const CATEGORIES = ['all', 'breakfast', 'main', 'dessert', 'snack'];
 const EQUIPMENT = ['airfryer', 'ricecooker'];
 const PAGE_SIZE = 24;
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
+
+const GOAL_LABELS: Record<TrainingGoal, { de: string; en: string }> = {
+  general_fitness: { de: 'Allgemeine Fitness', en: 'General fitness' },
+  build_muscle: { de: 'Kontrollierter Aufbau', en: 'Controlled gain' },
+  get_stronger: { de: 'Kraftaufbau', en: 'Strength gain' },
+  fat_loss: { de: 'Lean / Shredded', en: 'Lean / shredded' },
+};
+
+const ACTIVITY_LABELS = {
+  sedentary: { de: 'Sitzend', en: 'Sedentary' },
+  light: { de: 'Leicht aktiv', en: 'Lightly active' },
+  moderate: { de: 'Moderat aktiv', en: 'Moderately active' },
+  high: { de: 'Sehr aktiv', en: 'Very active' },
+  very_high: { de: 'Athletisch aktiv', en: 'Athlete-level activity' },
+} as const;
+
+function recommendationScore(dish: Dish, goal: TrainingGoal, remainingCalories: number | null): number {
+  let score = dish.goals?.includes(goal) ? 100 : 0;
+  const proteinDensity = dish.kcal > 0 ? dish.prot / dish.kcal * 100 : 0;
+  score += proteinDensity * 3;
+  if (remainingCalories !== null && dish.kcal <= remainingCalories) score += 12;
+  if (goal === 'fat_loss') score += Math.max(0, 18 - dish.kcal / 45);
+  if (goal === 'build_muscle') score += Math.min(18, dish.prot / 3 + dish.carb / 12);
+  if (goal === 'get_stronger') score += Math.min(16, dish.carb / 10 + dish.prot / 5);
+  return score;
+}
 
 function isOfflineSafeImage(source?: string): boolean {
   if (!source) return false;
@@ -54,23 +84,42 @@ export function FuelScreen() {
   useEffect(load, [category, equipment]);
 
   const goals = S.get<Macros>('macros');
+  const targetDetails = S.get<NutritionTargets>('nutrition_targets_v2');
+  const profile = loadUserProfile();
   const consumed = calcConsumed();
   const bars: { key: keyof Macros; label: string; unit: string }[] = [
     { key: 'kcal', label: copy('Kalorien', 'Calories'), unit: 'kcal' },
     { key: 'prot', label: copy('Protein', 'Protein'), unit: 'g' },
     { key: 'carb', label: copy('Kohlenhydrate', 'Carbohydrates'), unit: 'g' },
     { key: 'fat', label: copy('Fett', 'Fat'), unit: 'g' },
-    { key: 'sug', label: copy('Zucker', 'Sugar'), unit: 'g' },
+    { key: 'sug', label: copy('Freier Zucker*', 'Free sugar*'), unit: 'g' },
   ];
-  const visibleDishes = dishes.slice(0, visibleCount);
+  const rankedDishes = useMemo(() => {
+    const compatible = profile
+      ? dishes.filter(dish => !dish.diets?.length || dish.diets.includes(profile.diet))
+      : dishes;
+    const remainingCalories = goals ? Math.max(0, goals.kcal - consumed.kcal) : null;
+    return [...compatible].sort((a, b) => {
+      const priority = recommendationScore(b, profile?.goal ?? 'general_fitness', remainingCalories)
+        - recommendationScore(a, profile?.goal ?? 'general_fitness', remainingCalories);
+      return priority || String(a.name).localeCompare(String(b.name));
+    });
+  }, [consumed.kcal, dishes, goals?.kcal, profile?.diet, profile?.goal]);
+  const recommendedIds = new Set(rankedDishes
+    .filter(dish => dish.goals?.includes(profile?.goal ?? 'general_fitness'))
+    .slice(0, 6)
+    .map(dish => String(dish.id)));
+  const visibleDishes = rankedDishes.slice(0, visibleCount);
 
   const flash = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(''), 3200);
   };
 
-  const logDish = async (dish: Dish) => {
-    await logMeal({ name: dish.name, ...nutritionFromDish(dish) });
+  const logDish = async (dish: Dish, portions = 1) => {
+    const nutrition = scaleNutrition(nutritionFromDish(dish), portions);
+    const portionLabel = portions === 1 ? '' : ` × ${String(portions).replace('.', ',')}`;
+    await logMeal({ name: `${dish.name}${portionLabel}`, ...nutrition });
     setDetail(null);
     refresh();
     flash(copy(`${dish.name} wurde für heute erfasst.`, `${dish.name} was logged for today.`));
@@ -102,7 +151,19 @@ export function FuelScreen() {
               <header className="ledger-heading">
                 <span aria-hidden="true"><SystemIcon name="target" /></span>
                 <h2 id="nutrition-target-title">{copy('Tagesziele', 'Daily targets')}</h2>
+                <small>{profile ? GOAL_LABELS[profile.goal][lang === 'de' ? 'de' : 'en'] : copy('Profilbasiert', 'Profile based')}</small>
               </header>
+              {targetDetails?.maintenanceCalories && (
+                <div className="nutrition-target-summary">
+                  <span><small>{copy('Erhaltung', 'Maintenance')}</small><strong>{targetDetails.maintenanceCalories}<em>kcal</em></strong></span>
+                  <span className={(targetDetails.goalAdjustmentCalories ?? 0) < 0 ? 'target-cut' : (targetDetails.goalAdjustmentCalories ?? 0) > 0 ? 'target-gain' : ''}>
+                    <small>{(targetDetails.goalAdjustmentCalories ?? 0) < 0 ? copy('Defizit', 'Deficit') : (targetDetails.goalAdjustmentCalories ?? 0) > 0 ? copy('Überschuss', 'Surplus') : copy('Anpassung', 'Adjustment')}</small>
+                    <strong>{(targetDetails.goalAdjustmentCalories ?? 0) > 0 ? '+' : ''}{targetDetails.goalAdjustmentCalories ?? 0}<em>kcal</em></strong>
+                  </span>
+                  <span><small>{copy('Protein-Faktor', 'Protein factor')}</small><strong>{targetDetails.proteinPerKg ?? '—'}<em>g/kg</em></strong></span>
+                  <span><small>{copy('Aktivität', 'Activity')}</small><strong className="target-text-value">{targetDetails.activityLevel ? ACTIVITY_LABELS[targetDetails.activityLevel][lang === 'de' ? 'de' : 'en'] : '—'}</strong></span>
+                </div>
+              )}
               <div className="nutrition-target-rows">
                 {bars.map(row => {
                   const target = goals[row.key];
@@ -119,6 +180,11 @@ export function FuelScreen() {
                   );
                 })}
               </div>
+              <p className="ledger-footnote nutrition-target-note">
+                <SystemIcon name="info" />
+                <span>{targetDetails?.note ?? copy('Startschätzung aus deinen Profildaten. Nach 2–3 Wochen am echten Verlauf prüfen.', 'Starting estimate from your profile. Review it against your real 2–3 week trend.')}</span>
+              </p>
+              <p className="ledger-footnote nutrition-sugar-note">* {copy('Der Zielwert bezieht sich auf freien Zucker; Produktdatenbanken zeigen häufig Gesamtzucker.', 'The target refers to free sugar; product databases often report total sugar.')}</p>
             </section>
           )}
 
@@ -155,13 +221,15 @@ export function FuelScreen() {
           <div className="dish-grid">
             {visibleDishes.map(baseDish => {
               const dish = locDish(baseDish);
+              const recommended = recommendedIds.has(String(baseDish.id));
               return (
-                <article className="dish-card" key={String(baseDish.id)}>
+                <article className={`dish-card${recommended ? ' dish-card-recommended' : ''}`} key={String(baseDish.id)}>
                   <button className="dish-open" type="button" onClick={() => setDetail(baseDish)} aria-label={`${dish.name} ${copy('öffnen', 'open')}`}>
                     {isOfflineSafeImage(dish.image)
                       ? <img className="dish-thumb" src={dish.image} alt="" loading="lazy" />
                       : <span className={`dish-visual dish-visual-${dish.category}`} aria-hidden="true"><SystemIcon name="food" /></span>}
                     <span className="dish-body">
+                      {recommended && <span className="dish-recommendation"><SystemIcon name="target" />{copy('Top-Fit für dein Ziel', 'Top fit for your goal')}</span>}
                       <span className="dish-name">{dish.name}</span>
                       <span className="dish-meta">
                         <span className="dish-cat">{t(`cat_${dish.category}`)}</span>
@@ -179,7 +247,7 @@ export function FuelScreen() {
                 </article>
               );
             })}
-            {!dishes.length && (
+            {!rankedDishes.length && (
               <div className="system-empty">
                 <SystemIcon name="search" />
                 <div><strong>{copy('Keine Rezepte in diesem Filter', 'No recipes in this filter')}</strong><p>{copy('Ändere Kategorie oder Ausstattung.', 'Change the category or equipment filter.')}</p></div>
@@ -187,23 +255,27 @@ export function FuelScreen() {
             )}
           </div>
 
-          {visibleCount < dishes.length && (
+          {visibleCount < rankedDishes.length && (
             <button className="system-button quiet dish-load-more" type="button" onClick={() => setVisibleCount(count => count + PAGE_SIZE)}>
-              {copy('Mehr Rezepte laden', 'Load more recipes')} · {Math.min(PAGE_SIZE, dishes.length - visibleCount)}
+              {copy('Mehr Rezepte laden', 'Load more recipes')} · {Math.min(PAGE_SIZE, rankedDishes.length - visibleCount)}
             </button>
           )}
         </div>
       </div>
 
-      {detail && <DishDetail dish={detail} onClose={() => setDetail(null)} onLog={() => void logDish(detail)} />}
+      {detail && <DishDetail dish={detail} onClose={() => setDetail(null)} onLog={(portions) => void logDish(detail, portions)} />}
       {creating && <DishCreator onClose={() => setCreating(false)} onSaved={() => { setCreating(false); load(); }} />}
       {toast && <div className="system-toast" role="status" aria-live="polite"><SystemIcon name="check" /><span>{toast}</span></div>}
     </section>
   );
 }
 
-function DishDetail({ dish: sourceDish, onClose, onLog }: { dish: Dish; onClose: () => void; onLog: () => void }) {
+function DishDetail({ dish: sourceDish, onClose, onLog }: { dish: Dish; onClose: () => void; onLog: (portions: number) => void }) {
+  const [portions, setPortions] = useState(1);
   const dish = locDish(sourceDish);
+  const nutrition = scaleNutrition(nutritionFromDish(dish), portions);
+  const adjustPortions = (step: number) => setPortions(current => Math.min(4, Math.max(.5, Math.round((current + step) * 2) / 2)));
+  const format = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1);
   return createPortal(
     <div className="hub-modal open" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="hub-box" role="dialog" aria-modal="true" aria-labelledby="dish-detail-title" onMouseDown={event => event.stopPropagation()}>
@@ -213,15 +285,24 @@ function DishDetail({ dish: sourceDish, onClose, onLog }: { dish: Dish; onClose:
         </div>
         <div className="hub-box-body">
           {isOfflineSafeImage(dish.image) && <img className="detail-hero" src={dish.image} alt="" loading="lazy" />}
-          <div className="detail-macros">
-            <div className="dmx"><b>{dish.kcal}</b><span>kcal</span></div>
-            <div className="dmx"><b>{dish.prot} g</b><span>{copy('Protein', 'Protein')}</span></div>
-            <div className="dmx"><b>{dish.carb} g</b><span>{copy('Kohlenhydrate', 'Carbohydrates')}</span></div>
-            <div className="dmx"><b>{dish.fat} g</b><span>{copy('Fett', 'Fat')}</span></div>
-            <div className="dmx"><b>{dish.sug || 0} g</b><span>{copy('Zucker', 'Sugar')}</span></div>
+          <div className="recipe-portion-control">
+            <span><small>{copy('Zu protokollierende Menge', 'Amount to log')}</small><strong>{format(portions)} × {copy('Portion', 'serving')}</strong></span>
+            <div role="group" aria-label={copy('Portionsmenge einstellen', 'Adjust serving amount')}>
+              <button type="button" onClick={() => adjustPortions(-.5)} disabled={portions <= .5} aria-label={copy('Halbe Portion weniger', 'Decrease by half a serving')}>−</button>
+              <output aria-live="polite">{format(portions)}</output>
+              <button type="button" onClick={() => adjustPortions(.5)} disabled={portions >= 4} aria-label={copy('Halbe Portion mehr', 'Increase by half a serving')}>+</button>
+            </div>
           </div>
+          <div className="detail-macros">
+            <div className="dmx"><b>{format(nutrition.kcal)}</b><span>kcal</span></div>
+            <div className="dmx"><b>{format(nutrition.prot)} g</b><span>{copy('Protein', 'Protein')}</span></div>
+            <div className="dmx"><b>{format(nutrition.carb)} g</b><span>{copy('Kohlenhydrate', 'Carbohydrates')}</span></div>
+            <div className="dmx"><b>{format(nutrition.fat)} g</b><span>{copy('Fett', 'Fat')}</span></div>
+            <div className="dmx"><b>{format(nutrition.sug)} g</b><span>{copy('Zucker', 'Sugar')}</span></div>
+          </div>
+          <p className="recipe-nutrition-basis"><SystemIcon name="info" />{dish.nutritionBasis ?? copy('Nährwerte pro Portion; Mengenänderungen werden direkt neu berechnet.', 'Nutrition per serving; changes in serving amount are recalculated instantly.')}</p>
           <div className="detail-sec"><SystemIcon name="list" />{t('fuel_ingredients')} · <SystemIcon name="clock" />{dish.prep_min} min</div>
-          <ul className="ingredient-list">{dish.ingredients.map((ingredient, index) => <li key={`${ingredient}-${index}`}>{ingredient}</li>)}</ul>
+          <ul className="ingredient-list">{dish.ingredients.map((ingredient, index) => <li key={`${ingredient}-${index}`}>{scaleIngredientLine(ingredient, portions)}</li>)}</ul>
           {dish.steps && dish.steps.length > 0 && (
             <>
               <div className="detail-sec"><SystemIcon name="food" />{t('fuel_steps')}</div>
@@ -231,7 +312,7 @@ function DishDetail({ dish: sourceDish, onClose, onLog }: { dish: Dish; onClose:
             </>
           )}
           <div className="detail-actions">
-            <button className="system-primary-action hub-log-btn" type="button" onClick={onLog}><SystemIcon name="plus" />{copy('Mahlzeit protokollieren', 'Log meal')}</button>
+            <button className="system-primary-action hub-log-btn" type="button" onClick={() => onLog(portions)}><SystemIcon name="plus" />{copy(`${format(portions)} Portion protokollieren`, `Log ${format(portions)} serving`)}</button>
           </div>
         </div>
       </div>

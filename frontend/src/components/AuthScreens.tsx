@@ -9,6 +9,7 @@ import {
 } from '../lib/characterPaths';
 import { useModalIsolation } from '../lib/modal';
 import {
+  calculateNutritionTargetsForProfile,
   PROFILE_LIMITS,
   saveUserProfile,
   userProfileFromPlanInput,
@@ -24,6 +25,7 @@ import {
   PLAN_MODE_OPTIONS,
   generateInitialPlan,
   validatePlanInput,
+  type ActivityLevel,
   type DietPreference,
   type EquipmentOption,
   type ExperienceLevel,
@@ -83,6 +85,7 @@ type PlanErrors = ReturnType<typeof validatePlanInput>['errors'];
 interface LifestyleDraft {
   workStudyPattern: string;
   typicalDay: string;
+  activityLevel: ActivityLevel;
   activityContext: string;
   sleepDurationHours: string;
   sleepQuality: '' | SleepQuality;
@@ -147,9 +150,18 @@ const COOKING_OPTIONS: Array<{ id: CookingAccess; label: string }> = [
   { id: 'full', label: 'Full kitchen access' },
 ];
 
+const ACTIVITY_OPTIONS: Array<{ id: ActivityLevel; de: string; en: string }> = [
+  { id: 'sedentary', de: 'Überwiegend sitzend', en: 'Mostly sedentary' },
+  { id: 'light', de: 'Leicht aktiv', en: 'Lightly active' },
+  { id: 'moderate', de: 'Moderat aktiv', en: 'Moderately active' },
+  { id: 'high', de: 'Sehr aktiv', en: 'Very active' },
+  { id: 'very_high', de: 'Extrem aktiv / körperlicher Beruf', en: 'Extremely active / physical job' },
+];
+
 const EMPTY_LIFESTYLE: LifestyleDraft = {
   workStudyPattern: '',
   typicalDay: '',
+  activityLevel: 'moderate',
   activityContext: '',
   sleepDurationHours: '',
   sleepQuality: '',
@@ -270,6 +282,7 @@ function lifestyleFromDraft(draft: LifestyleDraft): LifestyleProfile {
   return {
     workStudyPattern: trimmed(draft.workStudyPattern),
     typicalDay: trimmed(draft.typicalDay),
+    activityLevel: draft.activityLevel,
     activityContext: trimmed(draft.activityContext),
     sleepDurationHours,
     sleepQuality: draft.sleepQuality || undefined,
@@ -431,6 +444,7 @@ function persistLocalResult({ input, plan, profile }: OnboardingCompletePayload)
     fat: plan.nutritionTargets.fat,
     sug: plan.nutritionTargets.sugar,
   });
+  S.set('nutrition_targets_v2', plan.nutritionTargets);
   S.set('profile', {
     firstName: canonicalProfile.displayName,
     age: canonicalProfile.age,
@@ -568,6 +582,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
       dietaryPreferences: stringList(lifestyleDraft.dietaryPreferences),
       lifestyle: lifestyleFromDraft(lifestyleDraft),
     });
+    const nutritionTargets = calculateNutritionTargetsForProfile(profile, lang === 'de' ? 'de' : 'en');
     let nextPlan: InitialPlan | null = null;
     let nextOrigin: PlanGenerationOrigin = 'local-rules';
     let nextNote = copy('Diese Vorschau wurde auf diesem Gerät mit transparenten lokalen Regeln erstellt.', 'This preview was built on this device with transparent local rules.');
@@ -583,7 +598,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
           responseLanguage: lang === 'de' ? 'de' : 'en',
         });
         if (isUsablePlan(remotePlan)) {
-          nextPlan = remotePlan;
+          nextPlan = { ...remotePlan, nutritionTargets };
           nextOrigin = 'remote-ai';
           nextNote = copy('Diese Vorschau kam nach deiner einmaligen Einwilligung vom verbundenen KI-Dienst zurück.', 'This preview was returned by the connected AI service after your one-time consent.');
         } else {
@@ -600,7 +615,11 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
       nextNote = copy('Du hast keiner entfernten Anfrage zugestimmt. Diese Vorschau wurde lokal erstellt.', 'You did not consent to a remote request. This preview was built locally.');
     }
 
-    if (!nextPlan) nextPlan = generateInitialPlan(input, lang === 'de' ? 'de' : 'en');
+    if (!nextPlan) nextPlan = generateInitialPlan(input, lang === 'de' ? 'de' : 'en', {
+      gender: profile.gender,
+      activityLevel: profile.lifestyle.activityLevel,
+      activityContext: profile.lifestyle.activityContext,
+    });
     setPlan(nextPlan);
     setGenerationOrigin(nextOrigin);
     setGenerationNote(nextNote);
@@ -836,6 +855,13 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
                 {copy('Ein typischer Tag', 'A typical day')}
                 <textarea value={lifestyleDraft.typicalDay} maxLength={PROFILE_LIMITS.typicalDay} rows={5} placeholder={copy('Beschreibe Arbeits- oder Lernzeiten, Wege, Verpflichtungen, Bewegung und wann du meist Energie hast.', 'Describe work or study hours, commute, responsibilities, movement and when you usually have energy.')} onChange={(event) => updateLifestyle('typicalDay', event.target.value)} aria-describedby="typical-day-help" />
                 <span className="onboarding-field-help" id="typical-day-help">{copy(`Bis zu ${PROFILE_LIMITS.typicalDay} Zeichen. Vermeide Namen, Adressen oder Arbeitgeberdetails.`, `Up to ${PROFILE_LIMITS.typicalDay} characters. Avoid names, addresses or employer details.`)}</span>
+              </label>
+              <label className="onboarding-span-2">
+                {copy('Aktivitätsstufe', 'Activity level')}
+                <select value={lifestyleDraft.activityLevel} onChange={(event) => updateLifestyle('activityLevel', event.target.value as ActivityLevel)}>
+                  {ACTIVITY_OPTIONS.map((item) => <option key={item.id} value={item.id}>{copy(item.de, item.en)}</option>)}
+                </select>
+                <span className="onboarding-field-help">{copy('Wähle Bewegung außerhalb des geplanten Trainings. Trainingstage werden zusätzlich berücksichtigt.', 'Choose movement outside planned training. Training days are factored in separately.')}</span>
               </label>
               <label className="onboarding-span-2">
                 {copy('Aktivität außerhalb des Trainings', 'Activity outside training')}

@@ -7,6 +7,7 @@ import {
 } from '../lib/characterPaths';
 import { replaceStarterWorkouts } from '../lib/characterWorkouts';
 import {
+  calculateNutritionTargetsForProfile,
   loadUserProfile,
   patchStoredUserProfile,
   PROFILE_LIMITS,
@@ -17,8 +18,9 @@ import {
 } from '../lib/profile';
 import {
   INSPIRATION_PROFILES,
-  calculateNutritionTargets,
   generateInitialPlan,
+  resolveActivityLevel,
+  type ActivityLevel,
   type DietPreference,
   type InitialPlan,
   type InspirationProfileId,
@@ -52,6 +54,7 @@ interface Draft {
   dietaryPreferences: string;
   workStudyPattern: string;
   typicalDay: string;
+  activityLevel: ActivityLevel;
   activityContext: string;
   sleepDurationHours: string;
   sleepQuality: '' | SleepQuality;
@@ -65,11 +68,19 @@ interface Draft {
 const EMPTY_DRAFT: Draft = {
   mode: 'own', inspirationProfile: undefined, gender: 'm', displayName: '', age: '', heightCm: '', weightKg: '', goal: 'general_fitness', daysPerWeek: '3',
   difficulty: 'medium', diet: 'flexible', dietaryPreferences: '', workStudyPattern: '', typicalDay: '',
-  activityContext: '', sleepDurationHours: '', sleepQuality: '', mealRhythm: '', cookingAccess: '',
+  activityLevel: 'moderate', activityContext: '', sleepDurationHours: '', sleepQuality: '', mealRhythm: '', cookingAccess: '',
   stressRecovery: '', injuriesLimitations: '', preferredTrainingWindow: '',
 };
 
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
+
+const ACTIVITY_OPTIONS: Array<{ id: ActivityLevel; de: string; en: string }> = [
+  { id: 'sedentary', de: 'Überwiegend sitzend', en: 'Mostly sedentary' },
+  { id: 'light', de: 'Leicht aktiv', en: 'Lightly active' },
+  { id: 'moderate', de: 'Moderat aktiv', en: 'Moderately active' },
+  { id: 'high', de: 'Sehr aktiv', en: 'Very active' },
+  { id: 'very_high', de: 'Extrem aktiv / körperlicher Beruf', en: 'Extremely active / physical job' },
+];
 
 function listFromText(value: string): string[] {
   return [...new Set(value.split(/[,;\n]/).map((item) => item.trim()).filter(Boolean))].slice(0, PROFILE_LIMITS.listItems);
@@ -104,6 +115,11 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
         dietaryPreferences: profile.dietaryPreferences.join(', '),
         workStudyPattern: profile.lifestyle.workStudyPattern ?? '',
         typicalDay: profile.lifestyle.typicalDay ?? '',
+        activityLevel: resolveActivityLevel(
+          profile.lifestyle.activityLevel,
+          `${profile.lifestyle.activityContext ?? ''} ${profile.lifestyle.workStudyPattern ?? ''}`,
+          profile.daysPerWeek,
+        ),
         activityContext: profile.lifestyle.activityContext ?? '',
         sleepDurationHours: profile.lifestyle.sleepDurationHours === undefined ? '' : String(profile.lifestyle.sleepDurationHours),
         sleepQuality: profile.lifestyle.sleepQuality ?? '',
@@ -167,6 +183,7 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
       lifestyle: {
         workStudyPattern: draft.workStudyPattern,
         typicalDay: draft.typicalDay,
+        activityLevel: draft.activityLevel,
         activityContext: draft.activityContext,
         sleepDurationHours: sleepHours,
         sleepQuality: draft.sleepQuality || null,
@@ -201,7 +218,7 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
     });
     const language = lang === 'de' ? 'de' : 'en';
     const planInput = userProfileToPlanInput(saved);
-    const nutritionTargets = calculateNutritionTargets(planInput, language);
+    const nutritionTargets = calculateNutritionTargetsForProfile(saved, language);
     S.set('macros', {
       kcal: nutritionTargets.calories,
       prot: nutritionTargets.protein,
@@ -209,6 +226,7 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
       fat: nutritionTargets.fat,
       sug: nutritionTargets.sugar,
     });
+    S.set('nutrition_targets_v2', nutritionTargets);
     S.set('plan_preferences', {
       ...planInput,
       dietaryPreferences: saved.dietaryPreferences,
@@ -219,7 +237,11 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
       || previousProfile?.inspirationProfile !== saved.inspirationProfile
     );
     if (pathChanged) {
-      const regenerated = generateInitialPlan(planInput, language);
+      const regenerated = generateInitialPlan(planInput, language, {
+        gender: saved.gender,
+        activityLevel: saved.lifestyle.activityLevel,
+        activityContext: saved.lifestyle.activityContext,
+      });
       const datedPlan: InitialPlan = { ...regenerated, createdAt: new Date().toISOString() };
       S.set('initial_plan', datedPlan);
       replaceStarterWorkouts(datedPlan, saved.inspirationProfile, language);
@@ -296,6 +318,7 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
               <label className="system-field">{copy('Arbeit / Studium', 'Work / study')}<input maxLength={PROFILE_LIMITS.shortText} value={draft.workStudyPattern} onChange={(event) => update('workStudyPattern', event.target.value)} /></label>
               <label className="system-field">{copy('Bevorzugte Trainingszeit', 'Preferred training time')}<input maxLength={PROFILE_LIMITS.shortText} value={draft.preferredTrainingWindow} onChange={(event) => update('preferredTrainingWindow', event.target.value)} /></label>
               <label className="system-field wide">{copy('Typischer Tag', 'Typical day')}<textarea maxLength={PROFILE_LIMITS.typicalDay} value={draft.typicalDay} onChange={(event) => update('typicalDay', event.target.value)} /></label>
+              <label className="system-field wide">{copy('Aktivitätsstufe außerhalb des Trainings', 'Activity level outside training')}<select value={draft.activityLevel} onChange={(event) => update('activityLevel', event.target.value as ActivityLevel)}>{ACTIVITY_OPTIONS.map((item) => <option key={item.id} value={item.id}>{copy(item.de, item.en)}</option>)}</select></label>
               <label className="system-field wide">{copy('Bewegung außerhalb des Trainings', 'Movement outside training')}<textarea maxLength={PROFILE_LIMITS.activityContext} value={draft.activityContext} onChange={(event) => update('activityContext', event.target.value)} /></label>
               <label className="system-field">{copy('Schlafdauer', 'Sleep duration')}<input type="number" min="0" max="16" step="0.25" value={draft.sleepDurationHours} onChange={(event) => update('sleepDurationHours', event.target.value)} /></label>
               <label className="system-field">{copy('Schlafqualität', 'Sleep quality')}<select value={draft.sleepQuality} onChange={(event) => update('sleepQuality', event.target.value as Draft['sleepQuality'])}><option value="">{copy('Keine Angabe', 'Not specified')}</option><option value="poor">{copy('Oft schlecht', 'Often poor')}</option><option value="fair">{copy('Okay', 'Fair')}</option><option value="good">{copy('Meist gut', 'Usually good')}</option><option value="variable">{copy('Wechselhaft', 'Variable')}</option></select></label>

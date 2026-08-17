@@ -164,4 +164,29 @@ describe('calculateNutritionTargets', () => {
     expect(fatLoss.calories).toBeLessThan(muscle.calories);
     expect(fatLoss.protein).toBeGreaterThanOrEqual(muscle.protein);
   });
+
+  it('uses body model and explicit activity level in the maintenance estimate', () => {
+    const sedentaryFemale = calculateNutritionTargets(guidedInput, 'en', { gender: 'f', activityLevel: 'sedentary' });
+    const activeFemale = calculateNutritionTargets(guidedInput, 'en', { gender: 'f', activityLevel: 'very_high' });
+    const activeMale = calculateNutritionTargets(guidedInput, 'en', { gender: 'm', activityLevel: 'very_high' });
+
+    expect(activeFemale.maintenanceCalories).toBeGreaterThan(sedentaryFemale.maintenanceCalories! + 500);
+    expect(activeMale.maintenanceCalories).toBeGreaterThan(activeFemale.maintenanceCalories!);
+    expect(activeFemale.activityLevel).toBe('very_high');
+    expect(activeFemale.method).toBe('mifflin-st-jeor-profile-v2');
+  });
+
+  it('creates a controlled surplus for muscle gain and a protein-forward deficit for fat loss', () => {
+    const gain = calculateNutritionTargets({ ...guidedInput, goal: 'build_muscle' }, 'en', { gender: 'f', activityLevel: 'moderate' });
+    const cut = calculateNutritionTargets({ ...guidedInput, goal: 'fat_loss' }, 'en', { gender: 'f', activityLevel: 'moderate' });
+
+    expect(gain.goalAdjustmentCalories).toBeGreaterThan(0);
+    expect(gain.calories).toBeGreaterThan(gain.maintenanceCalories!);
+    expect(gain.goalAdjustmentPercent).toBeGreaterThanOrEqual(5);
+    expect(gain.goalAdjustmentPercent).toBeLessThanOrEqual(10);
+    expect(cut.goalAdjustmentCalories).toBeLessThan(0);
+    expect(cut.calories).toBeLessThan(cut.maintenanceCalories!);
+    expect(cut.proteinPerKg).toBeCloseTo(2, 1);
+    expect(cut.note).toContain('deficit');
+  });
 });

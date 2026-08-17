@@ -5,13 +5,12 @@
 //  and explicit sync consent exist.
 // ═══════════════════════════════════════════════════════════════════
 import { S } from './storage';
-import { PRESET_DISHES } from './dishesData';
 import { getFoodLog, saveFoodLog, type FoodEntry } from './engine';
 import { lang } from './i18n';
 import { clampNutritionNumber, NUTRITION_LIMITS } from './nutritionBounds';
 import { CURATED_RECIPES, recipeToDish } from './recipes';
 import type { ExerciseMuscleTarget } from './muscleLoad';
-import type { InspirationProfileId } from './plans';
+import type { DietPreference, InspirationProfileId, TrainingGoal } from './plans';
 
 export interface DishLoc { name: string; ingredients: string[]; steps: string[]; }
 export interface Dish {
@@ -19,6 +18,7 @@ export interface Dish {
   ingredients: string[]; steps?: string[]; prep_min: number;
   kcal: number; prot: number; carb: number; fat: number; sug?: number;
   equipment: string[]; icon: string; image?: string; is_preset?: boolean; owner_uid?: string;
+  servings?: number; goals?: TrainingGoal[]; diets?: DietPreference[]; nutritionBasis?: string;
   i18n?: Record<string, DishLoc>;
 }
 export interface Nutrition { kcal: number; prot: number; carb: number; fat: number; sug: number; }
@@ -94,7 +94,6 @@ export interface WorkoutCompletion {
 // ── Preset-Daten (Spiegel des Backends → funktioniert ohne Server) ───
 //   Der vollständige Katalog (100+ Gerichte mit Bild & Zubereitung) liegt in
 //   dishesData.ts und wird aus derselben Quelle wie das Backend generiert.
-export { PRESET_DISHES };
 export const CURATED_DISHES: Dish[] = CURATED_RECIPES.map(recipe => recipeToDish(recipe));
 
 const ex = (name: string, sets: number, reps: string, weight: string, rest: number): Exercise => ({ name, sets, reps, weight, rest });
@@ -179,9 +178,33 @@ export function nutritionFromDish(dish: Dish): Nutrition {
   return normalizeNutrition(dish);
 }
 
+export function scaleNutrition(input: NutritionInput, portions: number): Nutrition {
+  const factor = Number.isFinite(portions) ? Math.min(4, Math.max(.5, portions)) : 1;
+  const base = normalizeNutrition(input);
+  return normalizeNutrition({
+    kcal: Math.round(base.kcal * factor),
+    prot: rounded(base.prot * factor),
+    carb: rounded(base.carb * factor),
+    fat: rounded(base.fat * factor),
+    sug: rounded(base.sug * factor),
+  });
+}
+
+export function scaleIngredientLine(line: string, portions: number): string {
+  const factor = Number.isFinite(portions) ? Math.min(4, Math.max(.5, portions)) : 1;
+  if (factor === 1) return line;
+  return line.replace(/^(\s*)(\d+(?:[.,]\d+)?)/, (_match, prefix: string, raw: string) => {
+    const scaled = rounded(Number(raw.replace(',', '.')) * factor);
+    return `${prefix}${String(scaled).replace('.', ',')}`;
+  });
+}
+
 function localDishes(): Dish[] {
   const userDishes = [...(S.get<Dish[]>('fuel_user_dishes') || [])].reverse();
-  const dishes = [...userDishes, ...CURATED_DISHES, ...PRESET_DISHES];
+  // The older generated preset catalog did not preserve a trustworthy
+  // ingredient-to-macro calculation trail, so only surface user recipes and
+  // the reviewed per-serving catalog.
+  const dishes = [...userDishes, ...CURATED_DISHES];
   return [...new Map(dishes.map(dish => [String(dish.id), dish])).values()];
 }
 

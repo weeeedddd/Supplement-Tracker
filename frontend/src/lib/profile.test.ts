@@ -6,6 +6,7 @@ import {
   PROFILE_LIMITS,
   USER_PROFILE_SCHEMA_VERSION,
   USER_PROFILE_STORAGE_KEY,
+  calculateNutritionTargetsForProfile,
   loadUserProfile,
   migrateLegacyUserProfile,
   normalizeUserProfile,
@@ -239,6 +240,17 @@ describe('strict profile normalization', () => {
     expect(second).toEqual(first);
     expect(first).not.toHaveProperty('createdAt');
     expect(first).not.toHaveProperty('updatedAt');
+  });
+
+  it('normalizes explicit activity and uses it in profile-driven nutrition targets', () => {
+    const low = patchUserProfile(completeProfile(), { lifestyle: { activityLevel: 'sedentary' } });
+    const high = patchUserProfile(completeProfile(), { lifestyle: { activityLevel: 'very_high' } });
+    const lowTargets = calculateNutritionTargetsForProfile(low);
+    const highTargets = calculateNutritionTargetsForProfile(high);
+
+    expect(high.lifestyle.activityLevel).toBe('very_high');
+    expect(highTargets.activityLevel).toBe('very_high');
+    expect(highTargets.maintenanceCalories).toBeGreaterThan(lowTargets.maintenanceCalories! + 500);
   });
 });
 

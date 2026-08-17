@@ -92,6 +92,14 @@ describe('remote plan privacy boundary', () => {
     expect(serialized).not.toMatch(/displayName|appearance|address|food_log|workout_log|supplement_log|consentedAt/);
   });
 
+  it('prefers the explicit activity selection over ambiguous free text', () => {
+    const explicit = structuredClone(request);
+    explicit.context.lifestyle.activityLevel = 'very_high';
+    explicit.context.lifestyle.activityContext = 'Desk work';
+
+    expect(buildRemotePlanRequest(explicit).lifestyle.activity_level).toBe('high');
+  });
+
   it('adapts a bounded server response without introducing supplement dosing', () => {
     const plan = remoteEnvelopeToInitialPlan(envelope, request);
     const serialized = JSON.stringify(plan).toLowerCase();
