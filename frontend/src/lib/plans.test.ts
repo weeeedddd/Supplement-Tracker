@@ -115,6 +115,17 @@ describe('generateInitialPlan', () => {
     expect(plan.emphasis).toContain('conditioning');
     expect(plan.sourceLabel).toContain('Goku');
   });
+
+  it('creates exclusive exercise pools for each equipped character path', () => {
+    const toji = generateInitialPlan({ ...guidedInput, mode: 'inspiration', inspirationProfile: 'toji' });
+    const goku = generateInitialPlan({ ...guidedInput, mode: 'inspiration', inspirationProfile: 'goku' });
+    const tojiIds = toji.sessions.flatMap(session => session.exercises.map(exercise => exercise.id));
+    const gokuIds = goku.sessions.flatMap(session => session.exercises.map(exercise => exercise.id));
+
+    expect(tojiIds.every(id => id.startsWith('toji-'))).toBe(true);
+    expect(gokuIds.every(id => id.startsWith('goku-'))).toBe(true);
+    expect(new Set(tojiIds)).not.toEqual(new Set(gokuIds));
+  });
 });
 
 describe('calculateNutritionTargets', () => {

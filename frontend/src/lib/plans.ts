@@ -207,6 +207,7 @@ interface ExerciseTemplate {
   name: string;
   movement: MovementPattern;
   equipment: EquipmentOption;
+  character?: InspirationProfileId;
 }
 
 const EXERCISES: ExerciseTemplate[] = [
@@ -234,6 +235,30 @@ const EXERCISES: ExerciseTemplate[] = [
   { id: 'gym-chest-press', name: 'Machine chest press', movement: 'push', equipment: 'full_gym' },
   { id: 'gym-pulldown', name: 'Lat pulldown', movement: 'pull', equipment: 'full_gym' },
   { id: 'gym-bike', name: 'Easy stationary bike intervals', movement: 'conditioning', equipment: 'full_gym' },
+  { id: 'toji-split-squat', name: 'Explosive supported split squat', movement: 'squat', equipment: 'bodyweight', character: 'toji' },
+  { id: 'toji-tempo-pushup', name: 'Power tempo push-up', movement: 'push', equipment: 'bodyweight', character: 'toji' },
+  { id: 'toji-broad-jump', name: 'Controlled broad-jump practice', movement: 'conditioning', equipment: 'bodyweight', character: 'toji' },
+  { id: 'toji-plank', name: 'Hard-style plank', movement: 'core', equipment: 'bodyweight', character: 'toji' },
+  { id: 'toji-db-rdl', name: 'Athletic dumbbell Romanian deadlift', movement: 'hinge', equipment: 'dumbbells', character: 'toji' },
+  { id: 'toji-db-carry', name: 'Heavy suitcase carry', movement: 'carry', equipment: 'dumbbells', character: 'toji' },
+  { id: 'toji-band-row', name: 'Explosive band row', movement: 'pull', equipment: 'resistance_bands', character: 'toji' },
+  { id: 'toji-cable-chop', name: 'Cable rotational chop', movement: 'core', equipment: 'full_gym', character: 'toji' },
+  { id: 'goku-volume-squat', name: 'High-volume bodyweight squat', movement: 'squat', equipment: 'bodyweight', character: 'goku' },
+  { id: 'goku-volume-pushup', name: 'High-volume push-up', movement: 'push', equipment: 'bodyweight', character: 'goku' },
+  { id: 'goku-burpee', name: 'Repeatable burpee intervals', movement: 'conditioning', equipment: 'bodyweight', character: 'goku' },
+  { id: 'goku-hollow', name: 'Hollow-body hold', movement: 'core', equipment: 'bodyweight', character: 'goku' },
+  { id: 'goku-db-thruster', name: 'Dumbbell thruster', movement: 'push', equipment: 'dumbbells', character: 'goku' },
+  { id: 'goku-db-row', name: 'Volume dumbbell row', movement: 'pull', equipment: 'dumbbells', character: 'goku' },
+  { id: 'goku-band-squat', name: 'Band-resisted squat', movement: 'squat', equipment: 'resistance_bands', character: 'goku' },
+  { id: 'goku-leg-press', name: 'Volume leg press', movement: 'squat', equipment: 'full_gym', character: 'goku' },
+  { id: 'tanjiro-flow', name: 'Controlled hip and shoulder flow', movement: 'mobility', equipment: 'bodyweight', character: 'tanjiro' },
+  { id: 'tanjiro-single-leg', name: 'Balanced split-squat practice', movement: 'squat', equipment: 'bodyweight', character: 'tanjiro' },
+  { id: 'tanjiro-pushup', name: 'Controlled incline push-up', movement: 'push', equipment: 'bodyweight', character: 'tanjiro' },
+  { id: 'tanjiro-side-plank', name: 'Breathing side plank', movement: 'core', equipment: 'bodyweight', character: 'tanjiro' },
+  { id: 'tanjiro-db-lunge', name: 'Controlled dumbbell reverse lunge', movement: 'squat', equipment: 'dumbbells', character: 'tanjiro' },
+  { id: 'tanjiro-db-row', name: 'Paused dumbbell row', movement: 'pull', equipment: 'dumbbells', character: 'tanjiro' },
+  { id: 'tanjiro-pallof', name: 'Band Pallof press', movement: 'core', equipment: 'resistance_bands', character: 'tanjiro' },
+  { id: 'tanjiro-bike', name: 'Steady bike breathing intervals', movement: 'conditioning', equipment: 'full_gym', character: 'tanjiro' },
 ];
 
 const EXERCISE_NAMES_DE: Record<string, string> = {
@@ -261,6 +286,30 @@ const EXERCISE_NAMES_DE: Record<string, string> = {
   'gym-chest-press': 'Brustpresse',
   'gym-pulldown': 'Latzug',
   'gym-bike': 'Lockere Fahrrad-Intervalle',
+  'toji-split-squat': 'Explosive gestützte Split-Kniebeuge',
+  'toji-tempo-pushup': 'Power-Liegestütze mit Tempo',
+  'toji-broad-jump': 'Kontrollierte Standweitsprünge',
+  'toji-plank': 'Hard-Style Plank',
+  'toji-db-rdl': 'Athletisches rumänisches Kreuzheben mit Kurzhanteln',
+  'toji-db-carry': 'Schwerer Suitcase Carry',
+  'toji-band-row': 'Explosives Rudern mit Band',
+  'toji-cable-chop': 'Rotations-Chop am Kabel',
+  'goku-volume-squat': 'Volumen-Kniebeugen mit Körpergewicht',
+  'goku-volume-pushup': 'Volumen-Liegestütze',
+  'goku-burpee': 'Wiederholbare Burpee-Intervalle',
+  'goku-hollow': 'Hollow-Body Hold',
+  'goku-db-thruster': 'Kurzhantel-Thruster',
+  'goku-db-row': 'Volumen-Kurzhantelrudern',
+  'goku-band-squat': 'Kniebeuge mit Bandwiderstand',
+  'goku-leg-press': 'Volumen-Beinpresse',
+  'tanjiro-flow': 'Kontrollierter Hüft- und Schulter-Flow',
+  'tanjiro-single-leg': 'Balance-Split-Kniebeuge',
+  'tanjiro-pushup': 'Kontrollierte erhöhte Liegestütze',
+  'tanjiro-side-plank': 'Seitstütz mit ruhiger Atmung',
+  'tanjiro-db-lunge': 'Kontrollierter Reverse Lunge mit Kurzhanteln',
+  'tanjiro-db-row': 'Kurzhantelrudern mit Pause',
+  'tanjiro-pallof': 'Pallof Press mit Band',
+  'tanjiro-bike': 'Ruhige Fahrrad-Atemintervalle',
 };
 
 const GOAL_EMPHASIS: Record<TrainingGoal, Record<PlanLanguage, string>> = {
@@ -326,7 +375,12 @@ function repCue(input: PlanInput, movement: MovementPattern, language: PlanLangu
 
 function selectExercises(input: PlanInput, sessionIndex: number): ExerciseTemplate[] {
   const allowed = new Set(input.equipment);
-  const pool = EXERCISES.filter((exercise) => allowed.has(exercise.equipment));
+  const pool = EXERCISES.filter((exercise) => (
+    (allowed.has(exercise.equipment) || (input.mode === 'inspiration' && exercise.equipment === 'bodyweight'))
+    && (input.mode === 'inspiration'
+      ? exercise.character === input.inspirationProfile
+      : exercise.character === undefined)
+  ));
   const patterns = desiredPatterns(input, sessionIndex);
   const selected: ExerciseTemplate[] = [];
 

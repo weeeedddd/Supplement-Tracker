@@ -14,6 +14,14 @@ export const MUSCLE_IDS = [
 export type MuscleId = (typeof MUSCLE_IDS)[number];
 export type MuscleLoadBand = 'fresh' | 'loaded' | 'strained';
 export type MuscleLoadSource = 'set' | 'session';
+export type MuscleTargetRole = 'primary' | 'secondary';
+
+export interface ExerciseMuscleTarget {
+  muscleId: MuscleId;
+  role: MuscleTargetRole;
+  /** Share of this exercise's training stimulus, expressed from 0 to 1. */
+  share: number;
+}
 
 export interface MuscleLoadEntry {
   id: string;
@@ -23,15 +31,25 @@ export interface MuscleLoadEntry {
   durationMinutes: number;
   createdAt: number;
   source: MuscleLoadSource;
+  targetShare?: number;
+  weightKg?: number;
+  exerciseName?: string;
+  role?: MuscleTargetRole;
+  sourceId?: string;
+  sessionId?: string;
 }
 
 export interface MuscleLoadInput {
   sets: number;
   reps: number;
   durationMinutes: number;
+  targetShare?: number;
+  weightKg?: number;
 }
 
 export const MUSCLE_LOAD_WINDOW_MS = 48 * 60 * 60 * 1000;
+export const MUSCLE_LOAD_STORAGE_KEY = 'train_muscle_load_v1';
+export const MUSCLE_LOAD_UPDATED_EVENT = 'coreline:muscle-load-updated';
 
 const MUSCLE_ID_SET = new Set<string>(MUSCLE_IDS);
 
@@ -51,7 +69,20 @@ export function calculateTrainingLoad(input: MuscleLoadInput): number {
 
   // A transparent, deliberately conservative relative score. It is a UI
   // training-load estimate, not a readiness, recovery, or injury diagnosis.
-  const score = sets * 3 + sets * reps * 0.35 + durationMinutes * 0.55;
+  const targetShare = clamp(finite(input.targetShare, 1), 0.05, 1);
+  const weightKg = clamp(finite(input.weightKg), 0, 500);
+  // Weight contributes only a modest multiplier because we do not know the
+  // user's 1RM or proximity to failure. The role/share remains the dominant
+  // distribution signal for the visualizer.
+  const weightFactor = weightKg > 0 ? 1 + Math.min(weightKg / 250, 0.5) : 1;
+  // A completed working set should be visible immediately, while a full
+  // three-set exercise should normally reach the moderate band on its primary
+  // muscle. That keeps the console game-like without pretending to measure
+  // physiological damage. Repeated sessions inside the 48-hour window are
+  // what push a zone toward the high band.
+  const score = (sets * 8 + sets * reps * 0.7 + durationMinutes * 1.2)
+    * targetShare
+    * weightFactor;
   return clamp(Math.round(score), 0, 100);
 }
 
@@ -106,6 +137,15 @@ export function sanitizeMuscleLoadEntries(value: unknown): MuscleLoadEntry[] {
     ) return [];
 
     const source: MuscleLoadSource = entry.source === 'set' ? 'set' : 'session';
+    const role: MuscleTargetRole | undefined = entry.role === 'primary' || entry.role === 'secondary'
+      ? entry.role
+      : undefined;
+    const targetShare = entry.targetShare === undefined
+      ? undefined
+      : clamp(finite(entry.targetShare, 1), 0.05, 1);
+    const weightKg = entry.weightKg === undefined
+      ? undefined
+      : clamp(finite(entry.weightKg), 0, 500);
     return [{
       id: entry.id,
       muscleId: entry.muscleId as MuscleId,
@@ -114,6 +154,18 @@ export function sanitizeMuscleLoadEntries(value: unknown): MuscleLoadEntry[] {
       durationMinutes: clamp(finite(entry.durationMinutes), 0, 360),
       createdAt: finite(entry.createdAt),
       source,
+      ...(targetShare === undefined ? {} : { targetShare }),
+      ...(weightKg === undefined ? {} : { weightKg }),
+      ...(typeof entry.exerciseName === 'string' && entry.exerciseName.trim()
+        ? { exerciseName: entry.exerciseName.trim().slice(0, 120) }
+        : {}),
+      ...(role ? { role } : {}),
+      ...(typeof entry.sourceId === 'string' && entry.sourceId.trim()
+        ? { sourceId: entry.sourceId.trim().slice(0, 220) }
+        : {}),
+      ...(typeof entry.sessionId === 'string' && entry.sessionId.trim()
+        ? { sessionId: entry.sessionId.trim().slice(0, 180) }
+        : {}),
     }];
   }).slice(0, 500);
 }

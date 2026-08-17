@@ -12,7 +12,7 @@ import {
 
 describe('muscle training-load model', () => {
   it('scores sets, reps, and time with transparent bounds', () => {
-    expect(calculateTrainingLoad({ sets: 3, reps: 10, durationMinutes: 30 })).toBe(36);
+    expect(calculateTrainingLoad({ sets: 3, reps: 10, durationMinutes: 30 })).toBe(81);
     expect(calculateTrainingLoad({ sets: 0, reps: 0, durationMinutes: 0 })).toBe(0);
     expect(calculateTrainingLoad({ sets: 30, reps: 200, durationMinutes: 360 })).toBe(100);
   });
@@ -29,8 +29,8 @@ describe('muscle training-load model', () => {
       source: 'session',
     };
 
-    expect(calculateMuscleLoads([entry], now).chest).toBe(36);
-    expect(calculateMuscleLoads([entry], now + MUSCLE_LOAD_WINDOW_MS / 2).chest).toBe(18);
+    expect(calculateMuscleLoads([entry], now).chest).toBe(81);
+    expect(calculateMuscleLoads([entry], now + MUSCLE_LOAD_WINDOW_MS / 2).chest).toBe(41);
     expect(calculateMuscleLoads([entry], now + MUSCLE_LOAD_WINDOW_MS).chest).toBe(0);
   });
 

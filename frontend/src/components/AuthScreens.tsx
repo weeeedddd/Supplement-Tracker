@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { Workout } from '../lib/fitness';
+import { targetsForMovement } from '../lib/exerciseMuscles';
+import {
+  CHARACTER_EQUIP_STORAGE_KEY,
+  getCharacterPath,
+  localizedCharacterCopy,
+} from '../lib/characterPaths';
+import { useModalIsolation } from '../lib/modal';
 import {
   PROFILE_LIMITS,
   saveUserProfile,
   userProfileFromPlanInput,
   type CookingAccess,
   type LifestyleProfile,
+  type ProfileGender,
   type SleepQuality,
   type UserProfileV3,
 } from '../lib/profile';
@@ -407,7 +416,7 @@ function legacyGoal(goal: TrainingGoal): 'bulk' | 'cut' | 'perf' {
 
 function persistLocalResult({ input, plan, profile }: OnboardingCompletePayload): void {
   const savedAt = new Date().toISOString();
-  const canonicalProfile = profile ?? userProfileFromPlanInput(input);
+  const canonicalProfile = profile ?? userProfileFromPlanInput(input, { gender: 'm' });
   saveUserProfile(canonicalProfile);
   S.del('auth');
   S.del('session');
@@ -434,6 +443,7 @@ function persistLocalResult({ input, plan, profile }: OnboardingCompletePayload)
     difficulty: canonicalProfile.difficulty,
     mode: canonicalProfile.mode,
     inspirationProfile: canonicalProfile.inspirationProfile,
+    gender: canonicalProfile.gender,
     lifestyle: canonicalProfile.lifestyle,
     avatarIdx: canonicalProfile.appearance?.avatarIndex ?? 0,
     avatarPhoto: canonicalProfile.appearance?.avatarPhoto ?? null,
@@ -447,19 +457,24 @@ function persistLocalResult({ input, plan, profile }: OnboardingCompletePayload)
   const existingWorkouts = (S.get<Workout[]>('train_user_plans') || [])
     .filter((workout) => !String(workout.id).startsWith('starter-'));
   const starterWorkouts: Workout[] = plan.sessions.map((session) => ({
-    id: `starter-${session.day}`,
+    id: canonicalProfile.inspirationProfile
+      ? `starter-${canonicalProfile.inspirationProfile}-${session.day}`
+      : `starter-${session.day}`,
     name: `${plan.sourceLabel} / ${copy('Tag', 'Day')} ${session.day}`,
     kind: 'fullbody',
     focus: session.focus,
     icon: '◇',
     is_preset: false,
     source: 'generated',
+    inspirationProfile: canonicalProfile.inspirationProfile,
     exercises: session.exercises.map((exercise) => ({
       name: exercise.name,
       sets: exercise.sets,
       reps: exercise.reps,
       weight: exercise.equipment === 'bodyweight' ? 'bodyweight' : 'as available',
       rest: 90,
+      movement: exercise.movement,
+      muscleTargets: targetsForMovement(exercise.movement),
     })),
   }));
   S.set('train_user_plans', [...existingWorkouts, ...starterWorkouts]);
@@ -472,6 +487,12 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [mode, setMode] = useState<PlanMode>('guided');
   const [inspirationProfile, setInspirationProfile] = useState<InspirationProfileId | undefined>();
+  const [systemProfile, setSystemProfile] = useState<InspirationProfileId | null>(null);
+  const [equippedCharacter, setEquippedCharacter] = useState<InspirationProfileId | null>(() => {
+    const stored = S.get<InspirationProfileId>(CHARACTER_EQUIP_STORAGE_KEY);
+    return getCharacterPath(stored ?? undefined) ? stored : null;
+  });
+  const [gender, setGender] = useState<ProfileGender>('m');
   const [difficulty, setDifficulty] = useState<PlanDifficulty>('medium');
   const [displayName, setDisplayName] = useState('');
   const [age, setAge] = useState('');
@@ -497,6 +518,11 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
   const [photoProcessing, setPhotoProcessing] = useState(false);
 
   useEffect(() => { headingRef.current?.focus(); }, [step]);
+
+  useModalIsolation(Boolean(systemProfile), {
+    backgroundSelectors: ['.onboarding-shell'],
+    onEscape: () => setSystemProfile(null),
+  });
 
   const input = useMemo<PlanInput>(() => ({
     mode,
@@ -534,6 +560,10 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
       setErrors({ inspirationProfile: copy('Wähle ein textbasiertes Inspirationsprofil.', 'Choose one text-only inspiration profile.') });
       return;
     }
+    if (mode === 'inspiration' && inspirationProfile !== equippedCharacter) {
+      setSystemProfile(inspirationProfile || null);
+      return;
+    }
     setErrors({});
     setStep(2);
   };
@@ -554,6 +584,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     if (!inputResult.valid || Object.keys(nextLifestyleErrors).length > 0) return;
 
     const profile = userProfileFromPlanInput(input, {
+      gender,
       dietaryPreferences: stringList(lifestyleDraft.dietaryPreferences),
       lifestyle: lifestyleFromDraft(lifestyleDraft),
     });
@@ -600,6 +631,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
   const finish = async (withoutPhotos = false) => {
     if (!plan) return;
     const profile = userProfileFromPlanInput(input, {
+      gender,
       dietaryPreferences: stringList(lifestyleDraft.dietaryPreferences),
       lifestyle: lifestyleFromDraft(lifestyleDraft),
     });
@@ -689,7 +721,11 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
               {INSPIRATION_PROFILES.map((profile) => {
                 const localized = inspirationCopy(profile.id);
                 return (
-                  <button type="button" key={profile.id} className={inspirationProfile === profile.id ? 'selected' : ''} aria-pressed={inspirationProfile === profile.id} onClick={() => setInspirationProfile(profile.id)}>
+                  <button type="button" key={profile.id} className={inspirationProfile === profile.id ? 'selected' : ''} aria-pressed={inspirationProfile === profile.id} onClick={() => {
+                    setInspirationProfile(profile.id);
+                    setSystemProfile(profile.id);
+                    setErrors(current => ({ ...current, inspirationProfile: undefined }));
+                  }}>
                     <strong>{profile.name}</strong>
                     <em>{localized.tagline}</em>
                     <span>{localized.description}</span>
@@ -714,6 +750,22 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
         {step === 2 && <>
           <p className="onboarding-section-intro">{copy('Diese Grenzen halten die erste Woche realistisch. Sie werden erst beim Speichern lokal übernommen.', 'These boundaries keep the first week realistic. They are stored locally only when you save.')}</p>
           <div className="onboarding-form-grid">
+            <fieldset className="onboarding-gender-field onboarding-span-2">
+              <legend>{copy('Körpermodell', 'Body model')}</legend>
+              <div className="onboarding-gender-options">
+                {([
+                  ['m', copy('Männliche Figur', 'Male figure')],
+                  ['f', copy('Weibliche Figur', 'Female figure')],
+                  ['x', copy('Neutrale Figur', 'Neutral figure')],
+                ] as Array<[ProfileGender, string]>).map(([value, label]) => (
+                  <button key={value} type="button" className={gender === value ? 'selected' : ''} aria-pressed={gender === value} onClick={() => setGender(value)}>
+                    <SystemIcon name="profile" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+              <small>{copy('Diese Auswahl steuert direkt das Modell in der Muskelkarte.', 'This choice directly controls the model in the muscle map.')}</small>
+            </fieldset>
             <label>
               Name
               <input value={displayName} maxLength={PROFILE_LIMITS.displayName} autoComplete="name" required onChange={(event) => { setDisplayName(event.target.value); setErrors((current) => ({ ...current, displayName: undefined })); }} aria-invalid={Boolean(errors.displayName)} aria-describedby={errors.displayName ? 'name-error' : undefined} />
@@ -902,6 +954,48 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
           </div>
         </>}
       </div>
+      {systemProfile && (() => {
+        const character = getCharacterPath(systemProfile);
+        if (!character) return null;
+        return createPortal(
+          <div className="character-system-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSystemProfile(null); }}>
+            <section className="character-system-window" role="dialog" aria-modal="true" aria-labelledby="character-system-title" onMouseDown={event => event.stopPropagation()}>
+              <header>
+                <span><SystemIcon name="spark" />{copy('SYSTEM-NACHRICHT', 'SYSTEM MESSAGE')}</span>
+                <button type="button" onClick={() => setSystemProfile(null)} aria-label={copy('Nachricht schließen', 'Close message')}><SystemIcon name="close" /></button>
+              </header>
+              <div className="character-system-copy">
+                <small>{copy('INSPIRATION GEWÄHLT', 'INSPIRATION SELECTED')}</small>
+                <h2 id="character-system-title">{character.name} — {localizedCharacterCopy(character.title, lang)}</h2>
+                <p>{localizedCharacterCopy(character.focus, lang)}</p>
+                <p>{localizedCharacterCopy(character.systemMessage, lang)}</p>
+              </div>
+              <div className="character-system-tags">
+                {character.tags.map(tag => <span key={tag.en}>{localizedCharacterCopy(tag, lang)}</span>)}
+              </div>
+              <section className="character-system-unlocks" aria-label={copy('Freigeschaltete Empfehlungen', 'Unlocked recommendations')}>
+                <h3>{copy('Freigeschaltete Empfehlungen', 'Unlocked recommendations')}</h3>
+                {character.recommendations.slice(0, 3).map(item => (
+                  <article key={item.id}>
+                    <SystemIcon name="check" />
+                    <span><strong>{localizedCharacterCopy(item.label, lang)}</strong><small>{localizedCharacterCopy(item.reason, lang)}</small></span>
+                  </article>
+                ))}
+              </section>
+              <p className="character-system-safety"><SystemIcon name="shield" />{copy(
+                'Empfehlungen werden nur hervorgehoben. Es wird nichts gekauft und keine Dosierung erstellt.',
+                'Recommendations are highlighted only. Nothing is purchased and no dose is created.',
+              )}</p>
+              <button className="character-system-equip" type="button" onClick={() => {
+                S.set(CHARACTER_EQUIP_STORAGE_KEY, systemProfile);
+                setEquippedCharacter(systemProfile);
+                setSystemProfile(null);
+              }}><SystemIcon name="check" />{copy('Akzeptieren & ausrüsten', 'Accept & equip')}</button>
+            </section>
+          </div>,
+          document.body,
+        );
+      })()}
     </section>
   );
 }
