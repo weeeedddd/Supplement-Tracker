@@ -4,6 +4,8 @@ import { S } from '../lib/storage';
 import { lang } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
 import { showScreen } from '../lib/store';
+import { loadUserProfile } from '../lib/profile';
+import { getCharacterPath, localizedCharacterCopy } from '../lib/characterPaths';
 import {
   SAFE_SUPPLEMENT_CATALOG,
   localizeSupplement,
@@ -29,9 +31,26 @@ const supplementIcons: Record<string, SystemIconName> = {
   omega: 'water',
   vitd: 'sun',
   magnesium: 'moon',
+  eaa: 'food',
+  zinc: 'shield',
+  'mass-gainer': 'food',
+  preworkout: 'spark',
 };
 
 export function KiScreen() {
+  const character = useMemo(() => {
+    const profile = loadUserProfile();
+    return profile?.mode === 'inspiration' ? getCharacterPath(profile.inspirationProfile) : null;
+  }, []);
+  const recommendedIds = useMemo(() => character?.recommendations.map(item => item.id) || [], [character]);
+  const catalog = useMemo(() => [...SAFE_SUPPLEMENT_CATALOG].sort((a, b) => {
+    const aIndex = recommendedIds.indexOf(a.id);
+    const bIndex = recommendedIds.indexOf(b.id);
+    if (aIndex < 0 && bIndex < 0) return 0;
+    if (aIndex < 0) return 1;
+    if (bIndex < 0) return -1;
+    return aIndex - bIndex;
+  }), [recommendedIds]);
   const initial = useMemo(() => {
     const current = S.get<ProtocolItem[]>('protocol') || [];
     return sanitizeRoutineSelection(current.map(item => item.id));
@@ -80,6 +99,30 @@ export function KiScreen() {
           )}
         />
 
+        {character && <section className="character-supplement-match" aria-labelledby="character-match-title">
+          <header>
+            <span><SystemIcon name="spark" />{copy('CHARAKTER-MATCH AKTIV', 'CHARACTER MATCH ACTIVE')}</span>
+            <strong>{character.name}</strong>
+          </header>
+          <div className="character-match-copy">
+            <h2 id="character-match-title">{localizedCharacterCopy(character.title, lang)}</h2>
+            <p>{copy(
+              'Diese Einträge passen zu den Tags deines ausgerüsteten Trainingspfads und stehen deshalb zuerst. Sie sind Optionen, keine Pflichtkäufe.',
+              'These entries match the tags on your equipped training path, so they appear first. They are options, not required purchases.',
+            )}</p>
+          </div>
+          <div className="character-match-list">
+            {character.recommendations.map(item => <article key={item.id}>
+              <SystemIcon name={supplementIcons[item.id] || 'supplements'} />
+              <span><strong>{localizedCharacterCopy(item.label, lang)}</strong><small>{localizedCharacterCopy(item.reason, lang)}</small></span>
+              <b>{copy('MATCH', 'MATCH')}</b>
+            </article>)}
+          </div>
+          <button type="button" onClick={() => setSelected(current => [...new Set([...current, ...recommendedIds])])}>
+            <SystemIcon name="check" />{copy('Empfehlungen zum Tracker hinzufügen', 'Add recommendations to tracker')}
+          </button>
+        </section>}
+
         <aside className="system-notice" role="note">
           <SystemIcon name="shield" />
           <div>
@@ -92,7 +135,7 @@ export function KiScreen() {
         </aside>
 
         <section className="supplement-library" aria-label={copy('Supplement-Bibliothek', 'Supplement library')}>
-          {SAFE_SUPPLEMENT_CATALOG.map(catalogItem => {
+          {catalog.map(catalogItem => {
             const item = localizeSupplement(catalogItem, lang);
             const active = selected.includes(item.id);
             const label = evidenceLabel[item.evidenceLevel];

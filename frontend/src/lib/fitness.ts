@@ -10,6 +10,8 @@ import { getFoodLog, saveFoodLog, type FoodEntry } from './engine';
 import { lang } from './i18n';
 import { clampNutritionNumber, NUTRITION_LIMITS } from './nutritionBounds';
 import { CURATED_RECIPES, recipeToDish } from './recipes';
+import type { ExerciseMuscleTarget } from './muscleLoad';
+import type { InspirationProfileId } from './plans';
 
 export interface DishLoc { name: string; ingredients: string[]; steps: string[]; }
 export interface Dish {
@@ -34,11 +36,20 @@ export function locDish(d: Dish): Dish {
     steps: loc.steps?.length ? loc.steps : d.steps,
   };
 }
-export interface Exercise { name: string; sets: number; reps: string; weight: string; rest: number; }
+export interface Exercise {
+  name: string;
+  sets: number;
+  reps: string;
+  weight: string;
+  rest: number;
+  movement?: string;
+  muscleTargets?: ExerciseMuscleTarget[];
+}
 export interface Workout {
   id: number | string; name: string; kind: string; focus: string;
   exercises: Exercise[]; icon: string; is_preset?: boolean;
   source?: 'preset' | 'manual' | 'generated' | 'daily';
+  inspirationProfile?: InspirationProfileId;
 }
 export interface Buff { label: string; icon: string; desc: string; boosts: Record<string, number>; expires_at: number; source?: string; }
 export interface WorkoutLogInput {
@@ -49,12 +60,19 @@ export interface WorkoutLogInput {
   totalSets?: number;
 }
 export type CompletedSetMap = Record<number, boolean[]>;
+export interface WorkoutExercisePerformance {
+  reps: number;
+  weightKg: number;
+  durationSeconds: number;
+}
+export type WorkoutPerformanceMap = Record<number, WorkoutExercisePerformance>;
 export interface WorkoutDraft {
   sessionId: string;
   workoutId: string;
   startedAt: number;
   updatedAt: number;
   completedSets: CompletedSetMap;
+  performance?: WorkoutPerformanceMap;
 }
 export interface WorkoutSession {
   id: string;
@@ -253,6 +271,7 @@ export function saveWorkoutProgress(
   sessionId: string,
   completedSets: CompletedSetMap,
   startedAt = Date.now(),
+  performance?: WorkoutPerformanceMap,
 ): WorkoutDraft {
   const drafts = S.get<Record<string, WorkoutDraft>>(DRAFTS_KEY) || {};
   const key = workoutKey(workout);
@@ -262,6 +281,7 @@ export function saveWorkoutProgress(
     startedAt,
     updatedAt: Date.now(),
     completedSets: normalizeCompletedSets(workout, completedSets),
+    ...(performance ? { performance } : {}),
   };
   drafts[key] = draft;
   S.set(DRAFTS_KEY, drafts);

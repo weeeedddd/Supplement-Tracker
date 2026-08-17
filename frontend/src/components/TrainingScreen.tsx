@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import {
@@ -17,8 +17,25 @@ import {
   type Workout,
   type WorkoutCompletion,
   type WorkoutDraft,
+  type WorkoutExercisePerformance,
+  type WorkoutPerformanceMap,
   type WorkoutSession,
 } from '../lib/fitness';
+import {
+  inferExerciseMuscleTargets,
+  loadSessionMuscleLoads,
+  parsePlannedDurationSeconds,
+  parsePlannedReps,
+  parsePlannedWeightKg,
+  syncWorkoutSetMuscleLoad,
+} from '../lib/exerciseMuscles';
+import {
+  filterCharacterWorkouts,
+  getCharacterPath,
+  localizedCharacterCopy,
+} from '../lib/characterPaths';
+import { loadUserProfile } from '../lib/profile';
+import { MUSCLE_IDS, calculateMuscleLoads, muscleLoadColor, type ExerciseMuscleTarget, type MuscleId } from '../lib/muscleLoad';
 import { lang, t } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
 import { S } from '../lib/storage';
@@ -48,7 +65,34 @@ function loadActiveDailyWorkout(): Workout | null {
   return workout;
 }
 
+const MUSCLE_LABELS: Record<MuscleId, { de: string; en: string }> = {
+  shoulders: { de: 'Schultern', en: 'Shoulders' },
+  chest: { de: 'Brust', en: 'Chest' },
+  biceps: { de: 'Bizeps', en: 'Biceps' },
+  core: { de: 'Rumpf', en: 'Core' },
+  quads: { de: 'Quadrizeps', en: 'Quads' },
+  back: { de: 'Rücken', en: 'Back' },
+  triceps: { de: 'Trizeps', en: 'Triceps' },
+  glutes: { de: 'Gesäß', en: 'Glutes' },
+  hamstrings: { de: 'Beinbeuger', en: 'Hamstrings' },
+  calves: { de: 'Waden', en: 'Calves' },
+};
+
+function muscleLabel(id: MuscleId): string {
+  return lang === 'de' ? MUSCLE_LABELS[id].de : MUSCLE_LABELS[id].en;
+}
+
+function initialExercisePerformance(exercise: Exercise): WorkoutExercisePerformance {
+  return {
+    reps: parsePlannedReps(exercise.reps),
+    weightKg: parsePlannedWeightKg(exercise.weight),
+    durationSeconds: parsePlannedDurationSeconds(exercise.reps),
+  };
+}
+
 export function TrainingScreen() {
+  const profile = useMemo(() => loadUserProfile(), []);
+  const character = profile?.mode === 'inspiration' ? getCharacterPath(profile.inspirationProfile) : null;
   const [plans, setPlans] = useState<Workout[]>([]);
   const [active, setActive] = useState<Workout | null>(null);
   const [creating, setCreating] = useState(false);
@@ -72,7 +116,11 @@ export function TrainingScreen() {
     dialogs[dialogs.length - 1]?.querySelector<HTMLElement>('.modal-close, button')?.focus();
   }, [modalIdentity]);
 
-  const load = () => { void fetchWorkouts().then(setPlans); };
+  const load = () => {
+    void fetchWorkouts().then(workouts => setPlans(
+      character ? filterCharacterWorkouts(workouts, character.id) : workouts,
+    ));
+  };
   useEffect(load, []);
 
   const flash = (message: string) => {
@@ -119,8 +167,12 @@ export function TrainingScreen() {
           icon="training"
           title={copy('Training', 'Training')}
           description={copy(
-            'Baue die heutige Einheit selbst oder nutze einen transparent erzeugten lokalen Plan. Gespeichert werden nur vollständig abgehakte Sätze.',
-            'Build today’s session yourself or use a transparently generated local plan. Only fully checked sets are saved.',
+            character
+              ? `${character.name}: ${localizedCharacterCopy(character.focus, 'de')}`
+              : 'Baue die heutige Einheit selbst oder nutze einen transparent erzeugten lokalen Plan. Gespeichert werden nur vollständig abgehakte Sätze.',
+            character
+              ? `${character.name}: ${localizedCharacterCopy(character.focus, 'en')}`
+              : 'Build today’s session yourself or use a transparently generated local plan. Only fully checked sets are saved.',
           )}
           status={(
             <>
@@ -133,7 +185,16 @@ export function TrainingScreen() {
 
         <MuscleConditionMonitor />
 
-        <section className="training-mode-grid" aria-label={copy('Training auswählen', 'Choose training mode')}>
+        {character && <section className="character-path-banner" aria-labelledby="character-path-title">
+          <span className="character-path-rank">{copy('AUSGERÜSTETER PFAD', 'EQUIPPED PATH')}</span>
+          <div>
+            <SystemIcon name="spark" />
+            <span><strong id="character-path-title">{character.name} — {localizedCharacterCopy(character.title, lang)}</strong><small>{localizedCharacterCopy(character.systemMessage, lang)}</small></span>
+          </div>
+          <div className="character-path-tags">{character.tags.map(tag => <span key={tag.en}>{localizedCharacterCopy(tag, lang)}</span>)}</div>
+        </section>}
+
+        {!character && <section className="training-mode-grid" aria-label={copy('Training auswählen', 'Choose training mode')}>
           <button type="button" className="training-mode primary" onClick={() => dailyWorkout ? setActive(dailyWorkout) : setManualDaily(true)}>
             <SystemIcon name="edit" />
             <span>
@@ -152,12 +213,14 @@ export function TrainingScreen() {
             <span><strong>{copy('Wiederverwendbaren Plan anlegen', 'Create reusable plan')}</strong><small>{copy('Für deine persönliche Bibliothek', 'For your personal library')}</small></span>
             <SystemIcon name="chevron" />
           </button>
-        </section>
+        </section>}
 
         <section className="system-ledger training-plan-ledger" aria-labelledby="training-plan-title">
           <header className="ledger-heading">
             <span aria-hidden="true"><SystemIcon name="plan" /></span>
-            <h2 id="training-plan-title">{copy('Gespeicherte Pläne', 'Saved plans')}</h2>
+            <h2 id="training-plan-title">{character
+              ? copy(`${character.name} Charakter-Workouts`, `${character.name} character workouts`)
+              : copy('Gespeicherte Pläne', 'Saved plans')}</h2>
             <small>{plans.length}</small>
           </header>
           <div className="plan-list">
@@ -170,7 +233,9 @@ export function TrainingScreen() {
               </button>
             ))}
             {!plans.length && (
-              <div className="system-empty compact"><SystemIcon name="training" /><div><strong>{copy('Noch keine Pläne', 'No plans yet')}</strong><p>{copy('Erstelle einen eigenen oder lokalen Plan.', 'Create your own or generate a local plan.')}</p></div></div>
+              <div className="system-empty compact"><SystemIcon name="training" /><div><strong>{copy('Noch keine Pläne', 'No plans yet')}</strong><p>{character
+                ? copy('Speichere dein Inspirationsprofil erneut, um den exklusiven Charakter-Pfad zu erzeugen.', 'Save your inspiration profile again to generate the exclusive character path.')
+                : copy('Erstelle einen eigenen oder lokalen Plan.', 'Create your own or generate a local plan.')}</p></div></div>
             )}
           </div>
         </section>
@@ -211,26 +276,61 @@ function LiveTracker({
 }) {
   const [draft, setDraft] = useState<WorkoutDraft>(() => loadWorkoutDraft(plan));
   const [done, setDone] = useState(() => draft.completedSets);
+  const [performance, setPerformance] = useState<WorkoutPerformanceMap>(() => Object.fromEntries(
+    plan.exercises.map((exercise, index) => [
+      index,
+      draft.performance?.[index] || initialExercisePerformance(exercise),
+    ]),
+  ));
+  const [sessionLoads, setSessionLoads] = useState<Record<MuscleId, number>>(() => loadSessionMuscleLoads(draft.sessionId));
+  const [feedback, setFeedback] = useState<{ exerciseName: string; targets: ExerciseMuscleTarget[] } | null>(null);
   const [finishing, setFinishing] = useState(false);
 
   const toggle = (exerciseIndex: number, setIndex: number) => {
     if (finishing) return;
-    setDone(previous => {
-      const next = { ...previous, [exerciseIndex]: [...(previous[exerciseIndex] || [])] };
-      next[exerciseIndex][setIndex] = !next[exerciseIndex][setIndex];
-      setDraft(saveWorkoutProgress(plan, draft.sessionId, next, draft.startedAt));
-      return next;
+    const next = { ...done, [exerciseIndex]: [...(done[exerciseIndex] || [])] };
+    const completed = !next[exerciseIndex][setIndex];
+    next[exerciseIndex][setIndex] = completed;
+    const exercise = plan.exercises[exerciseIndex];
+    const result = syncWorkoutSetMuscleLoad({
+      exercise,
+      sessionId: draft.sessionId,
+      exerciseIndex,
+      setIndex,
+      completed,
+      performance: performance[exerciseIndex] || initialExercisePerformance(exercise),
     });
+    setDone(next);
+    setSessionLoads(calculateMuscleLoads(result.entries.filter(entry => entry.sessionId === draft.sessionId)));
+    setFeedback({ exerciseName: exercise.name, targets: result.targets });
+    setDraft(saveWorkoutProgress(plan, draft.sessionId, next, draft.startedAt, performance));
+  };
+
+  const updatePerformance = (exerciseIndex: number, patch: Partial<WorkoutExercisePerformance>) => {
+    const current = performance[exerciseIndex] || initialExercisePerformance(plan.exercises[exerciseIndex]);
+    const nextValue: WorkoutExercisePerformance = {
+      reps: Math.max(0, Math.min(200, Math.floor(Number(patch.reps ?? current.reps) || 0))),
+      weightKg: Math.max(0, Math.min(500, Number(patch.weightKg ?? current.weightKg) || 0)),
+      durationSeconds: Math.max(0, Math.min(21_600, Math.floor(Number(patch.durationSeconds ?? current.durationSeconds) || 0))),
+    };
+    const next = { ...performance, [exerciseIndex]: nextValue };
+    setPerformance(next);
+    setDraft(saveWorkoutProgress(plan, draft.sessionId, done, draft.startedAt, next));
   };
 
   const total = plan.exercises.reduce((sum, exercise) => sum + Math.max(0, exercise.sets), 0);
   const checked = Object.values(done).reduce((sum, sets) => sum + sets.filter(Boolean).length, 0);
   const canFinish = total > 0 && checked === total && !finishing;
+  const activeSessionMuscles = MUSCLE_IDS
+    .map(id => ({ id, load: sessionLoads[id] }))
+    .filter(item => item.load > 0)
+    .sort((a, b) => b.load - a.load);
+  const sessionPeak = activeSessionMuscles[0]?.load || 0;
 
   const finish = async () => {
     if (!canFinish) return;
     setFinishing(true);
-    const result = await onFinish({ ...draft, completedSets: done, updatedAt: Date.now() });
+    const result = await onFinish({ ...draft, completedSets: done, performance, updatedAt: Date.now() });
     if (result.status !== 'completed' && result.status !== 'already-completed') setFinishing(false);
   };
 
@@ -248,11 +348,46 @@ function LiveTracker({
           <span>{checked} / {total} {copy('Sätze', 'sets')}</span>
         </div>
         <div className="hub-box-body">
-          {plan.exercises.map((exercise: Exercise, exerciseIndex) => (
-            <section className="tx-exercise" key={`${exercise.name}-${exerciseIndex}`}>
+          <section className="tracker-strain-panel" aria-live="polite" aria-label={copy('Live Muskelbelastung der Einheit', 'Live session muscle strain')}>
+            <header>
+              <span><SystemIcon name="target" /><strong>{copy('Live-Session-Ermüdung', 'Live session fatigue')}</strong></span>
+              <b style={{ color: muscleLoadColor(sessionPeak) }}>{sessionPeak}%</b>
+            </header>
+            {feedback ? <>
+              <p><strong>{feedback.exerciseName}</strong>{copy(' wurde direkt auf die Muskelkarte übertragen.', ' was applied directly to the muscle map.')}</p>
+              <div className="tracker-target-grid">
+                {feedback.targets.map(targetItem => <span key={targetItem.muscleId}>
+                  <small>{targetItem.role === 'primary' ? copy('PRIMÄR', 'PRIMARY') : 'SUPPORT'} {Math.round(targetItem.share * 100)}%</small>
+                  <strong>{muscleLabel(targetItem.muscleId)}</strong>
+                  <i><em style={{ width: `${sessionLoads[targetItem.muscleId]}%`, background: muscleLoadColor(sessionLoads[targetItem.muscleId]) }} /></i>
+                  <b>{sessionLoads[targetItem.muscleId]}%</b>
+                </span>)}
+              </div>
+            </> : <p>{copy('Schließe einen Satz ab. Primär- und Stützmuskeln erscheinen sofort mit ihrer Belastungsverteilung.', 'Complete a set. Primary and support muscles appear immediately with their load distribution.')}</p>}
+            {activeSessionMuscles.length > 0 && <div className="tracker-session-ribbon">
+              {activeSessionMuscles.slice(0, 5).map(item => <span key={item.id}><small>{muscleLabel(item.id)}</small><strong style={{ color: muscleLoadColor(item.load) }}>{item.load}%</strong></span>)}
+            </div>}
+          </section>
+
+          {plan.exercises.map((exercise: Exercise, exerciseIndex) => {
+            const targets = inferExerciseMuscleTargets(exercise);
+            const metrics = performance[exerciseIndex] || initialExercisePerformance(exercise);
+            return <section className="tx-exercise" key={`${exercise.name}-${exerciseIndex}`}>
               <div className="tx-head">
                 <span className="tx-name">{exercise.name}</span>
                 <span className="tx-spec">{exercise.reps} × {exercise.weight || '–'} · <SystemIcon name="clock" />{exercise.rest}s</span>
+              </div>
+              <div className="tx-muscle-targets" aria-label={copy('Zielmuskeln', 'Target muscles')}>
+                {targets.map(targetItem => <span className={targetItem.role} key={targetItem.muscleId}>
+                  <small>{targetItem.role === 'primary' ? copy('Primär', 'Primary') : copy('Support', 'Support')}</small>
+                  <strong>{muscleLabel(targetItem.muscleId)}</strong>
+                  <b>{Math.round(targetItem.share * 100)}%</b>
+                </span>)}
+              </div>
+              <div className="tx-live-inputs">
+                <label><span>{copy('Wdh.', 'Reps')}</span><input type="number" inputMode="numeric" min="0" max="200" value={metrics.reps} onChange={event => updatePerformance(exerciseIndex, { reps: Number(event.target.value) })} /></label>
+                <label><span>{copy('Gewicht', 'Weight')}</span><span className="tx-unit-input"><input type="number" inputMode="decimal" min="0" max="500" step="0.5" value={metrics.weightKg} onChange={event => updatePerformance(exerciseIndex, { weightKg: Number(event.target.value) })} /><small>KG</small></span></label>
+                <label><span>{copy('Zeit', 'Time')}</span><span className="tx-unit-input"><input type="number" inputMode="numeric" min="0" max="21600" value={metrics.durationSeconds} onChange={event => updatePerformance(exerciseIndex, { durationSeconds: Number(event.target.value) })} /><small>SEC</small></span></label>
               </div>
               <div className="tx-sets">
                 {(done[exerciseIndex] || []).map((isDone, setIndex) => (
@@ -268,8 +403,8 @@ function LiveTracker({
                   </button>
                 ))}
               </div>
-            </section>
-          ))}
+            </section>;
+          })}
           {!canFinish && !finishing && <p className="tracker-hint" role="status">{copy('Schließe alle Sätze ab, um das Training zu speichern.', 'Complete every set to save the workout.')}</p>}
           <button className="system-primary-action hub-log-btn" type="button" onClick={() => void finish()} disabled={!canFinish}>
             <SystemIcon name="check" />{finishing ? copy('Speichern…', 'Saving…') : copy('Training speichern', 'Save workout')}

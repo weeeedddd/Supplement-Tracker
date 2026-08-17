@@ -3,13 +3,14 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type FormEvent,
-  type KeyboardEvent,
 } from 'react';
+import Body, { type ExtendedBodyPart, type Slug } from 'react-muscle-highlighter';
 
 import {
   MUSCLE_IDS,
+  MUSCLE_LOAD_STORAGE_KEY,
+  MUSCLE_LOAD_UPDATED_EVENT,
   calculateMuscleLoads,
   getMuscleLoadBand,
   muscleLoadColor,
@@ -17,13 +18,14 @@ import {
   type MuscleId,
   type MuscleLoadEntry,
   type MuscleLoadSource,
+  type ExerciseMuscleTarget,
 } from '../lib/muscleLoad';
 import { lang } from '../lib/i18n';
+import { loadUserProfile } from '../lib/profile';
 import { S } from '../lib/storage';
 import { SystemIcon } from './SystemIcon';
 
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
-const LOAD_STORAGE_KEY = 'train_muscle_load_v1';
 const DRAFT_STORAGE_KEY = 'train_muscle_load_drafts_v1';
 
 interface MuscleInputDraft {
@@ -38,22 +40,61 @@ interface MuscleZone {
   id: MuscleId;
   de: string;
   en: string;
-  anchor: [number, number];
   overlay: [number, number];
 }
 
 const MUSCLE_ZONES: MuscleZone[] = [
-  { id: 'shoulders', de: 'Schultern', en: 'Shoulders', anchor: [120, 108], overlay: [66, 37] },
-  { id: 'chest', de: 'Brust', en: 'Chest', anchor: [120, 144], overlay: [66, 39] },
-  { id: 'biceps', de: 'Bizeps', en: 'Biceps', anchor: [73, 178], overlay: [66, 42] },
-  { id: 'core', de: 'Rumpf', en: 'Core', anchor: [120, 214], overlay: [66, 48] },
-  { id: 'quads', de: 'Quadrizeps', en: 'Quads', anchor: [105, 342], overlay: [66, 62] },
-  { id: 'back', de: 'Rücken', en: 'Back', anchor: [300, 166], overlay: [34, 42] },
-  { id: 'triceps', de: 'Trizeps', en: 'Triceps', anchor: [347, 183], overlay: [34, 43] },
-  { id: 'glutes', de: 'Gesäß', en: 'Glutes', anchor: [300, 278], overlay: [34, 55] },
-  { id: 'hamstrings', de: 'Beinbeuger', en: 'Hamstrings', anchor: [316, 352], overlay: [34, 65] },
-  { id: 'calves', de: 'Waden', en: 'Calves', anchor: [316, 437], overlay: [34, 72] },
+  { id: 'shoulders', de: 'Schultern', en: 'Shoulders', overlay: [36, 30] },
+  { id: 'chest', de: 'Brust', en: 'Chest', overlay: [36, 35] },
+  { id: 'biceps', de: 'Bizeps', en: 'Biceps', overlay: [28, 41] },
+  { id: 'core', de: 'Rumpf', en: 'Core', overlay: [36, 47] },
+  { id: 'quads', de: 'Quadrizeps', en: 'Quads', overlay: [36, 66] },
+  { id: 'back', de: 'Rücken', en: 'Back', overlay: [69, 39] },
+  { id: 'triceps', de: 'Trizeps', en: 'Triceps', overlay: [78, 41] },
+  { id: 'glutes', de: 'Gesäß', en: 'Glutes', overlay: [69, 56] },
+  { id: 'hamstrings', de: 'Beinbeuger', en: 'Hamstrings', overlay: [69, 68] },
+  { id: 'calves', de: 'Waden', en: 'Calves', overlay: [69, 82] },
 ];
+
+const SLUG_TO_MUSCLE: Partial<Record<Slug, MuscleId>> = {
+  abs: 'core',
+  obliques: 'core',
+  biceps: 'biceps',
+  calves: 'calves',
+  chest: 'chest',
+  deltoids: 'shoulders',
+  gluteal: 'glutes',
+  hamstring: 'hamstrings',
+  'lower-back': 'back',
+  'upper-back': 'back',
+  trapezius: 'back',
+  quadriceps: 'quads',
+  adductors: 'quads',
+  triceps: 'triceps',
+  forearm: 'biceps',
+};
+
+const BODY_REGION_GROUPS: Array<{ id: string; de: string; en: string; muscles: MuscleId[] }> = [
+  { id: 'upper', de: 'Oberkörper', en: 'Upper body', muscles: ['shoulders', 'chest', 'biceps', 'triceps', 'back'] },
+  { id: 'core', de: 'Rumpf', en: 'Core', muscles: ['core', 'back'] },
+  { id: 'lower', de: 'Unterkörper', en: 'Lower body', muscles: ['quads', 'glutes', 'hamstrings', 'calves'] },
+];
+
+const FIGURE_PINS: Record<'front' | 'back', Partial<Record<MuscleId, [number, number]>>> = {
+  front: {
+    shoulders: [50, 23], chest: [50, 29], biceps: [19, 36], core: [50, 43], quads: [50, 64], calves: [50, 83],
+  },
+  back: {
+    shoulders: [50, 23], back: [50, 34], triceps: [81, 36], glutes: [50, 52], hamstrings: [50, 66], calves: [50, 83],
+  },
+};
+
+interface WorkoutLoadEventDetail {
+  muscleIds?: MuscleId[];
+  primaryMuscleId?: MuscleId;
+  exerciseName?: string;
+  targets?: ExerciseMuscleTarget[];
+}
 
 const DEFAULT_DRAFT: MuscleInputDraft = {
   sets: 3,
@@ -109,10 +150,18 @@ function entryId(): string {
 }
 
 export function MuscleConditionMonitor() {
-  const [entries, setEntries] = useState<MuscleLoadEntry[]>(() => sanitizeMuscleLoadEntries(S.get<unknown>(LOAD_STORAGE_KEY)));
+  const profile = useMemo(() => loadUserProfile(), []);
+  const modelGender = profile?.gender === 'f' ? 'female' : 'male';
+  const modelLabel = profile?.gender === 'f'
+    ? copy('WEIBLICHES MODELL', 'FEMALE MODEL')
+    : profile?.gender === 'x'
+      ? copy('NEUTRALES MODELL', 'NEUTRAL MODEL')
+      : copy('MÄNNLICHES MODELL', 'MALE MODEL');
+  const [entries, setEntries] = useState<MuscleLoadEntry[]>(() => sanitizeMuscleLoadEntries(S.get<unknown>(MUSCLE_LOAD_STORAGE_KEY)));
   const [drafts, setDrafts] = useState<Partial<Record<MuscleId, MuscleInputDraft>>>(() => loadDrafts());
   const [selected, setSelected] = useState<MuscleId | null>(null);
-  const [flashing, setFlashing] = useState<MuscleId | null>(null);
+  const [flashing, setFlashing] = useState<MuscleId[]>([]);
+  const [lastWorkoutEvent, setLastWorkoutEvent] = useState<WorkoutLoadEventDetail | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const firstInputRef = useRef<HTMLInputElement>(null);
   const flashTimerRef = useRef<number | null>(null);
@@ -120,6 +169,19 @@ export function MuscleConditionMonitor() {
   useEffect(() => {
     const interval = window.setInterval(() => setClock(Date.now()), 60_000);
     return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const onMuscleLoadUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<WorkoutLoadEventDetail>).detail || {};
+      setEntries(sanitizeMuscleLoadEntries(S.get<unknown>(MUSCLE_LOAD_STORAGE_KEY)));
+      setClock(Date.now());
+      setLastWorkoutEvent(detail);
+      const ids = detail.muscleIds?.filter(id => MUSCLE_IDS.includes(id)) || [];
+      if (ids.length) flashZones(ids);
+    };
+    window.addEventListener(MUSCLE_LOAD_UPDATED_EVENT, onMuscleLoadUpdated);
+    return () => window.removeEventListener(MUSCLE_LOAD_UPDATED_EVENT, onMuscleLoadUpdated);
   }, []);
 
   useEffect(() => {
@@ -158,12 +220,14 @@ export function MuscleConditionMonitor() {
     });
   };
 
-  const flashZone = (id: MuscleId) => {
+  function flashZones(ids: MuscleId[]) {
     if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
-    setFlashing(null);
-    window.requestAnimationFrame(() => setFlashing(id));
-    flashTimerRef.current = window.setTimeout(() => setFlashing(null), 760);
-  };
+    setFlashing([]);
+    window.requestAnimationFrame(() => setFlashing(ids));
+    flashTimerRef.current = window.setTimeout(() => setFlashing([]), 760);
+  }
+
+  const flashZone = (id: MuscleId) => flashZones([id]);
 
   const addEntry = (
     id: MuscleId,
@@ -183,7 +247,7 @@ export function MuscleConditionMonitor() {
     };
     setEntries(current => {
       const next = [entry, ...current].slice(0, 500);
-      S.set(LOAD_STORAGE_KEY, next);
+      S.set(MUSCLE_LOAD_STORAGE_KEY, next);
       return next;
     });
     setClock(Date.now());
@@ -216,18 +280,33 @@ export function MuscleConditionMonitor() {
     const removed = entries[index];
     const next = entries.filter((_, entryIndex) => entryIndex !== index);
     setEntries(next);
-    S.set(LOAD_STORAGE_KEY, next);
+    S.set(MUSCLE_LOAD_STORAGE_KEY, next);
     updateDraft(selected, { completedSets: Math.max(0, draft.completedSets - removed.sets) });
     setClock(Date.now());
     flashZone(selected);
   };
 
   const selectZone = (id: MuscleId) => setSelected(current => current === id ? null : id);
-  const activateZone = (event: KeyboardEvent<SVGGElement>, id: MuscleId) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    selectZone(id);
+  const bodyData = useMemo<ExtendedBodyPart[]>(() => Object.entries(SLUG_TO_MUSCLE).map(([slug, muscleId]) => {
+    const load = loads[muscleId];
+    const active = selected === muscleId;
+    return {
+      slug: slug as Slug,
+      color: muscleLoadColor(load),
+      styles: {
+        fill: muscleLoadColor(load),
+        stroke: active ? '#d9fff5' : load > 0 ? muscleLoadColor(Math.min(100, load + 15)) : '#41504d',
+        strokeWidth: active ? 5 : 2,
+      },
+    };
+  }), [loads, selected]);
+
+  const handleBodyPart = (part: ExtendedBodyPart) => {
+    const muscleId = part.slug ? SLUG_TO_MUSCLE[part.slug] : undefined;
+    if (muscleId) selectZone(muscleId);
   };
+
+  const zoneAverage = (ids: MuscleId[]) => Math.round(ids.reduce((sum, id) => sum + loads[id], 0) / ids.length);
 
   return (
     <section className="system-ledger muscle-monitor" aria-labelledby="muscle-monitor-title">
@@ -245,48 +324,57 @@ export function MuscleConditionMonitor() {
 
       <div className="muscle-monitor-layout">
         <div className="muscle-map-stage">
-          <svg className="muscle-map" viewBox="0 0 420 520" role="group" aria-label={copy('Interaktive Muskelkarte, Vorder- und Rückseite', 'Interactive front and back muscle map')}>
-            <g className="anatomy-base anatomy-front" aria-hidden="true">
-              <circle cx="120" cy="49" r="25" />
-              <path d="M107 74h26l5 18c15 4 28 13 34 28l20 74c3 12-13 17-18 6l-22-58-4 104-17 41 10 190c1 17-20 19-24 3l-17-144-17 144c-4 16-25 14-24-3l10-190-17-41-4-104-22 58c-5 11-21 6-18-6l20-74c6-15 19-24 34-28z" />
-            </g>
-            <g className="anatomy-base anatomy-back" aria-hidden="true">
-              <circle cx="300" cy="49" r="25" />
-              <path d="M287 74h26l5 18c15 4 28 13 34 28l20 74c3 12-13 17-18 6l-22-58-4 104-17 41 10 190c1 17-20 19-24 3l-17-144-17 144c-4 16-25 14-24-3l10-190-17-41-4-104-22 58c-5 11-21 6-18-6l20-74c6-15 19-24 34-28z" />
-              <path className="anatomy-seam" d="M300 94v151M285 286l15 17 15-17" />
-            </g>
+          <div className="anatomy-console" role="group" aria-label={copy('Interaktive Muskelkarte, Vorder- und Rückseite', 'Interactive front and back muscle map')}>
+            <aside className="body-region-index" aria-label={copy('Körperregionen', 'Body regions')}>
+              <header><span>{copy('KÖRPERREGIONEN', 'BODY REGIONS')}</span><small>{modelLabel}</small></header>
+              {BODY_REGION_GROUPS.map(region => {
+                const average = zoneAverage(region.muscles);
+                const primary = [...region.muscles].sort((a, b) => loads[b] - loads[a])[0];
+                return <button key={region.id} type="button" onClick={() => setSelected(primary)}>
+                  <span><small>{lang === 'de' ? region.de : region.en}</small><strong>{average}%</strong></span>
+                  <i><em style={{ width: `${average}%`, background: muscleLoadColor(average) }} /></i>
+                </button>;
+              })}
+              <p><SystemIcon name="target" />{copy('Muskel direkt antippen', 'Tap a muscle directly')}</p>
+            </aside>
 
-            {MUSCLE_ZONES.map(zone => {
-              const load = loads[zone.id];
-              const isSelected = selected === zone.id;
-              const style = { '--muscle-color': muscleLoadColor(load) } as CSSProperties;
-              return (
-                <g
-                  key={zone.id}
-                  className={`muscle-zone zone-${zone.id}${isSelected ? ' is-selected' : ''}${flashing === zone.id ? ' is-flashing' : ''}`}
-                  style={style}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={isSelected}
-                  aria-label={`${zoneLabel(zone)}: ${load}% ${bandLabel(load)}`}
-                  onClick={() => selectZone(zone.id)}
-                  onKeyDown={event => activateZone(event, zone.id)}
-                >
-                  <title>{zoneLabel(zone)} · {load}%</title>
-                  <MuscleShapes id={zone.id} />
-                  {(load > 0 || isSelected) && (
-                    <g className="muscle-zone-badge" transform={`translate(${zone.anchor[0]} ${zone.anchor[1]})`} aria-hidden="true">
-                      <rect x="-20" y="-11" width="40" height="21" />
-                      <text y="4">{load}%</text>
-                    </g>
-                  )}
-                </g>
-              );
-            })}
+            <div className="anatomy-figures">
+              {(['front', 'back'] as const).map(side => <figure className="anatomy-model" key={side}>
+                <div className={`anatomy-figure${profile?.gender === 'x' ? ' neutral' : ''}${flashing.map(id => ` flash-${id}`).join('')}`}>
+                  <Body
+                    data={bodyData}
+                    side={side}
+                    gender={modelGender}
+                    scale={1}
+                    border="#68726f"
+                    defaultFill="#17201e"
+                    defaultStroke="#35403d"
+                    defaultStrokeWidth={1.4}
+                    onBodyPartPress={handleBodyPart}
+                  />
+                  {Object.entries(FIGURE_PINS[side]).map(([id, position]) => {
+                    const muscleId = id as MuscleId;
+                    if (!position || (loads[muscleId] <= 0 && selected !== muscleId)) return null;
+                    return <button
+                      className={`anatomy-load-pin${selected === muscleId ? ' selected' : ''}`}
+                      key={muscleId}
+                      type="button"
+                      style={{ left: `${position[0]}%`, top: `${position[1]}%`, color: muscleLoadColor(loads[muscleId]) }}
+                      onClick={() => setSelected(muscleId)}
+                      aria-label={`${zoneLabel(MUSCLE_ZONES.find(zone => zone.id === muscleId)!)} ${loads[muscleId]}%`}
+                    >{loads[muscleId]}%</button>;
+                  })}
+                </div>
+                <figcaption>{side === 'front' ? copy('VORNE', 'FRONT') : copy('HINTEN', 'BACK')}</figcaption>
+              </figure>)}
+            </div>
+          </div>
 
-            <text className="anatomy-view-label" x="120" y="510" textAnchor="middle">{copy('VORNE', 'FRONT')}</text>
-            <text className="anatomy-view-label" x="300" y="510" textAnchor="middle">{copy('HINTEN', 'BACK')}</text>
-          </svg>
+          <div className="anatomy-stat-ribbon" aria-label={copy('Muskelwerte', 'Muscle stats')}>
+            {MUSCLE_ZONES.map(zone => <button key={zone.id} type="button" className={selected === zone.id ? 'selected' : ''} onClick={() => setSelected(zone.id)}>
+              <span>{zoneLabel(zone)}</span><strong style={{ color: muscleLoadColor(loads[zone.id]) }}>{loads[zone.id]}%</strong>
+            </button>)}
+          </div>
 
           {selectedZone && (
             <form
@@ -340,6 +428,14 @@ export function MuscleConditionMonitor() {
         </div>
 
         <aside className="muscle-readout" aria-live="polite">
+          {lastWorkoutEvent?.exerciseName && <section className="muscle-live-transfer">
+            <small>{copy('LIVE AUS CHARAKTER-WORKOUT', 'LIVE FROM CHARACTER WORKOUT')}</small>
+            <strong>{lastWorkoutEvent.exerciseName}</strong>
+            <div>{lastWorkoutEvent.targets?.map(targetItem => <button key={targetItem.muscleId} type="button" onClick={() => setSelected(targetItem.muscleId)}>
+              <span><small>{targetItem.role === 'primary' ? copy('PRIMÄR', 'PRIMARY') : copy('SUPPORT', 'SUPPORT')} {Math.round(targetItem.share * 100)}%</small><strong>{zoneLabel(MUSCLE_ZONES.find(zone => zone.id === targetItem.muscleId)!)}</strong></span>
+              <b style={{ color: muscleLoadColor(loads[targetItem.muscleId]) }}>{loads[targetItem.muscleId]}%</b>
+            </button>)}</div>
+          </section>}
           {selectedZone ? (
             <>
               <div className="muscle-readout-primary">
@@ -352,7 +448,7 @@ export function MuscleConditionMonitor() {
                 <div className="muscle-readout-title"><span>{copy('Letzte Eingaben', 'Recent entries')}</span>{selectedEntries.length > 0 && <button type="button" onClick={undoLast}>{copy('Letzte rückgängig', 'Undo last')}</button>}</div>
                 {selectedEntries.length ? selectedEntries.map(entry => (
                   <div className="muscle-recent-row" key={entry.id}>
-                    <span><strong>{entry.sets} × {entry.reps}</strong><small>{Math.round(entry.durationMinutes)} min</small></span>
+                    <span><strong>{entry.exerciseName || `${entry.sets} × ${entry.reps}`}</strong><small>{entry.role ? `${entry.role === 'primary' ? copy('Primär', 'Primary') : 'Support'} ${Math.round((entry.targetShare || 1) * 100)}% · ` : ''}{entry.reps > 0 ? `${entry.reps} ${copy('Wdh.', 'reps')}` : ''}{entry.weightKg ? ` · ${entry.weightKg} kg` : ''}{entry.durationMinutes > 0 ? ` · ${Math.round(entry.durationMinutes * 60)} sec` : ''}</small></span>
                     <time dateTime={new Date(entry.createdAt).toISOString()}>{relativeTime(entry.createdAt, clock)}</time>
                   </div>
                 )) : <p>{copy('Tippe Werte in das Feld direkt auf der Figur ein.', 'Enter values in the panel directly on the figure.')}</p>}
@@ -380,38 +476,4 @@ export function MuscleConditionMonitor() {
       )}</p>
     </section>
   );
-}
-
-function MuscleShapes({ id }: { id: MuscleId }) {
-  switch (id) {
-    case 'shoulders':
-      return <>
-        <path className="muscle-zone-shape" d="M91 101q13-14 27-9l-8 38q-18-1-27-13zM149 101q-13-14-27-9l8 38q18-1 27-13z" />
-        <path className="muscle-zone-shape" d="M271 101q13-14 27-9l-8 38q-18-1-27-13zM329 101q-13-14-27-9l8 38q18-1 27-13z" />
-      </>;
-    case 'chest':
-      return <path className="muscle-zone-shape" d="M94 126q12-7 25-1v36q-15 8-29-3zM146 126q-12-7-25-1v36q15 8 29-3z" />;
-    case 'biceps':
-      return <>
-        <ellipse className="muscle-zone-shape" cx="75" cy="178" rx="12" ry="30" transform="rotate(11 75 178)" />
-        <ellipse className="muscle-zone-shape" cx="165" cy="178" rx="12" ry="30" transform="rotate(-11 165 178)" />
-      </>;
-    case 'core':
-      return <path className="muscle-zone-shape" d="M103 166q17 8 34 0l6 74q-23 18-46 0zM120 170v72M103 194h34M100 219h40" />;
-    case 'quads':
-      return <path className="muscle-zone-shape" d="M93 285q14-8 25 2l-5 103q-13 14-25-2zM147 285q-14-8-25 2l5 103q13 14 25-2z" />;
-    case 'back':
-      return <path className="muscle-zone-shape" d="M276 120q24-16 48 0l8 91q-11 32-32 36-21-4-32-36zM300 119v122M276 151q24 15 48 0M272 193q28 18 56 0" />;
-    case 'triceps':
-      return <>
-        <ellipse className="muscle-zone-shape" cx="255" cy="181" rx="11" ry="31" transform="rotate(11 255 181)" />
-        <ellipse className="muscle-zone-shape" cx="345" cy="181" rx="11" ry="31" transform="rotate(-11 345 181)" />
-      </>;
-    case 'glutes':
-      return <path className="muscle-zone-shape" d="M275 252q25-9 25 22 0 31-27 30l-5-34q0-13 7-18zM325 252q-25-9-25 22 0 31 27 30l5-34q0-13-7-18z" />;
-    case 'hamstrings':
-      return <path className="muscle-zone-shape" d="M275 304q18-5 25 8l-8 83q-13 12-25-2zM325 304q-18-5-25 8l8 83q13 12 25-2z" />;
-    case 'calves':
-      return <path className="muscle-zone-shape" d="M269 399q14-12 24 2l-4 78q-12 13-22-2zM331 399q-14-12-24 2l4 78q12 13 22-2z" />;
-  }
 }
