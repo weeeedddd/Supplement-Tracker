@@ -20,7 +20,7 @@ const workout = (id: string, source: Workout['source'], inspirationProfile?: Wor
 
 describe('character paths', () => {
   it('provides a complete exclusive definition for every inspiration profile', () => {
-    expect(Object.keys(CHARACTER_PATHS)).toEqual(['toji', 'goku', 'tanjiro']);
+    expect(Object.keys(CHARACTER_PATHS)).toEqual(['toji', 'goku', 'tanjiro', 'kaneki', 'sanji', 'baki', 'mikasa']);
     for (const path of Object.values(CHARACTER_PATHS)) {
       expect(path.tags.length).toBeGreaterThanOrEqual(3);
       expect(path.recommendations.length).toBeGreaterThanOrEqual(3);

@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import type { Workout } from '../lib/fitness';
-import { targetsForMovement } from '../lib/exerciseMuscles';
+import { replaceStarterWorkouts } from '../lib/characterWorkouts';
 import {
   CHARACTER_EQUIP_STORAGE_KEY,
   getCharacterPath,
@@ -222,6 +221,10 @@ function inspirationCopy(id: InspirationProfileId): { tagline: string; descripti
     toji: { de: 'Direkte Kraft', en: 'Direct strength', deDescription: 'Ein textbasiertes Kraft-Archetypprofil mit einfachen Grundbewegungen und großzügiger Erholung.', enDescription: 'A text-only strength archetype built around simple compound movement patterns and generous recovery.' },
     goku: { de: 'Athletische Vielfalt', en: 'Athletic variety', deDescription: 'Ein textbasiertes Konditions-Archetypprofil mit Ganzkörperkraft, Bewegungsqualität und lockeren Intervallen.', enDescription: 'A text-only conditioning archetype that alternates full-body strength, movement quality, and easy intervals.' },
     tanjiro: { de: 'Stabile Balance', en: 'Steady balance', deDescription: 'Ein textbasiertes, ausgewogenes Archetypprofil mit wiederholbarer Praxis, Mobilität und kontrollierter Belastung.', enDescription: 'A text-only balanced archetype that prioritizes repeatable practice, mobility, and controlled effort.' },
+    kaneki: { de: 'Adaptive Kontrolle', en: 'Adaptive control', deDescription: 'Zugkraft, Griffarbeit, Rumpfspannung und kontrollierte Kondition für einen anpassungsfähigen Athleten.', enDescription: 'Pulling strength, grip work, trunk tension, and controlled conditioning for an adaptive athlete.' },
+    sanji: { de: 'Beinpräzision', en: 'Leg precision', deDescription: 'Ein Unterkörper-Pfad mit einbeiniger Kraft, Balance, Fußarbeit, Wadenkapazität und Kondition.', enDescription: 'A lower-body path with unilateral strength, balance, footwork, calf capacity, and conditioning.' },
+    baki: { de: 'Ganzkörper-Kampfkraft', en: 'Total-body combat strength', deDescription: 'Kontrollierte Ganzkörperkraft, Carries, Beweglichkeit und kurze Konditionsblöcke.', enDescription: 'Controlled full-body strength, carries, mobility, and short conditioning blocks.' },
+    mikasa: { de: 'Taktische Ausdauer', en: 'Tactical endurance', deDescription: 'Zugkraft, Carries, Rumpfstabilität und effiziente wiederholbare Bewegung.', enDescription: 'Pulling strength, carries, core stability, and efficient repeatable movement.' },
   };
   const item = labels[id];
   return { tagline: copy(item.de, item.en), description: copy(item.deDescription, item.enDescription) };
@@ -454,30 +457,7 @@ function persistLocalResult({ input, plan, profile }: OnboardingCompletePayload)
     lifestyle: canonicalProfile.lifestyle,
   });
   S.set('initial_plan', { ...plan, createdAt: savedAt });
-  const existingWorkouts = (S.get<Workout[]>('train_user_plans') || [])
-    .filter((workout) => !String(workout.id).startsWith('starter-'));
-  const starterWorkouts: Workout[] = plan.sessions.map((session) => ({
-    id: canonicalProfile.inspirationProfile
-      ? `starter-${canonicalProfile.inspirationProfile}-${session.day}`
-      : `starter-${session.day}`,
-    name: `${plan.sourceLabel} / ${copy('Tag', 'Day')} ${session.day}`,
-    kind: 'fullbody',
-    focus: session.focus,
-    icon: '◇',
-    is_preset: false,
-    source: 'generated',
-    inspirationProfile: canonicalProfile.inspirationProfile,
-    exercises: session.exercises.map((exercise) => ({
-      name: exercise.name,
-      sets: exercise.sets,
-      reps: exercise.reps,
-      weight: exercise.equipment === 'bodyweight' ? 'bodyweight' : 'as available',
-      rest: 90,
-      movement: exercise.movement,
-      muscleTargets: targetsForMovement(exercise.movement),
-    })),
-  }));
-  S.set('train_user_plans', [...existingWorkouts, ...starterWorkouts]);
+  replaceStarterWorkouts(plan, canonicalProfile.inspirationProfile, lang === 'de' ? 'de' : 'en');
   S.set('local_workspace', { schemaVersion: 1, profileSchemaVersion: canonicalProfile.schemaVersion, kind: 'offline-local', savedAt });
   if (S.get('protocol') === null) S.set('protocol', []);
 }

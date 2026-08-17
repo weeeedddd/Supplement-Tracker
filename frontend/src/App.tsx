@@ -6,6 +6,7 @@ import { CompleteOverlay } from './components/Overlays';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { KiScreen } from './components/KiScreen';
+import { NotificationCenter } from './components/NotificationCenter';
 import { ProfileEditor } from './components/ProfileEditor';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ShoppingScreen } from './components/ShoppingScreen';
@@ -20,6 +21,11 @@ import {
 import { lang } from './lib/i18n';
 import { removeLegacyPseudoAuth, resolveInitialScreen } from './lib/localMode';
 import { useModalIsolation } from './lib/modal';
+import {
+  NOTIFICATION_UPDATED_EVENT,
+  getUnreadNotificationCount,
+  processDueNotifications,
+} from './lib/notifications';
 import type { InitialPlan } from './lib/plans';
 import { loadUserProfile } from './lib/profile';
 import { requestAiInitialPlan } from './lib/remotePlan';
@@ -101,6 +107,8 @@ export default function App() {
   useAppState();
   const screen = getScreen();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(() => getUnreadNotificationCount());
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileInitialTab, setProfileInitialTab] = useState<ProfileTab>('overview');
@@ -137,6 +145,22 @@ export default function App() {
     window.addEventListener(BACKEND_CONFIGURATION_EVENT, verifyBackend);
     return () => window.removeEventListener(BACKEND_CONFIGURATION_EVENT, verifyBackend);
   }, [verifyBackend]);
+
+  useEffect(() => {
+    if (!onApp) return;
+    const updateCount = () => setUnreadNotifications(getUnreadNotificationCount());
+    const process = () => { void processDueNotifications().finally(updateCount); };
+    const onVisibility = () => { if (document.visibilityState === 'visible') process(); };
+    process();
+    const interval = window.setInterval(process, 60_000);
+    window.addEventListener(NOTIFICATION_UPDATED_EVENT, updateCount);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener(NOTIFICATION_UPDATED_EVENT, updateCount);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [onApp]);
 
   useEffect(() => {
     applyTheme(getCurrentTheme());
@@ -180,6 +204,7 @@ export default function App() {
 
   const resetWorkspace = () => {
     setAssistantOpen(false);
+    setNotificationsOpen(false);
     setProfileEditorOpen(false);
     showScreen('onboard');
   };
@@ -208,11 +233,25 @@ export default function App() {
             {backendLabel(backendCapabilities)}
           </span>
           {onApp && (
+            <span className="notification-button-wrap">
+              <button className="system-icon-button" type="button" onClick={() => {
+                setSettingsOpen(false);
+                setNotificationsOpen(true);
+              }} aria-label={localCopy('Benachrichtigungen öffnen', 'Open notifications')}>
+                <SystemIcon name="bell" />
+              </button>
+              {unreadNotifications > 0 && <b className="notification-unread-badge" aria-hidden="true">{Math.min(99, unreadNotifications)}</b>}
+            </span>
+          )}
+          {onApp && (
             <button className="system-icon-button" type="button" onClick={() => setAssistantOpen(true)} aria-label={localCopy('CORELINE Guide öffnen', 'Open CORELINE Guide')}>
               <SystemIcon name="assistant" />
             </button>
           )}
-          <button className="system-icon-button" type="button" onClick={() => setSettingsOpen(true)} aria-label={localCopy('Einstellungen öffnen', 'Open settings')}>
+          <button className="system-icon-button" type="button" onClick={() => {
+            setNotificationsOpen(false);
+            setSettingsOpen(true);
+          }} aria-label={localCopy('Einstellungen öffnen', 'Open settings')}>
             <SystemIcon name="settings" />
           </button>
         </div>
@@ -305,6 +344,7 @@ export default function App() {
         onLocalReset={resetWorkspace}
         onBackendStatusChange={setBackendCapabilities}
       />
+      <NotificationCenter open={notificationsOpen && onApp} onClose={() => setNotificationsOpen(false)} />
       <CompleteOverlay streak={completeStreak} onDismiss={() => setCompleteStreak(null)} />
     </div>
   );

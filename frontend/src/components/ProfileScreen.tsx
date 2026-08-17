@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { getCharacterPath } from '../lib/characterPaths';
 import { getFoodLog } from '../lib/engine';
 import { getWorkoutSessions, type WorkoutSession } from '../lib/fitness';
 import { lang } from '../lib/i18n';
@@ -161,9 +162,7 @@ function labelDifficulty(profile: UserProfileV3): string {
 
 function labelMode(profile: UserProfileV3): string {
   if (profile.mode === 'inspiration') {
-    const profileName = profile.inspirationProfile
-      ? profile.inspirationProfile.charAt(0).toUpperCase() + profile.inspirationProfile.slice(1)
-      : copy('Inspiration', 'Inspiration');
+    const profileName = getCharacterPath(profile.inspirationProfile)?.name ?? copy('Inspiration', 'Inspiration');
     return `${profileName} · ${copy('textbasierte Inspiration', 'text-based inspiration')}`;
   }
   if (profile.mode === 'guided') return copy('Geführter Plan', 'Guided plan');

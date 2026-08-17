@@ -9,6 +9,16 @@ import {
 import { LANG_NAMES, lang, setLang } from '../lib/i18n';
 import { collectExportableLocalData, LOCAL_SYNC_STATE } from '../lib/localMode';
 import { useModalIsolation } from '../lib/modal';
+import {
+  createActivationNotice,
+  getSystemNotificationPermission,
+  loadNotificationPreferences,
+  processDueNotifications,
+  requestSystemNotificationPermission,
+  saveNotificationPreferences,
+  type CorelineNotificationPermission,
+  type CorelineNotificationPreferences,
+} from '../lib/notifications';
 import { deleteAllProgressPhotos } from '../lib/progressPhotos';
 import { S } from '../lib/storage';
 import { applyTheme, getCurrentTheme } from '../lib/themes';
@@ -48,6 +58,9 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
   const [checkingBackend, setCheckingBackend] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [resetStatus, setResetStatus] = useState('');
+  const [notificationPreferences, setNotificationPreferences] = useState(() => loadNotificationPreferences());
+  const [notificationPermission, setNotificationPermission] = useState<CorelineNotificationPermission>(() => getSystemNotificationPermission());
+  const [notificationStatus, setNotificationStatus] = useState('');
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -62,6 +75,9 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     }
     setBackendDraft(getBackendUrl());
     setBackendStatus('');
+    setNotificationPreferences(loadNotificationPreferences());
+    setNotificationPermission(getSystemNotificationPermission());
+    setNotificationStatus('');
     closeRef.current?.focus();
   }, [open, onClose]);
 
@@ -147,6 +163,22 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     ));
   };
 
+  const updateNotificationPreferences = (patch: Partial<CorelineNotificationPreferences>) => {
+    setNotificationPreferences(saveNotificationPreferences(patch));
+    void processDueNotifications();
+  };
+
+  const activateNotifications = async () => {
+    const permission = await requestSystemNotificationPermission();
+    setNotificationPermission(permission);
+    setNotificationPreferences(saveNotificationPreferences({ enabled: true }));
+    createActivationNotice();
+    await processDueNotifications();
+    setNotificationStatus(permission === 'granted'
+      ? copy('Systemhinweise sind aktiv. CORELINE erinnert dich auf diesem Gerät zu deinen gewählten Zeiten.', 'System notices are active. CORELINE will remind you on this device at your selected times.')
+      : copy('In-App-Erinnerungen sind aktiv. Der Browser hat Systemhinweise nicht freigegeben; du kannst die Browser-Berechtigung später ändern.', 'In-app reminders are active. The browser did not allow system notices; you can change the browser permission later.'));
+  };
+
   return (
     <div className="product-modal" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose();
@@ -168,6 +200,66 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
             <code>{LOCAL_SYNC_STATE.mode} · Schema {LOCAL_SYNC_STATE.schemaVersion}</code>
           </div>
         </section>
+
+        <details className="settings-section settings-integration notification-settings">
+          <summary>
+            <span>
+              <strong>{copy('Benachrichtigungen', 'Notifications')}</strong>
+              <small>{notificationPreferences.enabled ? copy('Training, Regeneration und Routine auf diesem Gerät', 'Training, recovery, and routine on this device') : copy('Noch nicht aktiviert', 'Not enabled yet')}</small>
+            </span>
+            <SystemIcon name="chevron" />
+          </summary>
+          <div className="settings-integration-body">
+            <div className="notification-settings-status">
+              <SystemIcon name="bell" />
+              <span><strong>{notificationPermission === 'granted' ? copy('Android-Systemhinweise verfügbar', 'Android system notices available') : copy('In-App-Systemlog verfügbar', 'In-app system log available')}</strong><small>{copy(
+                'Fällige Hinweise erscheinen, sobald CORELINE geöffnet oder wieder aktiv wird. Push bei vollständig geschlossener App benötigt später ein optionales Backend.',
+                'Due notices appear when CORELINE is open or becomes active again. Push while the app is fully closed will require an optional backend later.',
+              )}</small></span>
+            </div>
+
+            <div className="notification-toggle-grid">
+              <label><input type="checkbox" checked={notificationPreferences.training} onChange={event => updateNotificationPreferences({ training: event.target.checked })} /><span><strong>{copy('Trainings-Quest', 'Training quest')}</strong><small>{copy('An ausgewählten Wochentagen', 'On selected weekdays')}</small></span></label>
+              <label><input type="checkbox" checked={notificationPreferences.recovery} onChange={event => updateNotificationPreferences({ recovery: event.target.checked })} /><span><strong>{copy('Regenerations-Check', 'Recovery check')}</strong><small>{copy('Etwa 20 Stunden nach einer Einheit', 'About 20 hours after a session')}</small></span></label>
+              <label><input type="checkbox" checked={notificationPreferences.supplements} onChange={event => updateNotificationPreferences({ supplements: event.target.checked })} /><span><strong>{copy('Routine-Check', 'Routine check')}</strong><small>{copy('Nur für bewusst getrackte Produkte', 'Only for deliberately tracked products')}</small></span></label>
+            </div>
+
+            <div className="notification-time-grid">
+              <label>{copy('Trainingszeit', 'Training time')}<input type="time" value={notificationPreferences.trainingTime} onChange={event => updateNotificationPreferences({ trainingTime: event.target.value })} /></label>
+              <label>{copy('Routinezeit', 'Routine time')}<input type="time" value={notificationPreferences.supplementTime} onChange={event => updateNotificationPreferences({ supplementTime: event.target.value })} /></label>
+            </div>
+
+            <fieldset className="notification-day-picker">
+              <legend>{copy('Trainingstage', 'Training days')}</legend>
+              <div>{[
+                [1, copy('Mo', 'Mon')],
+                [2, copy('Di', 'Tue')],
+                [3, copy('Mi', 'Wed')],
+                [4, copy('Do', 'Thu')],
+                [5, copy('Fr', 'Fri')],
+                [6, copy('Sa', 'Sat')],
+                [0, copy('So', 'Sun')],
+              ].map(([day, label]) => {
+                const active = notificationPreferences.trainingDays.includes(day as number);
+                return <button key={day} type="button" className={active ? 'active' : ''} aria-pressed={active} onClick={() => updateNotificationPreferences({
+                  trainingDays: active
+                    ? notificationPreferences.trainingDays.filter(value => value !== day)
+                    : [...notificationPreferences.trainingDays, day as number],
+                })}>{label}</button>;
+              })}</div>
+            </fieldset>
+
+            <div className="settings-backend-actions">
+              {notificationPreferences.enabled
+                ? <button className="secondary-button" type="button" onClick={() => {
+                  setNotificationPreferences(saveNotificationPreferences({ enabled: false }));
+                  setNotificationStatus(copy('Erinnerungen wurden pausiert.', 'Reminders were paused.'));
+                }}>{copy('Erinnerungen pausieren', 'Pause reminders')}</button>
+                : <button className="secondary-button" type="button" onClick={() => void activateNotifications()}>{copy('Benachrichtigungen aktivieren', 'Enable notifications')}</button>}
+            </div>
+            {notificationStatus && <p role="status">{notificationStatus}</p>}
+          </div>
+        </details>
 
         <details className="settings-section settings-integration">
           <summary>

@@ -1,5 +1,7 @@
+import type { ExerciseMuscleTarget, MuscleId } from './muscleLoad';
+
 export type PlanMode = 'own' | 'inspiration' | 'guided';
-export type InspirationProfileId = 'toji' | 'goku' | 'tanjiro';
+export type InspirationProfileId = 'toji' | 'goku' | 'tanjiro' | 'kaneki' | 'sanji' | 'baki' | 'mikasa';
 export type PlanDifficulty = 'light' | 'medium' | 'hard';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'advanced';
 export type EquipmentOption = 'bodyweight' | 'dumbbells' | 'resistance_bands' | 'full_gym';
@@ -36,6 +38,34 @@ export const INSPIRATION_PROFILES: InspirationProfile[] = [
     tagline: 'Steady balance',
     description: 'A text-only balanced archetype that prioritizes repeatable practice, mobility, and controlled effort.',
     emphasis: 'balanced strength, conditioning, and mobility',
+  },
+  {
+    id: 'kaneki',
+    name: 'Ken Kaneki',
+    tagline: 'Adaptive control',
+    description: 'A pull-and-core archetype built around controlled tension, grip, movement quality, and repeatable conditioning.',
+    emphasis: 'pulling strength, trunk control, and adaptation',
+  },
+  {
+    id: 'sanji',
+    name: 'Sanji',
+    tagline: 'Leg precision',
+    description: 'A lower-body archetype built around unilateral strength, balance, footwork, calf capacity, and athletic conditioning.',
+    emphasis: 'leg power, balance, and footwork',
+  },
+  {
+    id: 'baki',
+    name: 'Baki Hanma',
+    tagline: 'Total-body combat strength',
+    description: 'A full-body archetype that combines controlled strength, carries, mobility, and short conditioning blocks.',
+    emphasis: 'full-body strength, bracing, and mobility',
+  },
+  {
+    id: 'mikasa',
+    name: 'Mikasa Ackerman',
+    tagline: 'Tactical endurance',
+    description: 'A pull, carry, and core archetype built around efficient movement, unilateral control, and repeatable work capacity.',
+    emphasis: 'pulling strength, core stability, and endurance',
   },
 ];
 
@@ -82,6 +112,7 @@ export interface PlanExercise {
   sets: number;
   reps: string;
   effort: string;
+  muscleTargets?: ExerciseMuscleTarget[];
 }
 
 export interface PlanSession {
@@ -121,7 +152,7 @@ export interface InitialPlan {
 }
 
 const PLAN_MODES = new Set<PlanMode>(['own', 'inspiration', 'guided']);
-const PROFILE_IDS = new Set<InspirationProfileId>(['toji', 'goku', 'tanjiro']);
+const PROFILE_IDS = new Set<InspirationProfileId>(INSPIRATION_PROFILES.map(profile => profile.id));
 const DIFFICULTIES = new Set<PlanDifficulty>(['light', 'medium', 'hard']);
 const EXPERIENCE = new Set<ExperienceLevel>(['beginner', 'intermediate', 'advanced']);
 const EQUIPMENT = new Set<EquipmentOption>(['bodyweight', 'dumbbells', 'resistance_bands', 'full_gym']);
@@ -208,7 +239,12 @@ interface ExerciseTemplate {
   movement: MovementPattern;
   equipment: EquipmentOption;
   character?: InspirationProfileId;
+  muscleTargets?: ExerciseMuscleTarget[];
 }
+
+const muscleTargets = (
+  ...items: Array<[MuscleId, ExerciseMuscleTarget['role'], number]>
+): ExerciseMuscleTarget[] => items.map(([muscleId, role, share]) => ({ muscleId, role, share }));
 
 const EXERCISES: ExerciseTemplate[] = [
   { id: 'chair-squat', name: 'Chair squat', movement: 'squat', equipment: 'bodyweight' },
@@ -259,6 +295,38 @@ const EXERCISES: ExerciseTemplate[] = [
   { id: 'tanjiro-db-row', name: 'Paused dumbbell row', movement: 'pull', equipment: 'dumbbells', character: 'tanjiro' },
   { id: 'tanjiro-pallof', name: 'Band Pallof press', movement: 'core', equipment: 'resistance_bands', character: 'tanjiro' },
   { id: 'tanjiro-bike', name: 'Steady bike breathing intervals', movement: 'conditioning', equipment: 'full_gym', character: 'tanjiro' },
+  { id: 'kaneki-lat-sweep', name: 'Prone lat sweep', movement: 'pull', equipment: 'bodyweight', character: 'kaneki', muscleTargets: muscleTargets(['back', 'primary', .62], ['shoulders', 'secondary', .23], ['biceps', 'secondary', .15]) },
+  { id: 'kaneki-crawl', name: 'Controlled bear crawl', movement: 'conditioning', equipment: 'bodyweight', character: 'kaneki', muscleTargets: muscleTargets(['core', 'primary', .4], ['shoulders', 'secondary', .3], ['quads', 'secondary', .2], ['calves', 'secondary', .1]) },
+  { id: 'kaneki-hollow-twist', name: 'Hollow-body twist', movement: 'core', equipment: 'bodyweight', character: 'kaneki', muscleTargets: muscleTargets(['core', 'primary', .75], ['glutes', 'secondary', .15], ['shoulders', 'secondary', .1]) },
+  { id: 'kaneki-split-squat', name: 'Slow-eccentric split squat', movement: 'squat', equipment: 'bodyweight', character: 'kaneki', muscleTargets: muscleTargets(['quads', 'primary', .55], ['glutes', 'secondary', .25], ['core', 'secondary', .2]) },
+  { id: 'kaneki-renegade-row', name: 'Controlled renegade row', movement: 'pull', equipment: 'dumbbells', character: 'kaneki', muscleTargets: muscleTargets(['back', 'primary', .5], ['core', 'secondary', .3], ['biceps', 'secondary', .2]) },
+  { id: 'kaneki-db-carry', name: 'Offset dumbbell carry', movement: 'carry', equipment: 'dumbbells', character: 'kaneki', muscleTargets: muscleTargets(['core', 'primary', .45], ['shoulders', 'secondary', .25], ['back', 'secondary', .2], ['biceps', 'secondary', .1]) },
+  { id: 'kaneki-band-row', name: 'High band row', movement: 'pull', equipment: 'resistance_bands', character: 'kaneki', muscleTargets: muscleTargets(['back', 'primary', .55], ['shoulders', 'secondary', .3], ['biceps', 'secondary', .15]) },
+  { id: 'kaneki-cable-row', name: 'Paused cable row', movement: 'pull', equipment: 'full_gym', character: 'kaneki', muscleTargets: muscleTargets(['back', 'primary', .7], ['biceps', 'secondary', .2], ['core', 'secondary', .1]) },
+  { id: 'sanji-skater-squat', name: 'Supported skater squat', movement: 'squat', equipment: 'bodyweight', character: 'sanji', muscleTargets: muscleTargets(['quads', 'primary', .5], ['glutes', 'secondary', .25], ['calves', 'secondary', .15], ['core', 'secondary', .1]) },
+  { id: 'sanji-reverse-lunge', name: 'Precision reverse lunge', movement: 'squat', equipment: 'bodyweight', character: 'sanji', muscleTargets: muscleTargets(['quads', 'primary', .55], ['glutes', 'secondary', .3], ['core', 'secondary', .15]) },
+  { id: 'sanji-calf-raise', name: 'Single-leg calf raise', movement: 'conditioning', equipment: 'bodyweight', character: 'sanji', muscleTargets: muscleTargets(['calves', 'primary', .85], ['quads', 'secondary', .15]) },
+  { id: 'sanji-lateral-bound', name: 'Controlled lateral bound', movement: 'conditioning', equipment: 'bodyweight', character: 'sanji', muscleTargets: muscleTargets(['quads', 'primary', .4], ['calves', 'secondary', .25], ['glutes', 'secondary', .25], ['core', 'secondary', .1]) },
+  { id: 'sanji-db-step-up', name: 'Dumbbell step-up drive', movement: 'squat', equipment: 'dumbbells', character: 'sanji', muscleTargets: muscleTargets(['quads', 'primary', .55], ['glutes', 'secondary', .25], ['calves', 'secondary', .1], ['core', 'secondary', .1]) },
+  { id: 'sanji-db-rdl', name: 'Single-leg dumbbell Romanian deadlift', movement: 'hinge', equipment: 'dumbbells', character: 'sanji', muscleTargets: muscleTargets(['hamstrings', 'primary', .55], ['glutes', 'secondary', .25], ['core', 'secondary', .1], ['back', 'secondary', .1]) },
+  { id: 'sanji-band-step', name: 'Banded lateral step', movement: 'squat', equipment: 'resistance_bands', character: 'sanji', muscleTargets: muscleTargets(['glutes', 'primary', .55], ['quads', 'secondary', .25], ['core', 'secondary', .2]) },
+  { id: 'sanji-leg-press', name: 'Controlled unilateral leg press', movement: 'squat', equipment: 'full_gym', character: 'sanji', muscleTargets: muscleTargets(['quads', 'primary', .65], ['glutes', 'secondary', .2], ['calves', 'secondary', .15]) },
+  { id: 'baki-tempo-pushup', name: 'Paused tempo push-up', movement: 'push', equipment: 'bodyweight', character: 'baki', muscleTargets: muscleTargets(['chest', 'primary', .55], ['shoulders', 'secondary', .2], ['triceps', 'secondary', .15], ['core', 'secondary', .1]) },
+  { id: 'baki-cossack-squat', name: 'Controlled Cossack squat', movement: 'mobility', equipment: 'bodyweight', character: 'baki', muscleTargets: muscleTargets(['quads', 'primary', .45], ['hamstrings', 'secondary', .25], ['glutes', 'secondary', .2], ['core', 'secondary', .1]) },
+  { id: 'baki-bear-crawl', name: 'Heavy-tension bear crawl', movement: 'conditioning', equipment: 'bodyweight', character: 'baki', muscleTargets: muscleTargets(['core', 'primary', .35], ['shoulders', 'secondary', .25], ['quads', 'secondary', .2], ['back', 'secondary', .1], ['calves', 'secondary', .1]) },
+  { id: 'baki-bridge-march', name: 'Glute-bridge march', movement: 'hinge', equipment: 'bodyweight', character: 'baki', muscleTargets: muscleTargets(['glutes', 'primary', .45], ['hamstrings', 'secondary', .35], ['core', 'secondary', .2]) },
+  { id: 'baki-db-push-press', name: 'Controlled dumbbell push press', movement: 'push', equipment: 'dumbbells', character: 'baki', muscleTargets: muscleTargets(['shoulders', 'primary', .5], ['triceps', 'secondary', .2], ['quads', 'secondary', .15], ['core', 'secondary', .15]) },
+  { id: 'baki-db-carry', name: 'Heavy dumbbell farmer carry', movement: 'carry', equipment: 'dumbbells', character: 'baki', muscleTargets: muscleTargets(['core', 'primary', .4], ['back', 'secondary', .25], ['shoulders', 'secondary', .2], ['biceps', 'secondary', .15]) },
+  { id: 'baki-band-row', name: 'Braced band row', movement: 'pull', equipment: 'resistance_bands', character: 'baki', muscleTargets: muscleTargets(['back', 'primary', .6], ['biceps', 'secondary', .2], ['core', 'secondary', .2]) },
+  { id: 'baki-cable-press', name: 'Split-stance cable press', movement: 'push', equipment: 'full_gym', character: 'baki', muscleTargets: muscleTargets(['chest', 'primary', .55], ['shoulders', 'secondary', .2], ['triceps', 'secondary', .2], ['core', 'secondary', .05]) },
+  { id: 'mikasa-snow-angel', name: 'Prone reverse snow angel', movement: 'pull', equipment: 'bodyweight', character: 'mikasa', muscleTargets: muscleTargets(['back', 'primary', .55], ['shoulders', 'secondary', .35], ['core', 'secondary', .1]) },
+  { id: 'mikasa-step-up', name: 'Fast controlled step-up', movement: 'conditioning', equipment: 'bodyweight', character: 'mikasa', muscleTargets: muscleTargets(['quads', 'primary', .45], ['glutes', 'secondary', .25], ['calves', 'secondary', .15], ['core', 'secondary', .15]) },
+  { id: 'mikasa-side-plank', name: 'Side-plank reach', movement: 'core', equipment: 'bodyweight', character: 'mikasa', muscleTargets: muscleTargets(['core', 'primary', .65], ['shoulders', 'secondary', .2], ['glutes', 'secondary', .15]) },
+  { id: 'mikasa-split-squat', name: 'Stable split squat', movement: 'squat', equipment: 'bodyweight', character: 'mikasa', muscleTargets: muscleTargets(['quads', 'primary', .5], ['glutes', 'secondary', .25], ['core', 'secondary', .15], ['calves', 'secondary', .1]) },
+  { id: 'mikasa-db-carry', name: 'Tactical suitcase carry', movement: 'carry', equipment: 'dumbbells', character: 'mikasa', muscleTargets: muscleTargets(['core', 'primary', .4], ['shoulders', 'secondary', .25], ['back', 'secondary', .25], ['biceps', 'secondary', .1]) },
+  { id: 'mikasa-db-row', name: 'Tripod dumbbell row', movement: 'pull', equipment: 'dumbbells', character: 'mikasa', muscleTargets: muscleTargets(['back', 'primary', .6], ['biceps', 'secondary', .2], ['core', 'secondary', .2]) },
+  { id: 'mikasa-band-row', name: 'Half-kneeling band row', movement: 'pull', equipment: 'resistance_bands', character: 'mikasa', muscleTargets: muscleTargets(['back', 'primary', .6], ['core', 'secondary', .25], ['biceps', 'secondary', .15]) },
+  { id: 'mikasa-ski-erg', name: 'Repeatable ski-erg intervals', movement: 'conditioning', equipment: 'full_gym', character: 'mikasa', muscleTargets: muscleTargets(['back', 'primary', .35], ['shoulders', 'secondary', .2], ['core', 'secondary', .2], ['quads', 'secondary', .15], ['calves', 'secondary', .1]) },
 ];
 
 const EXERCISE_NAMES_DE: Record<string, string> = {
@@ -310,6 +378,38 @@ const EXERCISE_NAMES_DE: Record<string, string> = {
   'tanjiro-db-row': 'Kurzhantelrudern mit Pause',
   'tanjiro-pallof': 'Pallof Press mit Band',
   'tanjiro-bike': 'Ruhige Fahrrad-Atemintervalle',
+  'kaneki-lat-sweep': 'Lat Sweep in Bauchlage',
+  'kaneki-crawl': 'Kontrollierter Bear Crawl',
+  'kaneki-hollow-twist': 'Hollow-Body Twist',
+  'kaneki-split-squat': 'Split-Kniebeuge mit langsamer Abwärtsphase',
+  'kaneki-renegade-row': 'Kontrolliertes Renegade Row',
+  'kaneki-db-carry': 'Versetzter Kurzhantel-Carry',
+  'kaneki-band-row': 'Hohes Rudern mit Band',
+  'kaneki-cable-row': 'Kabelrudern mit Pause',
+  'sanji-skater-squat': 'Gestützte Skater-Kniebeuge',
+  'sanji-reverse-lunge': 'Präziser Reverse Lunge',
+  'sanji-calf-raise': 'Einbeiniges Wadenheben',
+  'sanji-lateral-bound': 'Kontrollierter Seitwärtssprung',
+  'sanji-db-step-up': 'Kurzhantel-Step-up mit Kniehub',
+  'sanji-db-rdl': 'Einbeiniges rumänisches Kreuzheben mit Kurzhantel',
+  'sanji-band-step': 'Seitwärtsschritte mit Band',
+  'sanji-leg-press': 'Kontrollierte einbeinige Beinpresse',
+  'baki-tempo-pushup': 'Liegestütze mit Pause und Tempo',
+  'baki-cossack-squat': 'Kontrollierte Cossack-Kniebeuge',
+  'baki-bear-crawl': 'Bear Crawl mit Ganzkörperspannung',
+  'baki-bridge-march': 'Glute-Bridge March',
+  'baki-db-push-press': 'Kontrollierter Kurzhantel Push Press',
+  'baki-db-carry': 'Schwerer Farmer Carry mit Kurzhanteln',
+  'baki-band-row': 'Rudern mit Band und Rumpfspannung',
+  'baki-cable-press': 'Kabeldrücken im Split-Stand',
+  'mikasa-snow-angel': 'Reverse Snow Angel in Bauchlage',
+  'mikasa-step-up': 'Schneller kontrollierter Step-up',
+  'mikasa-side-plank': 'Seitstütz mit Reichbewegung',
+  'mikasa-split-squat': 'Stabile Split-Kniebeuge',
+  'mikasa-db-carry': 'Taktischer Suitcase Carry',
+  'mikasa-db-row': 'Kurzhantelrudern im Dreipunktstand',
+  'mikasa-band-row': 'Halbkniendes Rudern mit Band',
+  'mikasa-ski-erg': 'Wiederholbare Ski-Erg-Intervalle',
 };
 
 const GOAL_EMPHASIS: Record<TrainingGoal, Record<PlanLanguage, string>> = {
@@ -339,6 +439,10 @@ function desiredPatterns(input: PlanInput, sessionIndex: number): MovementPatter
   if (input.inspirationProfile === 'goku') base.unshift('conditioning', 'mobility');
   if (input.inspirationProfile === 'toji') base.unshift('hinge', 'squat', 'carry');
   if (input.inspirationProfile === 'tanjiro') base.unshift('mobility', 'core', 'conditioning');
+  if (input.inspirationProfile === 'kaneki') base.unshift('pull', 'core', 'carry', 'conditioning');
+  if (input.inspirationProfile === 'sanji') base.unshift('squat', 'conditioning', 'hinge', 'mobility');
+  if (input.inspirationProfile === 'baki') base.unshift('push', 'hinge', 'carry', 'mobility');
+  if (input.inspirationProfile === 'mikasa') base.unshift('pull', 'carry', 'core', 'conditioning');
   return [...base.slice(sessionIndex % 4), ...base.slice(0, sessionIndex % 4)];
 }
 
@@ -403,6 +507,10 @@ function sessionFocus(input: PlanInput, index: number, language: PlanLanguage): 
   if (input.inspirationProfile === 'goku' && index % 2 === 1) return language === 'de' ? 'Athletische Kondition' : 'Athletic conditioning';
   if (input.inspirationProfile === 'tanjiro' && index % 2 === 1) return language === 'de' ? 'Balance und Mobilität' : 'Balance and mobility';
   if (input.inspirationProfile === 'toji' && index % 2 === 0) return language === 'de' ? 'Direkte Kraftpraxis' : 'Simple strength practice';
+  if (input.inspirationProfile === 'kaneki') return index % 2 === 0 ? language === 'de' ? 'Zugkraft und Rumpfkontrolle' : 'Pull strength and trunk control' : language === 'de' ? 'Adaptive Kondition' : 'Adaptive conditioning';
+  if (input.inspirationProfile === 'sanji') return index % 2 === 0 ? language === 'de' ? 'Beinpräzision und Balance' : 'Leg precision and balance' : language === 'de' ? 'Athletische Beinkondition' : 'Athletic leg conditioning';
+  if (input.inspirationProfile === 'baki') return index % 2 === 0 ? language === 'de' ? 'Ganzkörperkraft und Spannung' : 'Total-body strength and tension' : language === 'de' ? 'Mobilität unter Kontrolle' : 'Controlled mobility';
+  if (input.inspirationProfile === 'mikasa') return index % 2 === 0 ? language === 'de' ? 'Zugkraft und Carry-Kontrolle' : 'Pull and carry control' : language === 'de' ? 'Taktische Ausdauer' : 'Tactical endurance';
   return labels[index % labels.length];
 }
 
@@ -415,6 +523,10 @@ export function generateInitialPlan(input: PlanInput, language: PlanLanguage = '
     toji: { de: 'Kraft und Explosivität', en: 'strength and power' },
     goku: { de: 'Kondition und athletische Vielfalt', en: 'conditioning and athletic variety' },
     tanjiro: { de: 'ausgewogene Kraft, Kondition und Mobilität', en: 'balanced strength, conditioning, and mobility' },
+    kaneki: { de: 'Zugkraft, Rumpfkontrolle und Anpassungsfähigkeit', en: 'pulling strength, trunk control, and adaptation' },
+    sanji: { de: 'Beinkraft, Balance und präzise Fußarbeit', en: 'leg power, balance, and precise footwork' },
+    baki: { de: 'Ganzkörperkraft, Spannung und Mobilität', en: 'full-body strength, bracing, and mobility' },
+    mikasa: { de: 'Zugkraft, Rumpfstabilität und Ausdauer', en: 'pulling strength, core stability, and endurance' },
   };
   const emphasis = inspiration
     ? inspirationEmphasis[inspiration.id]?.[language] ?? inspiration.emphasis
@@ -428,6 +540,7 @@ export function generateInitialPlan(input: PlanInput, language: PlanLanguage = '
       sets,
       reps: repCue(input, exercise.movement, language),
       effort,
+      muscleTargets: exercise.muscleTargets?.map(target => ({ ...target })),
     }));
     return {
       day: index + 1,
