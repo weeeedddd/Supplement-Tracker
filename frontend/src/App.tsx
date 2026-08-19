@@ -6,6 +6,8 @@ import { CompleteOverlay } from './components/Overlays';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { KiScreen } from './components/KiScreen';
+import { GuildPanel } from './components/GuildPanel';
+import { WeeklyReportPanel } from './components/WeeklyReportPanel';
 import { NotificationCenter } from './components/NotificationCenter';
 import { ProfileEditor } from './components/ProfileEditor';
 import { SettingsPanel } from './components/SettingsPanel';
@@ -113,6 +115,8 @@ export default function App() {
   const screen = getScreen();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [guildOpen, setGuildOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(() => getUnreadNotificationCount());
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
@@ -321,6 +325,8 @@ export default function App() {
               <ProfileScreen
                 initialTab={profileInitialTab}
                 onEditProfile={openProfileEditor}
+                onOpenGuild={() => setGuildOpen(true)}
+                onOpenReport={() => setReportOpen(true)}
                 onOpenTraining={() => showScreen('training')}
                 onOpenFood={() => showScreen('fuel')}
                 onOpenSupplements={() => showScreen('ki')}
@@ -389,6 +395,8 @@ export default function App() {
         onBackendStatusChange={setBackendCapabilities}
       />
       <NotificationCenter open={notificationsOpen && onApp} onClose={() => setNotificationsOpen(false)} />
+      <GuildPanel open={guildOpen && onApp} onClose={() => setGuildOpen(false)} />
+      <WeeklyReportPanel open={reportOpen && onApp} onClose={() => setReportOpen(false)} />
       <CompleteOverlay streak={completeStreak} onDismiss={() => setCompleteStreak(null)} />
     </div>
   );

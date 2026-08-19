@@ -2,7 +2,7 @@
 Chat-Verläufe und der serverseitige Preis-Cache."""
 import time
 
-from sqlalchemy import Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -145,3 +145,77 @@ class StatBuff(Base):
     boosts_json: Mapped[str] = mapped_column(Text, default="{}")         # {STR:+10,VIT:+10}
     created: Mapped[float] = mapped_column(Float, default=now)
     expires_at: Mapped[float] = mapped_column(Float, default=now, index=True)
+
+
+# ═══ GILDEN · SYNC · RAIDS ════════════════════════════════════════════
+class Guild(Base):
+    __tablename__ = "guilds"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    tag: Mapped[str] = mapped_column(String(8), default="")
+    motto: Mapped[str] = mapped_column(String(160), default="")
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created: Mapped[float] = mapped_column(Float, default=now)
+
+
+class GuildMember(Base):
+    __tablename__ = "guild_members"
+    __table_args__ = (
+        UniqueConstraint("guild_id", "user_id", name="uq_guild_user"),
+        # Eine Mitgliedschaft je Nutzer — auf DB-Ebene, damit gleichzeitige
+        # Beitritte nicht in zwei Gilden gleichzeitig enden.
+        UniqueConstraint("user_id", name="uq_member_single_guild"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    guild_id: Mapped[int] = mapped_column(ForeignKey("guilds.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    role: Mapped[str] = mapped_column(String(12), default="member")   # owner | officer | member
+    joined: Mapped[float] = mapped_column(Float, default=now)
+    last_seen: Mapped[float] = mapped_column(Float, default=now)
+
+
+class GuildInvite(Base):
+    __tablename__ = "guild_invites"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    guild_id: Mapped[int] = mapped_column(ForeignKey("guilds.id"), index=True)
+    code: Mapped[str] = mapped_column(String(16), unique=True, index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created: Mapped[float] = mapped_column(Float, default=now)
+    expires: Mapped[float] = mapped_column(Float, default=0)
+    uses_left: Mapped[int] = mapped_column(Integer, default=25)
+
+
+class SyncBlob(Base):
+    """Geräteübergreifender Datenstand eines Nutzers.
+
+    Der Server speichert den Blob undurchsichtig. `rev` erlaubt dem Client,
+    konkurrierende Schreibzugriffe zu erkennen, statt sie stillschweigend
+    zu überschreiben.
+    """
+    __tablename__ = "sync_blobs"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    payload: Mapped[str] = mapped_column(Text, default="{}")
+    rev: Mapped[int] = mapped_column(Integer, default=1)
+    updated: Mapped[float] = mapped_column(Float, default=now)
+    device: Mapped[str] = mapped_column(String(64), default="")
+
+
+class Raid(Base):
+    __tablename__ = "raids"
+    __table_args__ = (UniqueConstraint("guild_id", "week_key", name="uq_raid_week"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    guild_id: Mapped[int] = mapped_column(ForeignKey("guilds.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="volume")   # volume | consistency | sessions
+    week_key: Mapped[str] = mapped_column(String(10), index=True)     # ISO-Woche, z. B. "2026-W34"
+    goal: Mapped[int] = mapped_column(Integer, default=0)
+    created: Mapped[float] = mapped_column(Float, default=now)
+
+
+class RaidContribution(Base):
+    __tablename__ = "raid_contributions"
+    __table_args__ = (UniqueConstraint("raid_id", "user_id", name="uq_raid_user"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    raid_id: Mapped[int] = mapped_column(ForeignKey("raids.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    value: Mapped[int] = mapped_column(Integer, default=0)
+    updated: Mapped[float] = mapped_column(Float, default=now)

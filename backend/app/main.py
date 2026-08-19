@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .api_v1 import router as api_v1_router
+from .guild_api import router as guild_router
 from .db import Base, SessionLocal, engine, get_db
 from .models import AuthToken, ChatMessage, Dish, ScanEntry, User, UserStats, WorkoutPlan
 from .services.fitness import (
@@ -67,6 +68,7 @@ app.add_middleware(
 )
 
 app.include_router(api_v1_router)
+app.include_router(guild_router)
 
 MEDIA_DIR = os.environ.get("MEDIA_DIR", os.path.join(os.path.dirname(__file__), "..", "media"))
 os.makedirs(MEDIA_DIR, exist_ok=True)

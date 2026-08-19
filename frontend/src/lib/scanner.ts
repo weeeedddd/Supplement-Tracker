@@ -7,9 +7,15 @@
 import { S, timeoutSignal } from './storage';
 import type { Macros } from './engine';
 
+export type ServingBasis = 'stated' | 'manufacturer' | 'assumed';
+
 export interface ScanDetails {
   source: 'barcode-database' | 'local-reference' | 'legacy-estimate';
   confidence: 'database' | 'estimated';
+  /** Woher die Portionsgrösse stammt — die grösste Fehlerquelle im Scan. */
+  servingBasis?: ServingBasis;
+  /** true → Nutzer hat die Portion bestätigt oder korrigiert. */
+  servingConfirmed?: boolean;
   servingGrams?: number;
   fiber?: number;
   saturatedFat?: number;
@@ -56,7 +62,9 @@ export function macrosFromOFF(prod: any, grams: number | null): { grams: number;
   })();
   if (kcal100 == null || !(kcal100 > 0) || kcal100 > 1_000) return null;
   const serving = finite(prod.serving_quantity);
-  const g = grams || (serving && serving >= 5 && serving <= 2_000 ? serving : 100);
+  const usableServing = serving && serving >= 5 && serving <= 2_000 ? serving : null;
+  const g = grams || usableServing || 100;
+  const servingBasis: ServingBasis = grams ? 'stated' : usableServing ? 'manufacturer' : 'assumed';
   const f = g / 100;
   const r = (value: unknown, maximum = 100) => {
     const parsed = finite(value);
@@ -79,6 +87,7 @@ export function macrosFromOFF(prod: any, grams: number | null): { grams: number;
     },
     details: {
       servingGrams: g,
+      servingBasis,
       fiber: r(n.fiber_100g),
       saturatedFat,
       sodiumMg: sodium100 === null || sodium100 > 10 ? undefined : Math.round(sodium100 * f * 1_000),
@@ -463,14 +472,14 @@ export function keywordFoodEstimate(text: string): ScanResult | null {
       return {
         name: `${text} (${g} g)`,
         macros: { kcal: r(e.m.kcal), prot: r(e.m.prot), carb: r(e.m.carb), fat: r(e.m.fat), sug: r(e.m.sug) },
-        details: { source: 'legacy-estimate', confidence: 'estimated', servingGrams: g, components: 1 },
+        details: { source: 'legacy-estimate', confidence: 'estimated', servingGrams: g, servingBasis: grams ? 'stated' : 'assumed', components: 1 },
       };
     }
   }
   const base = dummyFoodMacros(text || '');
   if (!base) return null;
   if (mult > 1) (Object.keys(base) as (keyof Macros)[]).forEach(k => { base[k] = Math.round(base[k] * mult); });
-  return { name: text, macros: base, details: { source: 'legacy-estimate', confidence: 'estimated' } };
+  return { name: text, macros: base, details: { source: 'legacy-estimate', confidence: 'estimated', servingBasis: 'assumed' } };
 }
 
 // Retained as a compatibility shim for older callers. A failed image analysis

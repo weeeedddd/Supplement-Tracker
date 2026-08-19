@@ -8,6 +8,7 @@ import './legacy.css';
 import './app.css';
 import './product-shell.css';
 import './coreline-system.css';
+import './guild.css';
 
 applyDocumentLanguage();
 

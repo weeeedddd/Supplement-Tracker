@@ -23,6 +23,7 @@ import {
 import { lang } from '../lib/i18n';
 import { loadUserProfile } from '../lib/profile';
 import { S } from '../lib/storage';
+import { detectDeload, lighterSession, type DeloadLevel } from '../lib/deload';
 import { SystemIcon } from './SystemIcon';
 
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
@@ -203,6 +204,8 @@ export function MuscleConditionMonitor() {
   }, []);
 
   const loads = useMemo(() => calculateMuscleLoads(entries, clock), [entries, clock]);
+  const deload = useMemo(() => detectDeload(entries, clock), [entries, clock]);
+  const lighter = useMemo(() => lighterSession(entries, deload, clock), [entries, deload, clock]);
   const selectedZone = selected ? MUSCLE_ZONES.find(zone => zone.id === selected) || null : null;
   const draft = selected ? drafts[selected] || DEFAULT_DRAFT : DEFAULT_DRAFT;
   const selectedLoad = selected ? loads[selected] : 0;
@@ -321,6 +324,10 @@ export function MuscleConditionMonitor() {
         <span><small>{copy('Aktive Zonen', 'Active zones')}</small><strong>{activeZones}</strong></span>
         <span><small>{copy('Eingaben', 'Entries')}</small><strong>{entries.length}</strong></span>
       </div>
+
+      {deload.level !== 'none' && (
+        <DeloadNotice level={deload.level} reasons={deload.reasons} lighter={lighter} loads={loads} />
+      )}
 
       <div className="muscle-monitor-layout">
         <div className="muscle-map-stage">
@@ -474,6 +481,63 @@ export function MuscleConditionMonitor() {
         'Die Farbe ist eine relative 48-Stunden-Anzeige aus deinen Sätzen, Wiederholungen und Minuten. Sie ist keine medizinische Erholungs- oder Verletzungsbewertung.',
         'Color is a relative 48-hour display based on your sets, reps, and minutes. It is not a medical recovery or injury assessment.',
       )}</p>
+    </section>
+  );
+}
+
+// ── Deload-Hinweis ───────────────────────────────────────────────────
+const DELOAD_LEVEL_LABEL: Record<DeloadLevel, [string, string]> = {
+  none: ['', ''],
+  watch: ['Beobachten', 'Watch'],
+  advised: ['Entlastung empfohlen', 'Deload advised'],
+  urgent: ['Entlastung dringend', 'Deload urgent'],
+};
+
+const DELOAD_REASON_LABEL: Record<string, [string, string]> = {
+  'persistent-strain': ['Mehrere Muskeln bleiben seit Tagen stark belastet',
+                        'Several muscles have stayed heavily loaded for days'],
+  'sustained-body-load': ['Die Ganzkörperlast ist seit mehreren Tagen erhöht',
+                          'Whole-body load has been elevated for several days'],
+  'volume-spike': ['Das Volumen liegt deutlich über der Vorwoche',
+                   'Volume is far above last week'],
+};
+
+function DeloadNotice({ level, reasons, lighter, loads }: {
+  level: DeloadLevel;
+  reasons: string[];
+  lighter: { muscleId: MuscleId; sets: number; reps: number }[];
+  loads: Record<MuscleId, number>;
+}) {
+  return (
+    <section className={`deload-notice ${level}`} role="status"
+      aria-label={copy('Deload-Schutz', 'Deload protection')}>
+      <header>
+        <span><SystemIcon name="shield" />{copy('DELOAD-SCHUTZ', 'DELOAD PROTECTION')}</span>
+        <strong>{copy(...DELOAD_LEVEL_LABEL[level])}</strong>
+      </header>
+      <ul className="deload-reasons">
+        {reasons.map(reason => (
+          <li key={reason}>{copy(...(DELOAD_REASON_LABEL[reason] || [reason, reason]))}</li>
+        ))}
+      </ul>
+      {lighter.length > 0 && (
+        <>
+          <p className="deload-suggestion-title">
+            {copy('Leichtere Variante — gleiche Bewegungen, weniger Sätze:',
+                  'Lighter version — same movements, fewer sets:')}
+          </p>
+          <ul className="deload-suggestion">
+            {lighter.map(item => (
+              <li key={item.muscleId}>
+                <span className="deload-dot" aria-hidden="true"
+                  style={{ background: muscleLoadColor(loads[item.muscleId]) }} />
+                <strong>{zoneLabel(MUSCLE_ZONES.find(zone => zone.id === item.muscleId)!)}</strong>
+                <span>{item.sets} × {item.reps}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </section>
   );
 }

@@ -22,6 +22,7 @@ import {
 } from '../lib/engine';
 import { lang, t } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
+import { accuracyColor, accuracyScore, accuracyTier, rescaleServing } from '../lib/scanAccuracy';
 import { assessFoodForGoal } from '../lib/nutritionScoring';
 import { analyzeImageLocally, analyzeTextLocally, type ScanResult } from '../lib/scanner';
 import { dateKey, S } from '../lib/storage';
@@ -456,6 +457,7 @@ function NutritionEntryPanel() {
           goal={loadUserProfile()?.goal ?? 'general_fitness'}
           onConfirm={confirmPreview}
           onDiscard={resetScan}
+          onRescale={next => setPreview(next)}
         />
       )}
 
@@ -489,6 +491,7 @@ function FoodScanPreview({
   goal,
   onConfirm,
   onDiscard,
+  onRescale,
 }: {
   result: ScanResult;
   targets: Macros | null;
@@ -496,6 +499,7 @@ function FoodScanPreview({
   goal: NonNullable<ReturnType<typeof loadUserProfile>>['goal'];
   onConfirm: () => void;
   onDiscard: () => void;
+  onRescale: (next: ScanResult) => void;
 }) {
   const assessment = assessFoodForGoal(result, targets, consumed, goal, lang === 'de' ? 'de' : 'en');
   const source = result.details?.confidence === 'database'
@@ -533,6 +537,7 @@ function FoodScanPreview({
       <ul className="food-scan-facts">
         {assessment.facts.map(fact => <li key={fact}><SystemIcon name="check" /><span>{fact}</span></li>)}
       </ul>
+      <ScanAccuracy result={result} onRescale={onRescale} />
       <p className="food-scan-caveat"><SystemIcon name="info" />{result.details?.confidence === 'database'
         ? copy('Datenbankwerte können vom Etikett abweichen. Prüfe Portion und Herstellerangaben.', 'Database values can differ from the label. Verify the serving and manufacturer values.')
         : copy('Referenzschätzung für unverarbeitete Standardlebensmittel. Mengen prüfen und bei Bedarf nach dem Speichern bearbeiten.', 'Reference estimate for standard unprocessed foods. Verify amounts and edit after saving if needed.')}</p>
@@ -621,5 +626,72 @@ function DailyNotes({ storageDateKey }: { storageDateKey: string }) {
       </label>
       <span className="field-counter">{note.length} / 1200</span>
     </section>
+  );
+}
+
+// ── Scan-Genauigkeit: abgestufter Wert statt binärer Einstufung, plus
+//    Portionskorrektur. Die Menge ist die grösste Fehlerquelle im Scan.
+function ScanAccuracy({ result, onRescale }: {
+  result: ScanResult;
+  onRescale: (next: ScanResult) => void;
+}) {
+  const details = result.details;
+  const [grams, setGrams] = useState(String(details?.servingGrams ?? 100));
+  const [open, setOpen] = useState(false);
+  if (!details) return null;
+
+  const score = accuracyScore(details);
+  const tier = accuracyTier(score);
+  const colour = accuracyColor(score);
+
+  const tierLabel: Record<string, [string, string]> = {
+    verified: ['Verifiziert', 'Verified'],
+    likely: ['Wahrscheinlich', 'Likely'],
+    rough: ['Grobe Schätzung', 'Rough estimate'],
+    guess: ['Reine Schätzung', 'Pure guess'],
+  };
+  const basisLabel: Record<string, [string, string]> = {
+    stated: ['Menge angegeben', 'Amount stated'],
+    manufacturer: ['Herstellerportion', 'Manufacturer serving'],
+    assumed: ['Menge angenommen', 'Amount assumed'],
+  };
+
+  const apply = () => {
+    const next = Number.parseInt(grams, 10);
+    if (!Number.isFinite(next) || next <= 0) return;
+    const rescaled = rescaleServing(result.macros, details, next);
+    onRescale({ ...result, macros: rescaled.macros, details: rescaled.details });
+    setOpen(false);
+  };
+
+  return (
+    <div className={`scan-accuracy tier-${tier}`}>
+      <button type="button" className="scan-accuracy-bar" onClick={() => setOpen(value => !value)}
+        aria-expanded={open}
+        aria-label={`${copy('Genauigkeit', 'Accuracy')} ${score}% — ${copy(...tierLabel[tier])}`}>
+        <span className="scan-accuracy-label">{copy('Genauigkeit', 'Accuracy')}</span>
+        <span className="scan-accuracy-track" aria-hidden="true">
+          <i style={{ width: `${score}%`, background: colour }} />
+        </span>
+        <span className="scan-accuracy-tier" style={{ color: colour }}>{copy(...tierLabel[tier])}</span>
+        <span className="scan-accuracy-score">{score}%</span>
+      </button>
+      {open && (
+        <div className="scan-accuracy-detail">
+          <p>{copy(...basisLabel[details.servingBasis ?? 'assumed'])}
+            {details.servingGrams ? ` · ${details.servingGrams} g` : ''}</p>
+          <div className="scan-accuracy-fix">
+            <label>
+              <span>{copy('Portion korrigieren', 'Correct the serving')}</span>
+              <input type="text" inputMode="numeric" value={grams}
+                onChange={event => setGrams(event.target.value.replace(/\D/g, ''))} />
+            </label>
+            <button type="button" className="guild-primary-button" onClick={apply}>
+              {copy('Übernehmen', 'Apply')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

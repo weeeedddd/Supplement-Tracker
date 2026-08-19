@@ -12,6 +12,8 @@ import { SystemIcon, type SystemIconName } from './SystemIcon';
 export type ProfileTab = 'overview' | 'plan' | 'history' | 'progress';
 
 export interface ProfileScreenProps {
+  onOpenGuild?: () => void;
+  onOpenReport?: () => void;
   onEditProfile: () => void;
   onOpenTraining: () => void;
   onOpenFood: () => void;
@@ -222,6 +224,8 @@ function formatSessionDate(session: WorkoutSession): string {
 
 export function ProfileScreen({
   onEditProfile,
+  onOpenGuild,
+  onOpenReport,
   onOpenTraining,
   onOpenFood,
   onOpenSupplements,
@@ -276,6 +280,22 @@ export function ProfileScreen({
     || `${baseUrl}assets/coreline/profile-codex/profile-shadow.webp`;
 
   const matrixRows: MatrixRow[] = [
+    ...(onOpenGuild ? [{
+      id: 'guild',
+      icon: 'shield' as const,
+      label: copy('Gilde', 'Guild'),
+      summary: copy('Mitglieder, Wochen-Raids und Geräte-Sync',
+                    'Members, weekly raids and device sync'),
+      action: onOpenGuild,
+    }] : []),
+    ...(onOpenReport ? [{
+      id: 'report',
+      icon: 'history' as const,
+      label: copy('Wochenbericht', 'Weekly report'),
+      summary: copy('Balance, Volumen, Konstanz und Rekorde mit Belegen',
+                    'Balance, volume, consistency and records with evidence'),
+      action: onOpenReport,
+    }] : []),
     {
       id: 'everyday',
       icon: 'lifestyle',
