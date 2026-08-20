@@ -26,6 +26,8 @@ from sqlalchemy.orm import Session
 
 from .api_v1 import router as api_v1_router
 from .guild_api import router as guild_router
+from .push_api import router as push_router
+from .social_api import router as social_router
 from .db import Base, SessionLocal, engine, get_db
 from .models import AuthToken, ChatMessage, Dish, ScanEntry, User, UserStats, WorkoutPlan
 from .services.fitness import (
@@ -34,7 +36,13 @@ from .services.fitness import (
 from .services.food import analyze_barcode, analyze_text
 from .services.loadout import find_loadout, format_loadout, loadout_names
 from .services.prices import get_live_prices_cached
-from .services.vision import MAX_IMAGE_BYTES, capabilities, decode_barcode, ocr_text
+from .services.vision import (
+    MAX_IMAGE_BYTES,
+    capabilities,
+    decode_barcode,
+    ocr_text,
+    scan_nutrition_label,
+)
 from .security import RequestBodyLimitMiddleware, parse_cors_origins
 from .shadow_bot import (
     WARNINGS, command_on_cooldown, format_profile, moderate, parse_command,
@@ -69,6 +77,8 @@ app.add_middleware(
 
 app.include_router(api_v1_router)
 app.include_router(guild_router)
+app.include_router(social_router)
+app.include_router(push_router)
 
 MEDIA_DIR = os.environ.get("MEDIA_DIR", os.path.join(os.path.dirname(__file__), "..", "media"))
 os.makedirs(MEDIA_DIR, exist_ok=True)
@@ -221,6 +231,21 @@ async def food_scan(
 
     # 4) Ehrliches Ergebnis statt Fantasie-Werten
     return {"found": False, "capabilities": capabilities(), "barcode": code}
+
+
+@app.post("/api/food/label")
+async def food_label(file: UploadFile = File(...)):
+    """Explicit server OCR for nutrition-label verification.
+
+    The frontend calls this only after the user taps the verification action;
+    ordinary barcode photos continue to stay on the device.
+    """
+    data = await file.read()
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(413, "max 8 MB")
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(415, "image required")
+    return scan_nutrition_label(data)
 
 
 # ═══ SCAN-HISTORIE ════════════════════════════════════════════════════

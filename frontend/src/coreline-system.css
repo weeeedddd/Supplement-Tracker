@@ -205,23 +205,12 @@ h3,
 }
 
 .system-sigil {
-  position: relative;
-  width: 34px;
-  height: 34px;
-  color: var(--cl-muted);
-  border: 1px solid var(--cl-line);
-  transform: rotate(45deg);
+  width: 42px;
+  height: 42px;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(var(--cl-cyan-rgb), .16));
 }
-
-.system-sigil::before,
-.system-sigil::after {
-  position: absolute;
-  content: '';
-  inset: 7px;
-  border: 1px solid currentColor;
-}
-
-.system-sigil::after { inset: 13px -5px; }
 
 .system-top-actions {
   justify-self: end;
@@ -1420,7 +1409,7 @@ textarea.hub-input { min-height: 96px; }
 @media (max-width: 720px) {
   .system-page { padding-inline: 12px; }
   .system-wordmark { font-size: 1.42rem; }
-  .system-sigil { width: 28px; height: 28px; }
+  .system-sigil { width: 36px; height: 36px; }
   .system-top-actions { gap: 4px; }
   .system-icon-button { width: 44px; height: 44px; }
   .supplement-entry { grid-template-columns: auto minmax(0, 1fr); }
@@ -1471,9 +1460,7 @@ textarea.hub-input { min-height: 96px; }
   :root { --cl-header-base-h: 58px; --cl-nav-h: 70px; }
   .system-topbar { padding-inline: 10px; }
   .system-wordmark { font-size: 1.18rem; letter-spacing: .1em; }
-  .system-sigil { display: block; width: 24px; height: 24px; }
-  .system-sigil::before { inset: 5px; }
-  .system-sigil::after { inset: 9px -4px; }
+  .system-sigil { width: 32px; height: 32px; }
   .system-top-actions { gap: 3px; }
   .system-icon-button { width: 44px; height: 44px; }
   .system-nav-item { min-height: 64px; }

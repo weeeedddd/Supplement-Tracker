@@ -1,0 +1,13 @@
+[tool.ruff.lint]
+# FastAPI intentionally declares dependencies with Depends/File in signature
+# defaults; B008 is not actionable for route declarations.
+ignore = ["B008"]
+
+[tool.ruff.lint.per-file-ignores]
+# Image decoders/OCR bindings cross C/Python boundaries and do not expose a
+# stable shared exception hierarchy. A failed scan must return "not read"
+# instead of crashing the request.
+"app/services/vision.py" = ["BLE001", "S110", "S112"]
+# The push worker isolates unknown provider/network failures per subscription
+# so one bad endpoint cannot abort delivery for every account.
+"app/push_service.py" = ["BLE001"]

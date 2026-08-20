@@ -38,15 +38,23 @@ in the browser and can be exported as JSON.
   search unlocks only when the server enables the maps integration, and the UI
   shows results only after a successful live provider response.
 - Installable PWA shell, local assets, safe-area support and offline reload.
+- Account-backed friends, live presence, RPG stat inspection, Aura/Focus,
+  revision-aware cross-device sync, Guild rosters, weekly leaderboards and raids.
+- Adaptive character quests that preserve the equipped character path while
+  reducing real sets/reps and increasing rest when the 48-hour heatmap is high.
+- Optional Web Push while the PWA is closed, including quiet hours, snooze,
+  streak rescue, unfinished sets, hydration/meal checks, recovery and routines.
+- Explicit nutrition-label OCR verification with a visible confidence and
+  database-versus-label mismatch state. The image is uploaded only after a tap.
 
 ## Repository layout
 
 ```text
 frontend/                    React 18 + TypeScript + Vite PWA
 backend/app/integration_app.py
-                             Minimal public AI/maps integration API
-backend/app/main.py           Legacy full backend; not the recommended public target
-backend/tests/                Provider, safety and boundary tests
+                             Public account/Guild/push/verification + provider API
+backend/app/main.py           Historical compatibility server
+backend/tests/                System, provider, safety and boundary tests
 .github/workflows/pages.yml   Validation and GitHub Pages deployment
 DESIGN.md                     Current product visual language
 legacy/                       Historical reference only
@@ -72,31 +80,38 @@ An optional backend URL can be entered under **Settings → Integrations** or se
 at build time as `VITE_BACKEND_URL`. The UI verifies provider capabilities; a
 saved URL alone does not enable remote AI or maps.
 
-## Minimal integration backend
+## Optional CORELINE System backend
 
-The recommended deployment target exposes only health, capability, AI-plan,
-assistant and nearby-store routes. It does not expose the legacy auth, chat,
-upload or tracking-sync routes.
+The recommended deployment target exposes the bounded account, friend, Guild,
+revisioned sync, push-subscription, label-verification, AI-plan, assistant and
+nearby-store routes. It does not expose the historical chat, media upload or
+anonymous scan-history routes from `app.main`.
 
 ```bash
 cd backend
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 # Linux/macOS: source .venv/bin/activate
-pip install -r requirements-integrations-dev.txt
+pip install -r requirements-dev.txt
 pytest -q
 
-# Minimal public process
+# Public system process
 uvicorn app.integration_app:app --host 0.0.0.0 --port 8000
 
-# Or build the minimal container
-docker build -t coreline-integrations .
-docker run --rm -p 8000:8000 --env-file .env coreline-integrations
+# Or build the unprivileged container
+docker build -t coreline-system .
+docker run --rm -p 8000:8000 --env-file .env coreline-system
 ```
 
 Copy `backend/.env.example` to an untracked environment file on the server.
 Required provider settings are documented in [backend/README.md](backend/README.md).
 Secrets must remain in the hosting platform's secret manager.
+
+Closed-app push additionally needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+`VAPID_SUBJECT` and `PUSH_CRON_SECRET`. Run `python -m app.push_worker` from a
+platform scheduler every 5–10 minutes, or call the protected
+`POST /api/v1/push/process` route with `X-Coreline-Cron`. The worker enforces
+each account's timezone, quiet hours, snooze and per-message deduplication.
 
 Important: the current provider routes are anonymous and protected only by
 strict schemas, bounded payloads/timeouts and a process-local rate limit. Do

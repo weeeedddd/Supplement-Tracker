@@ -25,6 +25,8 @@ export const GUILD_UPDATED_EVENT = 'coreline:guild-updated';
 export interface GuildMemberView {
   uid: string; username: string; role: 'owner' | 'officer' | 'member';
   joined: number; lastSeen: number; online: boolean; me: boolean;
+  characterPath?: string; activePlan?: string; activityLabel?: string;
+  activityAt?: number; streak?: number;
 }
 export interface GuildView {
   id: number; name: string; tag: string; motto: string; owner: string; created: number;
@@ -66,6 +68,11 @@ async function api<T>(path: string, init?: RequestInit & { auth?: boolean }): Pr
     throw new Error(detail);
   }
   return res.json() as Promise<T>;
+}
+
+/** Authenticated GET shared by the real friends and push clients. */
+export async function authedGet<T>(path: string): Promise<T> {
+  return api<T>(path);
 }
 
 /** Authentifizierter POST für andere Module. */
@@ -217,7 +224,18 @@ function setSyncRev(rev: number): void { S.set(SYNC_REV_KEY, rev); S.set(SYNC_LA
 export type SyncOutcome =
   | { status: 'pushed'; rev: number }
   | { status: 'pulled'; rev: number; applied: number }
+  | { status: 'unchanged'; rev: number }
   | { status: 'conflict'; rev: number; remote: Record<string, unknown> };
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`).join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
 
 function deviceName(): string {
   const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
@@ -232,6 +250,7 @@ function deviceName(): string {
 export async function syncNow(force = false): Promise<SyncOutcome> {
   const remote = await api<{ rev: number; payload: Record<string, unknown> | null }>('/api/v1/sync');
   const localRev = getSyncRev();
+  const localState = collectLocalState();
 
   // Der Server hat einen Stand, den dieses Gerät noch nie gesehen hat.
   if (remote.rev > 0 && localRev === 0 && remote.payload && !force) {
@@ -240,10 +259,15 @@ export async function syncNow(force = false): Promise<SyncOutcome> {
     return { status: 'pulled', rev: remote.rev, applied };
   }
 
+  if (!force && remote.rev === localRev && remote.payload
+    && stableJson(remote.payload) === stableJson(localState)) {
+    return { status: 'unchanged', rev: remote.rev };
+  }
+
   const result = await api<any>('/api/v1/sync', {
     method: 'POST',
     body: JSON.stringify({
-      payload: collectLocalState(),
+      payload: localState,
       baseRev: force ? remote.rev : localRev,
       device: deviceName(),
     }),

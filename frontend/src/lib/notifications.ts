@@ -1,7 +1,7 @@
 import { lang } from './i18n';
 import { S, dateKey } from './storage';
 
-export type CorelineNotificationKind = 'training' | 'recovery' | 'supplements' | 'system';
+export type CorelineNotificationKind = 'training' | 'recovery' | 'supplements' | 'hydration' | 'meals' | 'system';
 export type CorelineNotificationPermission = NotificationPermission | 'unsupported';
 
 export interface CorelineNotificationPreferences {
@@ -9,8 +9,15 @@ export interface CorelineNotificationPreferences {
   training: boolean;
   recovery: boolean;
   supplements: boolean;
+  hydration: boolean;
+  meals: boolean;
+  unfinishedSets: boolean;
+  streakRescue: boolean;
   trainingTime: string;
   supplementTime: string;
+  quietStart: string;
+  quietEnd: string;
+  snoozedUntil: number;
   trainingDays: number[];
 }
 
@@ -35,12 +42,19 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: CorelineNotificationPreferences =
   training: true,
   recovery: true,
   supplements: false,
+  hydration: false,
+  meals: false,
+  unfinishedSets: true,
+  streakRescue: true,
   trainingTime: '18:00',
   supplementTime: '09:00',
+  quietStart: '22:00',
+  quietEnd: '07:00',
+  snoozedUntil: 0,
   trainingDays: [1, 3, 5],
 };
 
-const KINDS = new Set<CorelineNotificationKind>(['training', 'recovery', 'supplements', 'system']);
+const KINDS = new Set<CorelineNotificationKind>(['training', 'recovery', 'supplements', 'hydration', 'meals', 'system']);
 const DAY_MS = 86_400_000;
 
 function isClockTime(value: unknown): value is string {
@@ -66,8 +80,15 @@ function sanitizePreferences(value: unknown): CorelineNotificationPreferences {
     training: source.training !== false,
     recovery: source.recovery !== false,
     supplements: source.supplements === true,
+    hydration: source.hydration === true,
+    meals: source.meals === true,
+    unfinishedSets: source.unfinishedSets !== false,
+    streakRescue: source.streakRescue !== false,
     trainingTime: isClockTime(source.trainingTime) ? source.trainingTime : DEFAULT_NOTIFICATION_PREFERENCES.trainingTime,
     supplementTime: isClockTime(source.supplementTime) ? source.supplementTime : DEFAULT_NOTIFICATION_PREFERENCES.supplementTime,
+    quietStart: isClockTime(source.quietStart) ? source.quietStart : DEFAULT_NOTIFICATION_PREFERENCES.quietStart,
+    quietEnd: isClockTime(source.quietEnd) ? source.quietEnd : DEFAULT_NOTIFICATION_PREFERENCES.quietEnd,
+    snoozedUntil: Number.isFinite(Number(source.snoozedUntil)) ? Math.max(0, Number(source.snoozedUntil)) : 0,
     trainingDays: days,
   };
 }
@@ -115,6 +136,64 @@ function dateAtClock(reference: Date, value: string): number {
   const next = new Date(reference);
   next.setHours(hours, minutes, 0, 0);
   return next.getTime();
+}
+
+function inQuietHours(now: number, start: string, end: string): boolean {
+  const current = new Date(now);
+  const minutes = current.getHours() * 60 + current.getMinutes();
+  const [startHour, startMinute] = start.split(':').map(Number);
+  const [endHour, endMinute] = end.split(':').map(Number);
+  const quietStart = startHour * 60 + startMinute;
+  const quietEnd = endHour * 60 + endMinute;
+  if (quietStart === quietEnd) return false;
+  if (quietStart < quietEnd) return minutes >= quietStart && minutes < quietEnd;
+  return minutes >= quietStart || minutes < quietEnd;
+}
+
+function checkInReminder(
+  kind: Extract<CorelineNotificationKind, 'training' | 'hydration' | 'meals'>,
+  reference: Date,
+  dueAt: number,
+  language: string,
+  variant: 'streak' | 'unfinished' | 'hydration' | 'meal',
+): CorelineNotificationItem {
+  const content = {
+    streak: [
+      localCopy('Streak-Rettung verfügbar', 'Streak rescue available', language),
+      localCopy('Heute ist noch keine Einheit erfasst. Prüfe die adaptive leichte Quest – Erholung geht vor Streaks.', 'No session is logged today. Review the adaptive light quest — recovery comes before streaks.', language),
+    ],
+    unfinished: [
+      localCopy('Offene Sätze gefunden', 'Open sets found', language),
+      localCopy('Eine begonnene Einheit enthält noch offene Sätze. Bestätige nur tatsächlich abgeschlossene Arbeit oder setze später fort.', 'A started session still has open sets. Confirm only work you actually completed or resume later.', language),
+    ],
+    hydration: [
+      localCopy('Trink-Check', 'Hydration check', language),
+      localCopy('Heute wurde noch wenig oder nichts markiert. Trage nur ein, was du tatsächlich getrunken hast; dies ist kein medizinisches Trinkziel.', 'Little or nothing is marked today. Log only what you actually drank; this is not a medical hydration target.', language),
+    ],
+    meal: [
+      localCopy('Mahlzeiten-Check', 'Meal check', language),
+      localCopy('Heute ist noch keine Mahlzeit erfasst. Wenn du bereits gegessen hast, kannst du sie jetzt nachtragen.', 'No meal is logged today. If you already ate, you can add it now.', language),
+    ],
+  }[variant];
+  return {
+    id: `daily:${variant}:${dateKey(reference)}`,
+    kind,
+    title: content[0],
+    body: content[1],
+    dueAt,
+    createdAt: reference.getTime(),
+  };
+}
+
+function completedWorkoutToday(reference: Date): boolean {
+  const today = dateKey(reference);
+  const sessions = S.get<Array<{ completedAt?: number }>>('train_sessions') || [];
+  return sessions.some(session => Number.isFinite(session.completedAt) && dateKey(new Date(Number(session.completedAt))) === today);
+}
+
+function hasUnfinishedSets(): boolean {
+  const drafts = S.get<Record<string, { completedSets?: Record<number, boolean[]> }>>('train_session_drafts') || {};
+  return Object.values(drafts).some(draft => Object.values(draft.completedSets || {}).some(sets => sets.some(done => !done)));
 }
 
 function dailyReminder(
@@ -178,8 +257,8 @@ async function showSystemNotification(item: CorelineNotificationItem): Promise<b
   const options: NotificationOptions = {
     body: item.body,
     tag: item.id,
-    icon: './icons/coreline.svg',
-    badge: './icons/coreline.svg',
+    icon: './icons/coreline-192.png',
+    badge: './icons/coreline-badge-96.png',
     data: { url: './' },
   };
   try {
@@ -207,8 +286,8 @@ export function syncScheduledNotifications(
   const reference = new Date(now);
   const currentDate = dateKey(reference);
   const retained = current.filter(item => item.deliveredAt || (
-    item.id !== `daily:training:${currentDate}`
-    && item.id !== `daily:supplements:${currentDate}`
+    !item.id.startsWith('daily:')
+    || !item.id.endsWith(`:${currentDate}`)
   ));
   const deliveredIds = new Set(current.filter(item => item.deliveredAt).map(item => item.id));
   const additions: CorelineNotificationItem[] = [];
@@ -223,6 +302,19 @@ export function syncScheduledNotifications(
       const reminder = dailyReminder('supplements', reference, dateAtClock(reference, preferences.supplementTime), language);
       if (!deliveredIds.has(reminder.id)) additions.push(reminder);
     }
+  }
+  if (preferences.hydration && (S.get<number>(`mana_${currentDate}`) || 0) < 2) {
+    additions.push(checkInReminder('hydration', reference, dateAtClock(reference, '14:00'), language, 'hydration'));
+  }
+  if (preferences.meals && !(S.get<unknown[]>(`food_${currentDate}`) || []).length) {
+    additions.push(checkInReminder('meals', reference, dateAtClock(reference, '13:30'), language, 'meal'));
+  }
+  if (preferences.unfinishedSets && hasUnfinishedSets()) {
+    additions.push(checkInReminder('training', reference, dateAtClock(reference, '20:15'), language, 'unfinished'));
+  }
+  const streak = S.get<{ count?: number }>('streak')?.count || 0;
+  if (preferences.streakRescue && streak >= 2 && !completedWorkoutToday(reference)) {
+    additions.push(checkInReminder('training', reference, dateAtClock(reference, '20:30'), language, 'streak'));
   }
 
   const next = [...additions, ...retained].sort((a, b) => b.dueAt - a.dueAt);
@@ -275,6 +367,11 @@ export function createActivationNotice(now = Date.now(), language = lang): Corel
   });
 }
 
+export function snoozeLocalNotifications(minutes: number, now = Date.now()): CorelineNotificationPreferences {
+  const safeMinutes = Math.max(0, Math.min(7 * 24 * 60, Math.round(minutes)));
+  return saveNotificationPreferences({ snoozedUntil: safeMinutes ? now + safeMinutes * 60_000 : 0 });
+}
+
 export async function processDueNotifications(
   now = Date.now(),
   language = lang,
@@ -282,11 +379,16 @@ export async function processDueNotifications(
   const scheduled = syncScheduledNotifications(now, language);
   const preferences = loadNotificationPreferences();
   if (!preferences.enabled) return scheduled;
+  if (preferences.snoozedUntil > now || inQuietHours(now, preferences.quietStart, preferences.quietEnd)) return scheduled;
   const isEnabled = (item: CorelineNotificationItem) => (
     item.kind === 'system'
+    || (item.id.startsWith('daily:unfinished:') && preferences.unfinishedSets)
+    || (item.id.startsWith('daily:streak:') && preferences.streakRescue)
     || (item.kind === 'training' && preferences.training)
     || (item.kind === 'recovery' && preferences.recovery)
     || (item.kind === 'supplements' && preferences.supplements)
+    || (item.kind === 'hydration' && preferences.hydration)
+    || (item.kind === 'meals' && preferences.meals)
   );
   const newlyDue = scheduled.filter(item => !item.deliveredAt && item.dueAt <= now && isEnabled(item));
   if (!newlyDue.length) return scheduled;

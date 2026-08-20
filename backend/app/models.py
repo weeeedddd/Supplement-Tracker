@@ -18,7 +18,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     username: Mapped[str] = mapped_column(String(80))
     pw_hash: Mapped[str] = mapped_column(String(255))
-    uid_tag: Mapped[str] = mapped_column(String(16), default="#000")   # z. B. "#001"
+    uid_tag: Mapped[str] = mapped_column(String(16), unique=True, index=True, default="#000")   # z. B. "#001"
     created: Mapped[float] = mapped_column(Float, default=now)
     # Profil (Onboarding)
     first_name: Mapped[str] = mapped_column(String(80), default="")
@@ -219,3 +219,96 @@ class RaidContribution(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     value: Mapped[int] = mapped_column(Integer, default=0)
     updated: Mapped[float] = mapped_column(Float, default=now)
+
+
+# ═══ FREUNDE · LIVE-PROFILE · AURA ═══════════════════════════════════
+class Friendship(Base):
+    """One normalized relationship row per pair of real accounts.
+
+    ``user_a_id`` is always the smaller id. ``requested_by_id`` preserves
+    who sent the request without allowing the reverse direction to create a
+    second row for the same pair.
+    """
+
+    __tablename__ = "friendships"
+    __table_args__ = (UniqueConstraint("user_a_id", "user_b_id", name="uq_friend_pair"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_a_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    user_b_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    requested_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    status: Mapped[str] = mapped_column(String(12), default="pending")  # pending | accepted
+    created: Mapped[float] = mapped_column(Float, default=now)
+    updated: Mapped[float] = mapped_column(Float, default=now)
+
+
+class SocialProfile(Base):
+    """Small, user-controlled snapshot visible only to accepted friends."""
+
+    __tablename__ = "social_profiles"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    character_path: Mapped[str] = mapped_column(String(24), default="")
+    active_plan: Mapped[str] = mapped_column(String(120), default="")
+    activity_kind: Mapped[str] = mapped_column(String(16), default="active")
+    activity_label: Mapped[str] = mapped_column(String(160), default="")
+    activity_at: Mapped[float] = mapped_column(Float, default=now)
+    streak: Mapped[int] = mapped_column(Integer, default=0)
+    weekly_json: Mapped[str] = mapped_column(Text, default="{}")
+    lifts_json: Mapped[str] = mapped_column(Text, default="[]")
+    muscle_json: Mapped[str] = mapped_column(Text, default="{}")
+    achievement: Mapped[str] = mapped_column(String(180), default="")
+    gender: Mapped[str] = mapped_column(String(8), default="")
+    last_seen: Mapped[float] = mapped_column(Float, default=now, index=True)
+    updated: Mapped[float] = mapped_column(Float, default=now)
+
+
+class SocialBuff(Base):
+    __tablename__ = "social_buffs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    from_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    to_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(12), default="aura")  # aura | focus
+    created: Mapped[float] = mapped_column(Float, default=now, index=True)
+    seen: Mapped[int] = mapped_column(Integer, default=0)
+
+
+# ═══ WEB-PUSH ════════════════════════════════════════════════════════
+class PushSubscription(Base):
+    __tablename__ = "push_subscriptions"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    endpoint: Mapped[str] = mapped_column(Text, unique=True)
+    p256dh: Mapped[str] = mapped_column(String(180))
+    auth: Mapped[str] = mapped_column(String(180))
+    created: Mapped[float] = mapped_column(Float, default=now)
+    updated: Mapped[float] = mapped_column(Float, default=now)
+    last_success: Mapped[float] = mapped_column(Float, default=0)
+    failure_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class PushPreference(Base):
+    __tablename__ = "push_preferences"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    enabled: Mapped[int] = mapped_column(Integer, default=0)
+    training: Mapped[int] = mapped_column(Integer, default=1)
+    recovery: Mapped[int] = mapped_column(Integer, default=1)
+    supplements: Mapped[int] = mapped_column(Integer, default=0)
+    hydration: Mapped[int] = mapped_column(Integer, default=0)
+    meals: Mapped[int] = mapped_column(Integer, default=0)
+    unfinished_sets: Mapped[int] = mapped_column(Integer, default=1)
+    streak_rescue: Mapped[int] = mapped_column(Integer, default=1)
+    training_time: Mapped[str] = mapped_column(String(5), default="18:00")
+    supplement_time: Mapped[str] = mapped_column(String(5), default="09:00")
+    quiet_start: Mapped[str] = mapped_column(String(5), default="22:00")
+    quiet_end: Mapped[str] = mapped_column(String(5), default="07:00")
+    timezone: Mapped[str] = mapped_column(String(64), default="UTC")
+    snoozed_until: Mapped[float] = mapped_column(Float, default=0)
+    updated: Mapped[float] = mapped_column(Float, default=now)
+
+
+class PushDelivery(Base):
+    __tablename__ = "push_deliveries"
+    __table_args__ = (UniqueConstraint("user_id", "dedupe_key", name="uq_push_delivery"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    dedupe_key: Mapped[str] = mapped_column(String(96))
+    sent_at: Mapped[float] = mapped_column(Float, default=now, index=True)

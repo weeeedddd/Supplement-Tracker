@@ -1,4 +1,4 @@
-"""Minimal production entry point for CORELINE's optional integrations.
+"""Production entry point for CORELINE integrations and account systems.
 
 The offline-first client does not need a server for profile, nutrition,
 training, or supplement tracking.  This app deliberately exposes only the
@@ -14,9 +14,15 @@ import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from .account_api import router as account_router
 from .api_v1 import router as api_v1_router
+from .db import Base, engine
+from .food_label_api import router as food_label_router
+from .guild_api import router as guild_router
 from .integrations import integration_status
+from .push_api import router as push_router
 from .security import RequestBodyLimitMiddleware, parse_cors_origins
+from .social_api import router as social_router
 
 
 def _bounded_request_bytes() -> int:
@@ -28,11 +34,11 @@ def _bounded_request_bytes() -> int:
 
 
 app = FastAPI(
-    title="CORELINE Integration API",
-    version="1.0.0",
+    title="CORELINE System API",
+    version="2.0.0",
     description=(
-        "Optional, server-side provider boundary for CORELINE. "
-        "Local tracking never depends on this service."
+        "Optional account, Guild, sync, push, verification, and provider boundary for CORELINE. "
+        "Local tracking continues to work without this service."
     ),
     docs_url=None,
     redoc_url=None,
@@ -53,7 +59,7 @@ app.add_middleware(
     allow_origins=parse_cors_origins(os.environ.get("CORS_ORIGINS")),
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Accept", "Content-Type"],
+    allow_headers=["Accept", "Authorization", "Content-Type"],
     max_age=600,
 )
 
@@ -98,4 +104,14 @@ async def readiness() -> dict:
     return {"ok": True, "service": "coreline-integrations", "ready": True}
 
 
+@app.on_event("startup")
+def create_schema() -> None:
+    Base.metadata.create_all(bind=engine)
+
+
+app.include_router(account_router)
 app.include_router(api_v1_router)
+app.include_router(guild_router)
+app.include_router(social_router)
+app.include_router(push_router)
+app.include_router(food_label_router)

@@ -1,25 +1,26 @@
 # CORELINE Backend (Python / FastAPI)
 
-Für die aktuelle offline-first App ist `app.integration_app:app` der empfohlene
-öffentliche Einstiegspunkt. Er stellt ausschließlich die begrenzten KI- und
-Standort-Integrationen sowie Healthchecks bereit. Profil, Mahlzeiten, Training
-und Supplement-Tracking bleiben lokal im Browser.
+Für die offline-first App ist `app.integration_app:app` der empfohlene
+öffentliche Einstiegspunkt. Er stellt Konten, Freunde, Gilden, revisionierten
+Sync, Web Push, explizite Etikett-OCR, die begrenzten KI-/Standort-Integrationen
+und Healthchecks bereit. Profil, Mahlzeiten, Training und
+Supplement-Tracking funktionieren weiterhin lokal ohne Server.
 
 `app.main:app` enthält weiterhin historische Auth-, SQL-, Scan- und Chat-Routen
 für lokale Kompatibilität. Dieser Legacy-Server ist ohne zusätzliche
 Authentifizierung und Autorisierung **kein** empfohlenes öffentliches Ziel.
 
-## Minimalen Integrationsserver starten
+## System-Backend starten
 
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-integrations.txt
+pip install -r requirements.txt
 uvicorn app.integration_app:app --host 0.0.0.0 --port 8000
 ```
 
-Alternativ baut `docker build -t coreline-integrations .` den minimalen,
-unprivilegiert laufenden Container. Danach im Frontend unter
+Alternativ baut `docker build -t coreline-system .` den unprivilegiert laufenden
+Container inklusive deutscher/englischer Etikett-OCR. Danach im Frontend unter
 **Einstellungen → Integrationen** die HTTPS-Server-URL eintragen. Lokal ist
 auch `http://localhost:8000` erlaubt. Alternativ kann der Frontend-Build
 `VITE_BACKEND_URL` erhalten; dort gehört nur die Server-URL hinein, nie ein
@@ -32,10 +33,16 @@ Der minimale Server kennt diese Betriebsrouten:
 | `GET /api/health` | Liveness plus ehrlicher Provider-Status |
 | `GET /api/health/ready` | Readiness des zustandslosen API-Prozesses |
 | `GET /api/v1/integrations/status` | Verfügbare KI-/Maps-Fähigkeiten ohne Secrets |
+| `POST /api/auth/register` / `login` | Reales Konto für Freunde, Gilde, Sync und Push |
+| `GET/POST /api/v1/friends/*` | Anfragen, Präsenz, Stat-Inspektion und Aura/Fokus |
+| `GET/POST /api/v1/guild`, `/raid`, `/sync` | Gilde, Wochen-Raid und revisionssicherer Sync |
+| `GET/POST /api/v1/push/*` | Push-Abo, Ruhezeit, Snooze und Worker-Ausführung |
+| `POST /api/food/label` | Opt-in OCR des Nährwertetiketts; 8-MB-Grenze |
 
-## Historischer Full-Backend-Einstiegspunkt
+## Historischer Kompatibilitäts-Einstiegspunkt
 
-Für ausschließlich lokale Entwicklungs- und Migrationsarbeit:
+Für ausschließlich lokale Entwicklungs- und Migrationsarbeit. Öffentliche
+Deployments sollen `integration_app` verwenden:
 
 ```bash
 pip install -r requirements.txt
@@ -154,17 +161,26 @@ cd backend
 python -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 # Windows: .venv\Scripts\activate
-pip install -r requirements-integrations-dev.txt
+pip install -r requirements-dev.txt
 pytest -q
-ruff check app/api_v1.py app/integration_app.py app/integration_models.py app/integrations.py app/security.py tests/test_integrations.py
+ruff check app tests
 ```
 
 ## SQL-Schema
 
-SQLAlchemy-Modelle in `app/models.py` (Auto-Migration beim Start):
-`users` (Profil + Protokoll/Makro-Snapshot) · `auth_tokens` · `scan_entries` ·
-`chat_messages` · `price_cache`. Default SQLite, per `DATABASE_URL` auf
-Postgres/MySQL umstellbar.
+SQLAlchemy-Modelle in `app/models.py` (neue Tabellen werden beim Start angelegt):
+Konten/Tokens · Freundschaften und öffentliche Social-Snapshots · Gilden,
+Einladungen und Raid-Beiträge · revisionierte Sync-Blobs · Push-Abos,
+Einstellungen und Deduplizierung. SQLite eignet sich lokal; produktiv ist eine
+verwaltete SQL-Datenbank mit Backups zu verwenden.
+
+## Web Push bei geschlossener App
+
+Setze `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` und
+`PUSH_CRON_SECRET` nur im Secret-Store des Hosts. Starte alle 5–10 Minuten
+`python -m app.push_worker` oder rufe `POST /api/v1/push/process` mit dem Header
+`X-Coreline-Cron` auf. Der Worker respektiert Zeitzone, Ruhezeit und Snooze,
+dedupliziert Hinweise und entfernt abgelaufene Browser-Abos.
 
 ## ◈ Shadow Bot (Moderation)
 

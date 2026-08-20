@@ -1,9 +1,13 @@
-const CACHE_NAME = 'coreline-shell-v5';
+const CACHE_NAME = 'coreline-shell-v7';
 const STATIC_ASSETS = [
   './',
   './index.html',
   './manifest.webmanifest',
-  './icons/coreline.svg',
+  './icons/coreline-192.png',
+  './icons/coreline-512.png',
+  './icons/coreline-maskable-512.png',
+  './icons/coreline-mark.webp',
+  './icons/coreline-badge-96.png',
   './assets/coreline/profile-codex/profile-shadow.webp',
   './assets/coreline/profile-codex/obsidian-vellum.webp',
   './assets/coreline/profile-codex/action-plate.webp',
@@ -91,13 +95,33 @@ self.addEventListener('fetch', event => {
   );
 });
 
+self.addEventListener('push', event => {
+  let payload = {};
+  try { payload = event.data?.json() || {}; } catch { payload = { body: event.data?.text() || '' }; }
+  const title = payload.title || 'CORELINE';
+  const url = new URL(payload.url || './', self.registration.scope).href;
+  event.waitUntil(self.registration.showNotification(title, {
+    body: payload.body || '',
+    tag: payload.tag || 'coreline-system',
+    icon: './icons/coreline-192.png',
+    badge: './icons/coreline-badge-96.png',
+    data: { url },
+    actions: [
+      { action: 'open', title: 'Open' },
+      { action: 'snooze', title: 'Snooze 1h' },
+    ],
+  }));
+});
+
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const destination = new URL(event.notification.data?.url || './', self.registration.scope).href;
+  const destinationUrl = new URL(event.notification.data?.url || './', self.registration.scope);
+  if (event.action === 'snooze') destinationUrl.searchParams.set('pushAction', 'snooze');
+  const destination = destinationUrl.href;
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
       const existing = clients.find(client => client.url.startsWith(self.registration.scope));
-      if (existing) return existing.focus();
+      if (existing) return existing.navigate(destination).then(client => client?.focus());
       return self.clients.openWindow(destination);
     }),
   );

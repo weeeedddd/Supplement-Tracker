@@ -19,6 +19,14 @@ import {
   type CorelineNotificationPermission,
   type CorelineNotificationPreferences,
 } from '../lib/notifications';
+import {
+  disableClosedAppPush,
+  enableClosedAppPush,
+  getClosedAppPushStatus,
+  snoozeClosedAppPush,
+  syncClosedAppPushPreferences,
+  type ClosedAppPushState,
+} from '../lib/push';
 import { deleteAllProgressPhotos } from '../lib/progressPhotos';
 import { S } from '../lib/storage';
 import { applyTheme, getCurrentTheme } from '../lib/themes';
@@ -32,6 +40,19 @@ const THEME_CHOICES = [
 
 const RELEASE_LANGS = ['de', 'en'] as const;
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
+
+function pushLabel(state: ClosedAppPushState): string {
+  const labels: Record<ClosedAppPushState, [string, string]> = {
+    unsupported: ['Geschlossener-App-Push wird hier nicht unterstützt', 'Closed-app push is unsupported here'],
+    'needs-backend': ['Backend-URL für geschlossenen Push erforderlich', 'Backend URL required for closed-app push'],
+    'needs-account': ['Im Gildenbereich anmelden, um Push zu verbinden', 'Sign in under Guild to connect push'],
+    'not-configured': ['Server braucht noch VAPID-Schlüssel', 'Server still needs VAPID keys'],
+    'permission-denied': ['Browser-Berechtigung blockiert', 'Browser permission blocked'],
+    ready: ['Bereit zum Verbinden', 'Ready to connect'],
+    subscribed: ['Geschlossener-App-Push verbunden', 'Closed-app push connected'],
+  };
+  return copy(...labels[state]);
+}
 
 interface SettingsPanelProps {
   open: boolean;
@@ -61,6 +82,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
   const [notificationPreferences, setNotificationPreferences] = useState(() => loadNotificationPreferences());
   const [notificationPermission, setNotificationPermission] = useState<CorelineNotificationPermission>(() => getSystemNotificationPermission());
   const [notificationStatus, setNotificationStatus] = useState('');
+  const [closedPushState, setClosedPushState] = useState<ClosedAppPushState>('unsupported');
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -78,6 +100,9 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     setNotificationPreferences(loadNotificationPreferences());
     setNotificationPermission(getSystemNotificationPermission());
     setNotificationStatus('');
+    void getClosedAppPushStatus()
+      .then(status => setClosedPushState(status.state))
+      .catch(() => setClosedPushState('not-configured'));
     closeRef.current?.focus();
   }, [open, onClose]);
 
@@ -164,19 +189,44 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
   };
 
   const updateNotificationPreferences = (patch: Partial<CorelineNotificationPreferences>) => {
-    setNotificationPreferences(saveNotificationPreferences(patch));
+    const next = saveNotificationPreferences(patch);
+    setNotificationPreferences(next);
+    if (closedPushState === 'subscribed') void syncClosedAppPushPreferences(next).catch(() => {
+      setNotificationStatus(copy('Lokale Einstellung gespeichert; Server-Sync ist gerade nicht erreichbar.', 'Local setting saved; server sync is currently unavailable.'));
+    });
     void processDueNotifications();
   };
 
   const activateNotifications = async () => {
     const permission = await requestSystemNotificationPermission();
     setNotificationPermission(permission);
-    setNotificationPreferences(saveNotificationPreferences({ enabled: true }));
+    const next = saveNotificationPreferences({ enabled: true });
+    setNotificationPreferences(next);
+    if (closedPushState === 'subscribed') {
+      await syncClosedAppPushPreferences(next).catch(() => {
+        setNotificationStatus(copy('Lokale Hinweise sind aktiv; der Push-Server ist gerade nicht erreichbar.', 'Local notices are active; the push server is currently unavailable.'));
+      });
+    }
     createActivationNotice();
     await processDueNotifications();
     setNotificationStatus(permission === 'granted'
       ? copy('Systemhinweise sind aktiv. CORELINE erinnert dich auf diesem Gerät zu deinen gewählten Zeiten.', 'System notices are active. CORELINE will remind you on this device at your selected times.')
       : copy('In-App-Erinnerungen sind aktiv. Der Browser hat Systemhinweise nicht freigegeben; du kannst die Browser-Berechtigung später ändern.', 'In-app reminders are active. The browser did not allow system notices; you can change the browser permission later.'));
+  };
+
+  const connectClosedPush = async () => {
+    setNotificationStatus(copy('Geschlossener-App-Push wird verbunden …', 'Connecting closed-app push …'));
+    try {
+      const enabledPreferences = notificationPreferences.enabled
+        ? notificationPreferences
+        : saveNotificationPreferences({ enabled: true });
+      setNotificationPreferences(enabledPreferences);
+      const next = await enableClosedAppPush(enabledPreferences);
+      setClosedPushState(next.state);
+      setNotificationStatus(pushLabel(next.state));
+    } catch (error) {
+      setNotificationStatus(copy(`Push konnte nicht verbunden werden: ${String((error as Error).message)}`, `Push could not be connected: ${String((error as Error).message)}`));
+    }
   };
 
   return (
@@ -194,8 +244,8 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
           <div>
             <h3 id="local-storage-status-title">{copy('Auf diesem Gerät gespeichert', 'Stored on this device')}</h3>
             <p>{copy(
-              'Profil, Plan, Mahlzeiten und Einheiten funktionieren ohne Konto. Cloud-Konten und verschlüsselte Synchronisierung sind zukünftige Integrationen und werden hier nicht vorgetäuscht.',
-              'Profile, plan, meals, and sessions work without an account. Cloud accounts and encrypted sync are future integrations and are not simulated here.',
+              'Profil, Plan, Mahlzeiten und Einheiten funktionieren ohne Konto. Ein optionales CORELINE-Konto schaltet echte Freunde, Gilden, revisionssicheren Geräte-Sync und Hintergrund-Push frei; private lokale Notizen und Fotos werden nicht geteilt.',
+              'Profile, plan, meals, and sessions work without an account. An optional CORELINE account unlocks real friends, Guilds, revision-safe device sync, and background push; private local notes and photos are not shared.',
             )}</p>
             <code>{LOCAL_SYNC_STATE.mode} · Schema {LOCAL_SYNC_STATE.schemaVersion}</code>
           </div>
@@ -213,20 +263,33 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
             <div className="notification-settings-status">
               <SystemIcon name="bell" />
               <span><strong>{notificationPermission === 'granted' ? copy('Android-Systemhinweise verfügbar', 'Android system notices available') : copy('In-App-Systemlog verfügbar', 'In-app system log available')}</strong><small>{copy(
-                'Fällige Hinweise erscheinen, sobald CORELINE geöffnet oder wieder aktiv wird. Push bei vollständig geschlossener App benötigt später ein optionales Backend.',
-                'Due notices appear when CORELINE is open or becomes active again. Push while the app is fully closed will require an optional backend later.',
+                'Lokale Hinweise arbeiten beim Öffnen der App. Mit Konto, Backend und VAPID kann CORELINE auch bei geschlossener App erinnern.',
+                'Local notices work when the app opens. With an account, backend, and VAPID, CORELINE can also remind you while fully closed.',
               )}</small></span>
+            </div>
+
+            <div className={`notification-push-state ${closedPushState === 'subscribed' ? 'active' : ''}`}>
+              <span><strong>{copy('Hintergrund-Push', 'Background push')}</strong><small>{pushLabel(closedPushState)}</small></span>
+              {closedPushState === 'subscribed'
+                ? <button type="button" className="secondary-button" onClick={() => void disableClosedAppPush().then(() => setClosedPushState('ready'))}>{copy('Trennen', 'Disconnect')}</button>
+                : <button type="button" className="secondary-button" disabled={!['ready'].includes(closedPushState)} onClick={() => void connectClosedPush()}>{copy('Verbinden', 'Connect')}</button>}
             </div>
 
             <div className="notification-toggle-grid">
               <label><input type="checkbox" checked={notificationPreferences.training} onChange={event => updateNotificationPreferences({ training: event.target.checked })} /><span><strong>{copy('Trainings-Quest', 'Training quest')}</strong><small>{copy('An ausgewählten Wochentagen', 'On selected weekdays')}</small></span></label>
               <label><input type="checkbox" checked={notificationPreferences.recovery} onChange={event => updateNotificationPreferences({ recovery: event.target.checked })} /><span><strong>{copy('Regenerations-Check', 'Recovery check')}</strong><small>{copy('Etwa 20 Stunden nach einer Einheit', 'About 20 hours after a session')}</small></span></label>
               <label><input type="checkbox" checked={notificationPreferences.supplements} onChange={event => updateNotificationPreferences({ supplements: event.target.checked })} /><span><strong>{copy('Routine-Check', 'Routine check')}</strong><small>{copy('Nur für bewusst getrackte Produkte', 'Only for deliberately tracked products')}</small></span></label>
+              <label><input type="checkbox" checked={notificationPreferences.unfinishedSets} onChange={event => updateNotificationPreferences({ unfinishedSets: event.target.checked })} /><span><strong>{copy('Offene-Sätze-Check', 'Unfinished-set check')}</strong><small>{copy('Fragt nach begonnenen, nicht bestätigten Sätzen', 'Checks started sets that were not confirmed')}</small></span></label>
+              <label><input type="checkbox" checked={notificationPreferences.streakRescue} onChange={event => updateNotificationPreferences({ streakRescue: event.target.checked })} /><span><strong>{copy('Streak-Rettung', 'Streak rescue')}</strong><small>{copy('Bietet abends eine leichte adaptive Quest an', 'Offers a light adaptive quest in the evening')}</small></span></label>
+              <label><input type="checkbox" checked={notificationPreferences.hydration} onChange={event => updateNotificationPreferences({ hydration: event.target.checked })} /><span><strong>{copy('Trink-Check', 'Hydration check')}</strong><small>{copy('Optionale Gedächtnisstütze, kein medizinisches Ziel', 'Optional memory aid, not a medical target')}</small></span></label>
+              <label><input type="checkbox" checked={notificationPreferences.meals} onChange={event => updateNotificationPreferences({ meals: event.target.checked })} /><span><strong>{copy('Mahlzeiten-Check', 'Meal check')}</strong><small>{copy('Fragt nur, wenn noch nichts erfasst wurde', 'Only asks when nothing was logged')}</small></span></label>
             </div>
 
             <div className="notification-time-grid">
               <label>{copy('Trainingszeit', 'Training time')}<input type="time" value={notificationPreferences.trainingTime} onChange={event => updateNotificationPreferences({ trainingTime: event.target.value })} /></label>
               <label>{copy('Routinezeit', 'Routine time')}<input type="time" value={notificationPreferences.supplementTime} onChange={event => updateNotificationPreferences({ supplementTime: event.target.value })} /></label>
+              <label>{copy('Ruhezeit ab', 'Quiet from')}<input type="time" value={notificationPreferences.quietStart} onChange={event => updateNotificationPreferences({ quietStart: event.target.value })} /></label>
+              <label>{copy('Ruhezeit bis', 'Quiet until')}<input type="time" value={notificationPreferences.quietEnd} onChange={event => updateNotificationPreferences({ quietEnd: event.target.value })} /></label>
             </div>
 
             <fieldset className="notification-day-picker">
@@ -252,10 +315,15 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
             <div className="settings-backend-actions">
               {notificationPreferences.enabled
                 ? <button className="secondary-button" type="button" onClick={() => {
-                  setNotificationPreferences(saveNotificationPreferences({ enabled: false }));
+                  updateNotificationPreferences({ enabled: false });
                   setNotificationStatus(copy('Erinnerungen wurden pausiert.', 'Reminders were paused.'));
                 }}>{copy('Erinnerungen pausieren', 'Pause reminders')}</button>
                 : <button className="secondary-button" type="button" onClick={() => void activateNotifications()}>{copy('Benachrichtigungen aktivieren', 'Enable notifications')}</button>}
+              <button className="secondary-button" type="button" onClick={() => {
+                updateNotificationPreferences({ snoozedUntil: Date.now() + 60 * 60_000 });
+                if (closedPushState === 'subscribed') void snoozeClosedAppPush(60);
+                setNotificationStatus(copy('Alle Erinnerungen für 1 Stunde pausiert.', 'All reminders snoozed for 1 hour.'));
+              }}>{copy('1 Std. snoozen', 'Snooze 1h')}</button>
             </div>
             {notificationStatus && <p role="status">{notificationStatus}</p>}
           </div>

@@ -24,7 +24,7 @@ import { lang, t } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
 import { accuracyColor, accuracyScore, accuracyTier, rescaleServing } from '../lib/scanAccuracy';
 import { assessFoodForGoal } from '../lib/nutritionScoring';
-import { analyzeImageLocally, analyzeTextLocally, type ScanResult } from '../lib/scanner';
+import { analyzeImageLocally, analyzeTextLocally, verifyNutritionLabel, type ScanResult } from '../lib/scanner';
 import { dateKey, S } from '../lib/storage';
 import { refresh, useAppState } from '../lib/store';
 import { PerformanceHero } from './PerformanceHero';
@@ -455,6 +455,7 @@ function NutritionEntryPanel() {
           targets={S.get<Macros>('macros')}
           consumed={calcConsumed()}
           goal={loadUserProfile()?.goal ?? 'general_fitness'}
+          imageData={imageData}
           onConfirm={confirmPreview}
           onDiscard={resetScan}
           onRescale={next => setPreview(next)}
@@ -489,6 +490,7 @@ function FoodScanPreview({
   targets,
   consumed,
   goal,
+  imageData,
   onConfirm,
   onDiscard,
   onRescale,
@@ -497,6 +499,7 @@ function FoodScanPreview({
   targets: Macros | null;
   consumed: Macros;
   goal: NonNullable<ReturnType<typeof loadUserProfile>>['goal'];
+  imageData: string | null;
   onConfirm: () => void;
   onDiscard: () => void;
   onRescale: (next: ScanResult) => void;
@@ -537,7 +540,7 @@ function FoodScanPreview({
       <ul className="food-scan-facts">
         {assessment.facts.map(fact => <li key={fact}><SystemIcon name="check" /><span>{fact}</span></li>)}
       </ul>
-      <ScanAccuracy result={result} onRescale={onRescale} />
+      <ScanAccuracy result={result} imageData={imageData} onRescale={onRescale} />
       <p className="food-scan-caveat"><SystemIcon name="info" />{result.details?.confidence === 'database'
         ? copy('Datenbankwerte können vom Etikett abweichen. Prüfe Portion und Herstellerangaben.', 'Database values can differ from the label. Verify the serving and manufacturer values.')
         : copy('Referenzschätzung für unverarbeitete Standardlebensmittel. Mengen prüfen und bei Bedarf nach dem Speichern bearbeiten.', 'Reference estimate for standard unprocessed foods. Verify amounts and edit after saving if needed.')}</p>
@@ -631,13 +634,16 @@ function DailyNotes({ storageDateKey }: { storageDateKey: string }) {
 
 // ── Scan-Genauigkeit: abgestufter Wert statt binärer Einstufung, plus
 //    Portionskorrektur. Die Menge ist die grösste Fehlerquelle im Scan.
-function ScanAccuracy({ result, onRescale }: {
+function ScanAccuracy({ result, imageData, onRescale }: {
   result: ScanResult;
+  imageData: string | null;
   onRescale: (next: ScanResult) => void;
 }) {
   const details = result.details;
   const [grams, setGrams] = useState(String(details?.servingGrams ?? 100));
   const [open, setOpen] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
   if (!details) return null;
 
   const score = accuracyScore(details);
@@ -664,6 +670,41 @@ function ScanAccuracy({ result, onRescale }: {
     setOpen(false);
   };
 
+  const verifyLabel = async () => {
+    if (!imageData || verifying) return;
+    setVerifying(true);
+    setVerificationError('');
+    try {
+      const verification = await verifyNutritionLabel(imageData, result);
+      onRescale({
+        ...result,
+        details: {
+          ...details,
+          labelVerification: verification,
+          fiber: details.fiber ?? verification.values?.fiber,
+          saturatedFat: details.saturatedFat ?? verification.values?.saturatedFat,
+          sodiumMg: details.sodiumMg ?? verification.values?.sodiumMg,
+        },
+      });
+      setOpen(true);
+    } catch (error) {
+      const code = String((error as Error).message);
+      setVerificationError(code === 'no_backend'
+        ? copy('Verbinde zuerst dein optionales Backend in den Einstellungen.', 'Connect your optional backend in Settings first.')
+        : copy('Das Etikett konnte nicht verifiziert werden. Nutze einen geraden, gut beleuchteten Ausschnitt.', 'The label could not be verified. Use a straight, well-lit crop.'));
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const verification = details.labelVerification;
+  const verificationLabel: Record<string, [string, string]> = {
+    matched: ['Etikett stimmt überein', 'Label matched'],
+    mismatch: ['Abweichung erkannt', 'Mismatch detected'],
+    'label-read': ['Etikett gelesen', 'Label read'],
+    failed: ['Nicht lesbar', 'Could not read'],
+  };
+
   return (
     <div className={`scan-accuracy tier-${tier}`}>
       <button type="button" className="scan-accuracy-bar" onClick={() => setOpen(value => !value)}
@@ -673,7 +714,7 @@ function ScanAccuracy({ result, onRescale }: {
         <span className="scan-accuracy-track" aria-hidden="true">
           <i style={{ width: `${score}%`, background: colour }} />
         </span>
-        <span className="scan-accuracy-tier" style={{ color: colour }}>{copy(...tierLabel[tier])}</span>
+        <span className="scan-accuracy-tier" style={{ color: colour }}>{verification?.state === 'matched' ? copy('Etikett bestätigt', 'Label matched') : copy(...tierLabel[tier])}</span>
         <span className="scan-accuracy-score">{score}%</span>
       </button>
       {open && (
@@ -690,6 +731,19 @@ function ScanAccuracy({ result, onRescale }: {
               {copy('Übernehmen', 'Apply')}
             </button>
           </div>
+          {imageData && <div className="scan-label-verification">
+            <div>
+              <strong>{copy('Herstelleretikett prüfen', 'Verify manufacturer label')}</strong>
+              <small>{copy('Nur nach diesem Tipp wird das aktuelle Foto einmalig zur OCR an dein Backend gesendet.', 'Only after this tap is the current photo sent once to your backend for OCR.')}</small>
+            </div>
+            <button type="button" className="guild-ghost-button" disabled={verifying} onClick={() => void verifyLabel()}>{verifying ? copy('Lese Etikett…', 'Reading label…') : copy('Etikett verifizieren', 'Verify label')}</button>
+          </div>}
+          {verification && <div className={`scan-label-result ${verification.state}`} role="status">
+            <strong>{copy(...verificationLabel[verification.state])}</strong>
+            <span>OCR {verification.confidence}% · {verification.comparedFields} {copy('Felder verglichen', 'fields compared')}{verification.averageDifferencePct === undefined ? '' : ` · Δ ${verification.averageDifferencePct}%`}</span>
+            {verification.values && <small>{Object.entries(verification.values).map(([key, value]) => `${key} ${value}`).join(' · ')}</small>}
+          </div>}
+          {verificationError && <p className="scan-label-error" role="alert">{verificationError}</p>}
         </div>
       )}
     </div>
