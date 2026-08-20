@@ -1,118 +1,203 @@
-// ── Shadow-KI Onboarding-Chat — TS-Port mit Sprach-Fix und
-//    "ACCESS GRANTED"-Lesezeit (~12s Chat, Weiterleitung nach ~15,5s)
-import { useEffect, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { S } from '../lib/storage';
-import { t } from '../lib/i18n';
+import { lang } from '../lib/i18n';
+import { useModalIsolation } from '../lib/modal';
 import { showScreen } from '../lib/store';
-import { buildFallbackResponse, resetKiAns } from '../lib/ki';
-import type { Profile } from '../lib/engine';
+import { loadUserProfile } from '../lib/profile';
+import { getCharacterPath, localizedCharacterCopy } from '../lib/characterPaths';
+import {
+  SAFE_SUPPLEMENT_CATALOG,
+  localizeSupplement,
+  sanitizeRoutineSelection,
+  toProtocol,
+  type SafeSupplementCatalogItem,
+} from '../lib/supplements';
+import type { ProtocolItem } from '../lib/engine';
+import { PerformanceHero } from './PerformanceHero';
+import { SystemIcon, type SystemIconName } from './SystemIcon';
 
-const IconSigil = <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>;
-const IconSend = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
-const IconLoader = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+const copy = (de: string, en: string) => lang === 'de' ? de : en;
 
-interface Msg { role: 'ai' | 'user'; content: string; ts: string; }
+const evidenceLabel: Record<SafeSupplementCatalogItem['evidenceLevel'], { de: string; en: string }> = {
+  supported_for_specific_use: { de: 'Für bestimmten Einsatz gestützt', en: 'Supported for a specific use' },
+  context_dependent: { de: 'Kontextabhängig', en: 'Context dependent' },
+  food_first: { de: 'Lebensmittel zuerst', en: 'Food first' },
+};
+
+const supplementIcons: Record<string, SystemIconName> = {
+  protein: 'food',
+  kreatin: 'training',
+  omega: 'water',
+  vitd: 'sun',
+  magnesium: 'moon',
+  eaa: 'food',
+  zinc: 'shield',
+  'mass-gainer': 'food',
+  preworkout: 'spark',
+};
 
 export function KiScreen() {
-  const [msgs, setMsgs] = useState<Msg[]>([]);
-  const [input, setInput] = useState('');
-  const [thinking, setThinking] = useState(false);
-  const [done, setDone] = useState(false);
-  const [genPhase, setGenPhase] = useState(false);
-  const [status, setStatus] = useState('// Verbindung wird aufgebaut…');
-  const chatRef = useRef<HTMLDivElement>(null);
-  const histRef = useRef<{ role: string; content: string }[]>([]);
-  const timers = useRef<number[]>([]);
-
-  const now = () => new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-
-  useEffect(() => {
-    resetKiAns();
-    const profile = S.get<Profile>('profile');
-    const name = profile?.firstName || 'Chosen One';
-    const timer = window.setTimeout(() => {
-      const greeting = t('ki_greeting').replace('{name}', name);
-      histRef.current.push({ role: 'ai', content: greeting });
-      setMsgs([{ role: 'ai', content: greeting, ts: now() }]);
-      setStatus('// Online · Freier Antwort-Modus aktiv');
-    }, 420);
-    return () => { clearTimeout(timer); timers.current.forEach(clearTimeout); };
+  const character = useMemo(() => {
+    const profile = loadUserProfile();
+    return profile?.mode === 'inspiration' ? getCharacterPath(profile.inspirationProfile) : null;
   }, []);
+  const recommendedIds = useMemo(() => character?.recommendations.map(item => item.id) || [], [character]);
+  const catalog = useMemo(() => [...SAFE_SUPPLEMENT_CATALOG].sort((a, b) => {
+    const aIndex = recommendedIds.indexOf(a.id);
+    const bIndex = recommendedIds.indexOf(b.id);
+    if (aIndex < 0 && bIndex < 0) return 0;
+    if (aIndex < 0) return 1;
+    if (bIndex < 0) return -1;
+    return aIndex - bIndex;
+  }), [recommendedIds]);
+  const initial = useMemo(() => {
+    const current = S.get<ProtocolItem[]>('protocol') || [];
+    return sanitizeRoutineSelection(current.map(item => item.id));
+  }, []);
+  const [selected, setSelected] = useState<string[]>(initial);
+  const [details, setDetails] = useState<SafeSupplementCatalogItem | null>(null);
 
-  useEffect(() => {
-    chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' });
-  }, [msgs, thinking]);
+  useModalIsolation(Boolean(details), {
+    backgroundSelectors: ['.supplement-page', '.system-topbar', '.system-bottom-nav'],
+    onEscape: () => setDetails(null),
+  });
 
-  const send = () => {
-    const txt = input.trim();
-    if (!txt || done || thinking) return;
-    setInput('');
-    histRef.current.push({ role: 'user', content: txt });
-    setMsgs(m => [...m, { role: 'user', content: txt, ts: now() }]);
-    setThinking(true);
+  const toggle = (id: string) => {
+    setSelected(current => current.includes(id)
+      ? current.filter(item => item !== id)
+      : [...current, id]);
+  };
 
-    window.setTimeout(() => {
-      const profile = S.get<Profile>('profile') || ({} as Partial<Profile>);
-      const resp = buildFallbackResponse(histRef.current, profile);
-      setThinking(false);
-      histRef.current.push({ role: 'ai', content: resp.message });
-      setMsgs(m => [...m, { role: 'ai', content: resp.message, ts: now() }]);
+  const save = () => {
+    S.set('protocol', toProtocol(selected));
+    showScreen('dashboard');
+  };
 
-      if (resp.finalEvaluation) {
-        setDone(true);
-        S.set('ki_chat', histRef.current);
-        if (resp.macros) S.set('macros', resp.macros);
-        if (resp.protocol) S.set('protocol', resp.protocol);
-        // "ACCESS GRANTED" in Ruhe lesbar: ~12s Chat, Weiterleitung nach ~15,5s
-        setStatus(t('ki_redirect'));
-        timers.current.push(window.setTimeout(() => setGenPhase(true), 12000));
-        timers.current.push(window.setTimeout(() => showScreen('dashboard'), 15500));
-      }
-    }, 700 + Math.random() * 500);
+  const skip = () => {
+    S.set('protocol', []);
+    showScreen('dashboard');
   };
 
   return (
-    <div className="screen active" id="screen-ki">
-      <div className="ki-chat-wrap">
-        <div className="ki-chat-hd">
-          <div className="ki-sigil-sm">{IconSigil}</div>
+    <section className="screen active system-screen" id="screen-ki">
+      <div className="system-page supplement-page">
+        <PerformanceHero
+          variant="supplements"
+          icon="supplements"
+          title={copy('Supplement-Wissen', 'Supplement knowledge')}
+          description={copy(
+            'Verstehe, was verbreitete Supplements leisten können – und wo die Evidenz endet. Du wählst selbst, was du bereits nutzt.',
+            'Understand what common supplements may support and where the evidence stops. You choose what you already use.',
+          )}
+          status={(
+            <>
+              <span><small>{copy('Ausgewählt', 'Selected')}</small><strong>{selected.length}</strong></span>
+              <span><small>{copy('Einträge', 'Entries')}</small><strong>{SAFE_SUPPLEMENT_CATALOG.length}</strong></span>
+              <span><small>{copy('Prinzip', 'Principle')}</small><strong>{copy('Food first', 'Food first')}</strong></span>
+            </>
+          )}
+        />
+
+        {character && <section className="character-supplement-match" aria-labelledby="character-match-title">
+          <header>
+            <span><SystemIcon name="spark" />{copy('CHARAKTER-MATCH AKTIV', 'CHARACTER MATCH ACTIVE')}</span>
+            <strong>{character.name}</strong>
+          </header>
+          <div className="character-match-copy">
+            <h2 id="character-match-title">{localizedCharacterCopy(character.title, lang)}</h2>
+            <p>{copy(
+              'Diese Einträge passen zu den Tags deines ausgerüsteten Trainingspfads und stehen deshalb zuerst. Sie sind Optionen, keine Pflichtkäufe.',
+              'These entries match the tags on your equipped training path, so they appear first. They are options, not required purchases.',
+            )}</p>
+          </div>
+          <div className="character-match-list">
+            {character.recommendations.map(item => <article key={item.id}>
+              <SystemIcon name={supplementIcons[item.id] || 'supplements'} />
+              <span><strong>{localizedCharacterCopy(item.label, lang)}</strong><small>{localizedCharacterCopy(item.reason, lang)}</small></span>
+              <b>{copy('MATCH', 'MATCH')}</b>
+            </article>)}
+          </div>
+          <button type="button" onClick={() => setSelected(current => [...new Set([...current, ...recommendedIds])])}>
+            <SystemIcon name="check" />{copy('Empfehlungen zum Tracker hinzufügen', 'Add recommendations to tracker')}
+          </button>
+        </section>}
+
+        <aside className="system-notice" role="note">
+          <SystemIcon name="shield" />
           <div>
-            <div className="ki-chat-hd-title">{t('ki_title')}</div>
-            <div className="ki-chat-hd-sub">{genPhase ? t('ki_saved') : status}</div>
+            <strong>{copy('Keine automatische Dosierung', 'No autonomous dosing')}</strong>
+            <span>{copy(
+              'CORELINE diagnostiziert keinen Mangel und erstellt keinen medizinischen Stack. Etikett, Ernährung und qualifizierte Beratung bleiben maßgeblich.',
+              'CORELINE does not diagnose a deficiency or create a medical stack. The label, food pattern, and qualified advice remain decisive.',
+            )}</span>
           </div>
-        </div>
-        {!genPhase ? (
-          <>
-            <div className="ki-chat" ref={chatRef}>
-              {msgs.map((m, i) => (
-                <div key={i} className={`ki-msg ${m.role}`}>
-                  <div className="ki-msg-bubble">{m.content.split('\n').map((l, j) => <span key={j}>{l}<br /></span>)}</div>
-                  <div className="ki-msg-ts">{m.role === 'ai' ? '◈ SHADOW AI' : t('ki_you')} · {m.ts}</div>
+        </aside>
+
+        <section className="supplement-library" aria-label={copy('Supplement-Bibliothek', 'Supplement library')}>
+          {catalog.map(catalogItem => {
+            const item = localizeSupplement(catalogItem, lang);
+            const active = selected.includes(item.id);
+            const label = evidenceLabel[item.evidenceLevel];
+            return (
+              <article className={active ? 'supplement-entry selected' : 'supplement-entry'} key={item.id}>
+                <div className="supplement-entry-icon" aria-hidden="true"><SystemIcon name={supplementIcons[item.id] || 'supplements'} /></div>
+                <div className="supplement-entry-copy">
+                  <div className="supplement-entry-title">
+                    <h2>{item.label}</h2>
+                    <span>{lang === 'de' ? label.de : label.en}</span>
+                  </div>
+                  <p>{item.supportedUse}</p>
+                  <small>{item.evidenceLimits}</small>
                 </div>
-              ))}
-            </div>
-            {thinking && (
-              <div className="ki-thinking" style={{ display: 'flex' }}>
-                {IconLoader}
-                <span className="ki-think-label">{t('ki_thinking')}</span>
-              </div>
-            )}
-            <div className="ki-input-row" style={{ display: 'flex' }}>
-              <input className="ki-text-input" type="text" value={input} disabled={done || thinking}
-                placeholder={t('ki_input_ph')}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) send(); }} />
-              <button className="ki-send-btn" disabled={done || thinking} onClick={send}>{IconSend}</button>
-            </div>
-          </>
-        ) : (
-          <div className="ki-gen" style={{ display: 'flex' }}>
-            <div className="ki-rings"><div className="ki-sigil-c">◈</div></div>
-            <p>{t('ki_generating')}</p>
-            <div className="ki-api-status ok">{t('ki_saved')}</div>
-          </div>
-        )}
+                <div className="supplement-entry-actions">
+                  <button type="button" className="system-button quiet" onClick={() => setDetails(item)}>
+                    <SystemIcon name="info" />{copy('Details', 'Details')}
+                  </button>
+                  <button
+                    type="button"
+                    className={active ? 'system-button selected' : 'system-button'}
+                    onClick={() => toggle(item.id)}
+                    aria-pressed={active}
+                  >
+                    <SystemIcon name={active ? 'check' : 'plus'} />
+                    {active ? copy('Wird getrackt', 'Tracking') : copy('Tracken', 'Track')}
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </section>
+
+        <footer className="system-action-bar supplement-actions">
+          <button className="system-button quiet" type="button" onClick={skip}>{copy('Ohne Supplements fortfahren', 'Continue without supplements')}</button>
+          <button className="system-primary-action" type="button" onClick={save}>
+            <span>{copy('Routine speichern', 'Save routine')}</span>
+            <small>{selected.length} {copy('ausgewählt', 'selected')}</small>
+          </button>
+        </footer>
       </div>
-    </div>
+      {details && createPortal(
+        <div className="supplement-detail-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setDetails(null); }}>
+          <section className="supplement-detail-panel" role="dialog" aria-modal="true" aria-labelledby="supplement-detail-title" onMouseDown={event => event.stopPropagation()}>
+            <header>
+              <div><h2 id="supplement-detail-title">{details.label}</h2><p>{details.whatItIs}</p></div>
+              <button type="button" className="system-icon-button" onClick={() => setDetails(null)} aria-label={copy('Details schließen', 'Close details')}><SystemIcon name="close" /></button>
+            </header>
+            <div className="supplement-detail-grid">
+              <section><h3>{copy('Was die Evidenz stützt', 'What evidence supports')}</h3><p>{details.supportedUse}</p></section>
+              <section><h3>{copy('Grenzen', 'Limits')}</h3><p>{details.evidenceLimits}</p></section>
+              <section><h3>{copy('Lebensmittelquellen', 'Food sources')}</h3><ul>{details.foodSources.map(source => <li key={source}>{source}</li>)}</ul></section>
+              <section><h3>{copy('Vorher prüfen', 'Check first')}</h3><p>{details.interactionPrompt}</p><ul>{details.cautions.map(caution => <li key={caution}>{caution}</li>)}</ul></section>
+            </div>
+            <footer>
+              <span>{copy('Geprüft', 'Reviewed')}: {details.reviewedAt}</span>
+              <div>{details.sources.map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer">{source.authority}<SystemIcon name="external" /></a>)}</div>
+            </footer>
+          </section>
+        </div>,
+        document.body,
+      )}
+    </section>
   );
 }

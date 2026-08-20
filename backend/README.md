@@ -1,26 +1,59 @@
-# ◈ SHADOW~1 Backend (Python / FastAPI)
+# CORELINE Backend (Python / FastAPI)
 
-Server-Seite der Full-Stack-App: Auth, SQL-Persistenz, Live-Marktpreise,
-präzise Food-Analyse und der Community-Chat mit Shadow-Bot-Moderation.
+Für die offline-first App ist `app.integration_app:app` der empfohlene
+öffentliche Einstiegspunkt. Er stellt Konten, Freunde, Gilden, revisionierten
+Sync, Web Push, explizite Etikett-OCR, die begrenzten KI-/Standort-Integrationen
+und Healthchecks bereit. Profil, Mahlzeiten, Training und
+Supplement-Tracking funktionieren weiterhin lokal ohne Server.
 
-## Starten
+`app.main:app` enthält weiterhin historische Auth-, SQL-, Scan- und Chat-Routen
+für lokale Kompatibilität. Dieser Legacy-Server ist ohne zusätzliche
+Authentifizierung und Autorisierung **kein** empfohlenes öffentliches Ziel.
+
+## System-Backend starten
 
 ```bash
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.integration_app:app --host 0.0.0.0 --port 8000
 ```
 
-Danach im Frontend (Tab „👥 NEXUS") die Server-URL eintragen, z. B.
-`http://localhost:8000` — sie wird lokal gespeichert. Alternativ beim
-Frontend-Build `VITE_BACKEND_URL` setzen.
+Alternativ baut `docker build -t coreline-system .` den unprivilegiert laufenden
+Container inklusive deutscher/englischer Etikett-OCR. Danach im Frontend unter
+**Einstellungen → Integrationen** die HTTPS-Server-URL eintragen. Lokal ist
+auch `http://localhost:8000` erlaubt. Alternativ kann der Frontend-Build
+`VITE_BACKEND_URL` erhalten; dort gehört nur die Server-URL hinein, nie ein
+Provider-Schlüssel.
+
+Der minimale Server kennt diese Betriebsrouten:
+
+| Route | Zweck |
+|---|---|
+| `GET /api/health` | Liveness plus ehrlicher Provider-Status |
+| `GET /api/health/ready` | Readiness des zustandslosen API-Prozesses |
+| `GET /api/v1/integrations/status` | Verfügbare KI-/Maps-Fähigkeiten ohne Secrets |
+| `POST /api/auth/register` / `login` | Reales Konto für Freunde, Gilde, Sync und Push |
+| `GET/POST /api/v1/friends/*` | Anfragen, Präsenz, Stat-Inspektion und Aura/Fokus |
+| `GET/POST /api/v1/guild`, `/raid`, `/sync` | Gilde, Wochen-Raid und revisionssicherer Sync |
+| `GET/POST /api/v1/push/*` | Push-Abo, Ruhezeit, Snooze und Worker-Ausführung |
+| `POST /api/food/label` | Opt-in OCR des Nährwertetiketts; 8-MB-Grenze |
+
+## Historischer Kompatibilitäts-Einstiegspunkt
+
+Für ausschließlich lokale Entwicklungs- und Migrationsarbeit. Öffentliche
+Deployments sollen `integration_app` verwenden:
+
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
 ## Endpunkte
 
 | Route | Zweck |
 |---|---|
-| `GET /api/health` | Healthcheck (Frontend-Verbindungstest) |
+| `GET /api/health` | Legacy-Liveness/Frontend-Verbindungstest; prüft bewusst keine Provider |
 | `POST /api/auth/register` / `login` | Konten (pbkdf2-Hash, Token in SQL) |
 | `GET /api/prices/live` | Live-Marktpreise — Proxy auf die **Open Prices API** (Open Food Facts), 12h-Cache in SQL |
 | `GET /api/food/analyze?q=…&barcode=…` | Nährwert-Analyse — Proxy auf **Open Food Facts** (Barcode exakt, Volltext validiert, Gramm-Parsing) |
@@ -28,12 +61,126 @@ Frontend-Build `VITE_BACKEND_URL` setzen.
 | `POST /api/chat/upload` | Bild-Upload für den Chat (3 MB, jpeg/png/webp/gif, Magic-Byte-Check) |
 | `WS /ws/chat/{room}` | Chat-Räume: `global`, `de`, `en`, `ja`, `ko`, `es` |
 
+## Sichere Integrationen (`/api/v1`)
+
+Die GitHub-Pages-App bleibt offline-first. Echte KI- und Standortabfragen
+laufen ausschließlich über dieses separat zu hostende HTTPS-Backend; API-Keys
+gehören nur in Server-Umgebungsvariablen und nie in den Browser-Build.
+
+| Route | Verhalten |
+|---|---|
+| `GET /api/v1/integrations/status` | Meldet ehrlich, welche Provider serverseitig konfiguriert sind; prüft keine Keys und gibt keine Secrets aus |
+| `POST /api/v1/plan/draft` | OpenAI Responses API mit strikt strukturiertem Output, `store:false`, begrenzter Laufzeit und Ausgabe |
+| `POST /api/v1/assistant/respond` | Kontextbezogene Wellness-Frage mit expliziter Freigabe; echte OpenAI-Antwort oder ehrliches `503` |
+| `POST /api/v1/stores/nearby` | Google Geocoding + Places Nearby Search; akzeptiert Adresse **oder** Koordinaten nur mit expliziter Standortfreigabe |
+
+### KI-Planentwurf
+
+- `OPENAI_API_KEY` **und** `OPENAI_MODEL` müssen gesetzt sein. Ohne beide
+  antwortet der Endpoint mit `503`; es wird nie eine lokale Antwort als „KI“
+  ausgegeben.
+- Remote-KI ist in dieser ersten Version nur für Nutzer ab 18 Jahren aktiviert.
+- Das Request-Schema enthält Alltag, Schlaf, Mahlzeitenrhythmus, Aktivität,
+  Training und Ernährungspräferenzen, aber bewusst **keine Adresse oder
+  Koordinaten**.
+- Das Backend fordert JSON nach einem festen Schema an und validiert den Output
+  erneut. Trainingstage/-dauer, Kalorien, Protein und Makro-Konsistenz werden
+  gegen serverseitige Grenzen geprüft.
+- Der System-Prompt verbietet Diagnosen, Medikamentenberatung,
+  Supplement-Dosierungen/-Stacks, extreme Ziele und Versprechen, den Körper
+  realer oder fiktionaler Figuren zu kopieren.
+
+Der Assistant-Endpoint nutzt denselben serverseitigen OpenAI-Zugang, aber ein
+kleines separates Schema: Frage (max. 1.000 Zeichen), Sprache und optional ein
+begrenzter Profil-/Plan-Snapshot. Auch dieses Schema kennt keine
+Standortfelder. Die Antwort enthält `answer`, `safety_notes`, eine
+`escalation`-Stufe und serverseitige Provider-Metadaten. Bei akuten Warnzeichen
+muss das Modell auf lokale Notfallhilfe verweisen; eine verfehlte Eskalation
+wird serverseitig verworfen. Es gibt keinen als KI ausgegebenen Regeltext-
+Fallback.
+
+Referenz: [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses)
+und [Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs).
+
+### Supermärkte in der Nähe
+
+- Für Adressen werden Geocoding **und** Places benötigt. Mit Koordinaten genügt
+  Places. `GOOGLE_MAPS_API_KEY` kann beide bedienen; produktiv sind getrennte,
+  API- und serverseitig eingeschränkte Keys über
+  `GOOGLE_GEOCODING_API_KEY` / `GOOGLE_PLACES_API_KEY` empfehlenswert.
+- Adresse und Koordinaten werden nur für die aktuelle Anfrage verarbeitet und
+  durch diesen Code weder geloggt noch gespeichert. Sie werden niemals an das
+  KI-Modell gesendet.
+- Antworten enthalten nur minimale Provider-Felder, einen Abrufzeitpunkt und
+  eine Distanz. Budget und Währung bleiben Planungskontext. Der Endpoint
+  behauptet ausdrücklich **keine** aktuellen Preise, Bestände, Öffnungszeiten
+  oder Budget-Eignung.
+
+Referenz: [Google Geocoding](https://developers.google.com/maps/documentation/geocoding/requests-geocoding)
+und [Nearby Search (New)](https://developers.google.com/maps/documentation/places/web-service/nearby-search).
+
+### Produktionsgrenzen
+
+- `CORS_ORIGINS` akzeptiert nur exakte `http(s)`-Origins; `*` stoppt den Start.
+  Sichere Defaults erlauben die öffentliche GitHub-Pages-Origin und lokale
+  Vite-Ports.
+- Die drei teuren anonymen Endpoints haben Body-, Timeout-, Token- und
+  Prozess-Ratenlimits sowie eine maximale Provider-Antwortgröße. Das
+  In-Memory-Limit gilt nur pro Prozess. Mehrere Worker benötigen einen
+  gemeinsamen Store (z. B. Redis) plus Limits am Reverse Proxy.
+- Der Produktionshost muss HTTPS, Secret-Management, Provider-Quoten/Budgets,
+  Monitoring ohne sensible Payloads und eine vertrauenswürdig konfigurierte
+  Proxy-IP-Kette bereitstellen.
+- Google-Maps-Billing, Key-Restriktionen und die für den Betreiber geltenden
+  EWR-Nutzungsbedingungen müssen vor dem öffentlichen Start eingerichtet bzw.
+  geprüft werden.
+
+> **Noch keine öffentliche KI-Freigabe:** Die Integrationsrouten sind aktuell
+> anonym. CORS und das Prozess-Ratenlimit sind keine Authentifizierung und
+> verhindern keine direkten Script-Aufrufe. Setze auf einem öffentlich
+> erreichbaren Host deshalb noch keine kostenpflichtigen Provider-Schlüssel,
+> bis eine echte Zugangsentscheidung umgesetzt ist: bevorzugt reale Konten mit
+> serverseitiger Session und Nutzer-/Tagesquoten; alternativ ein bewusst
+> begrenzter Gastzugang mit Edge-Limit, Bot-Schutz und hartem Kostenbudget.
+> Ein gemeinsames Geheimnis im Browser wäre keine sichere Lösung.
+
+Selbst mit hinterlegten Provider-Schlüsseln bleiben die kostenpflichtigen
+Routen standardmäßig gesperrt. `PUBLIC_INTEGRATIONS_ENABLED=true` ist der
+bewusste Kill-Switch für einen bereits abgesicherten Rollout – kein Ersatz für
+Konten, Quoten oder Edge-Schutz.
+
+Für Container-/Load-Balancer-Probes: `/api/health` als Liveness und
+`/api/health/ready` als Readiness verwenden. HSTS, CSP/weitere Edge-Header,
+Request-IDs, vertrauenswürdige Proxy-IP-Auflösung und zentrale Logs/Metriken
+werden am HTTPS-Reverse-Proxy bzw. auf der Hosting-Plattform konfiguriert.
+
+Konfiguration siehe [`.env.example`](.env.example). Tests:
+
+```bash
+cd backend
+python -m venv .venv
+# Linux/macOS: source .venv/bin/activate
+# Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+pytest -q
+ruff check app tests
+```
+
 ## SQL-Schema
 
-SQLAlchemy-Modelle in `app/models.py` (Auto-Migration beim Start):
-`users` (Profil + Protokoll/Makro-Snapshot) · `auth_tokens` · `scan_entries` ·
-`chat_messages` · `price_cache`. Default SQLite, per `DATABASE_URL` auf
-Postgres/MySQL umstellbar.
+SQLAlchemy-Modelle in `app/models.py` (neue Tabellen werden beim Start angelegt):
+Konten/Tokens · Freundschaften und öffentliche Social-Snapshots · Gilden,
+Einladungen und Raid-Beiträge · revisionierte Sync-Blobs · Push-Abos,
+Einstellungen und Deduplizierung. SQLite eignet sich lokal; produktiv ist eine
+verwaltete SQL-Datenbank mit Backups zu verwenden.
+
+## Web Push bei geschlossener App
+
+Setze `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` und
+`PUSH_CRON_SECRET` nur im Secret-Store des Hosts. Starte alle 5–10 Minuten
+`python -m app.push_worker` oder rufe `POST /api/v1/push/process` mit dem Header
+`X-Coreline-Cron` auf. Der Worker respektiert Zeitzone, Ruhezeit und Snooze,
+dedupliziert Hinweise und entfernt abgelaufene Browser-Abos.
 
 ## ◈ Shadow Bot (Moderation)
 
@@ -50,6 +197,29 @@ Jede Chat-Nachricht durchläuft vor Persistenz & Broadcast `app/shadow_bot.py`:
 Geblockte Nachrichten werden **nicht** gespeichert; der Absender erhält eine
 mystische Verwarnung im Stil der App (das Frontend lokalisiert den
 `reason`-Code in alle 5 Sprachen).
+
+### Bot-Befehle
+
+Nachrichten, die mit `!` beginnen, fängt der Bot ab (2 s Cooldown pro User):
+
+| Befehl | Wirkung |
+|---|---|
+| `!profile` / `!stats` | Liest die RPG-Akte des Absenders aus `user_stats` (Rang, XP, Attribut-Balken, Streak, Titel) und schickt sie **privat** zurück |
+| `!loadout <Name>` | Gibt ein optimiertes Waffen-Setup **im Raum** aus (z. B. `!loadout Fennec`, `!loadout WSP-9`); Daten in `services/loadout.py`, tolerante Namensauflösung |
+| `!help` | Befehls-Übersicht (privat) |
+
+Die RPG-Daten für `!profile` werden client-seitig berechnet und via
+`POST /api/profile/sync` in die Tabelle `user_stats` gespiegelt (beim
+Betreten des Chats). Bot-Antworten kommen als `bot`-Nachrichtentyp und
+unterstützen Markdown.
+
+## Live-Präsenz
+
+Der WebSocket-Hub sendet bei Join **und** Disconnect ein `presence`-Frame mit
+`count` und einem `roster` (`[{uid, user, title}]`) an alle im Raum — das
+Frontend rendert daraus die einklappbare Präsenz-Sidebar. Tab-Schließen löst
+client-seitig (`pagehide`) ein sofortiges Schließen des Sockets aus, damit das
+Roster ohne Verzögerung aktualisiert.
 
 ## Hinweise
 

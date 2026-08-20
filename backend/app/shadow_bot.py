@@ -114,3 +114,57 @@ WARNINGS = {
     "toxic": "Deine Worte wurden von der Void absorbiert. Wähle sie weiser — die Schatten hören alles.",
     "spam": "Zu viele Echos in zu kurzer Zeit. Die Void verlangt Geduld.",
 }
+
+
+# ═══════════════════════════════════════════════════════════════════
+#  ◈ SHADOW BOT — interaktive Chat-Befehle
+#  !profile / !stats  → RPG-Akte des Absenders (aus der DB)
+#  !loadout <Name>    → optimiertes Waffen-Setup (Gaming-Community)
+#  !help              → Befehls-Übersicht
+# ═══════════════════════════════════════════════════════════════════
+_cmd_cooldown: dict[str, float] = {}
+CMD_COOLDOWN_S = 2.0
+
+
+def parse_command(text: str) -> tuple[str, str] | None:
+    """'!loadout Fennec' → ('loadout', 'Fennec'). None wenn kein Befehl."""
+    t = (text or "").strip()
+    if not t.startswith("!"):
+        return None
+    parts = t[1:].split(maxsplit=1)
+    if not parts:
+        return None
+    return parts[0].lower(), (parts[1].strip() if len(parts) > 1 else "")
+
+
+def command_on_cooldown(sender: str) -> bool:
+    """Leichter Anti-Spam-Schutz für Befehle (2 s pro Absender)."""
+    now = time.time()
+    last = _cmd_cooldown.get(sender, 0)
+    if now - last < CMD_COOLDOWN_S:
+        return True
+    _cmd_cooldown[sender] = now
+    return False
+
+
+def format_profile(stats: dict) -> str:
+    """Kompakte, stylische RPG-Akte (Markdown-fähig) aus einem Stats-Dict."""
+    name = stats.get("name") or "Vessel"
+    uid = stats.get("uid_tag") or "#000"
+    attrs = stats.get("attrs") or {}
+    order = ["STR", "VIT", "AGI", "INT", "MAG"]
+    bars = []
+    for k in order:
+        v = int(attrs.get(k, 0))
+        filled = max(0, min(10, round(v / 10)))
+        bars.append(f"▸ **{k}** `{'█' * filled}{'░' * (10 - filled)}` {v}")
+    title = stats.get("equipped_title") or "Shadow Novice"
+    return "\n".join([
+        f"◈ **SHADOW AGENT AKTE** · {name} `{uid}`",
+        "━━━━━━━━━━━━━━━━━━",
+        f"▸ **Rang:** {stats.get('rank', 'Shadow Novice')}   ▸ **XP:** {int(stats.get('xp', 0))}",
+        f"▸ **Titel:** {title}",
+        f"▸ **Streak:** 🔥 {int(stats.get('streak', 0))}   ▸ **Erfolge:** 🏆 {int(stats.get('achievements', 0))}",
+        "━━━━━━━━━━━━━━━━━━",
+        *bars,
+    ])

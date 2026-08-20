@@ -16,5 +16,28 @@ export const S = {
   },
 };
 
-export function dateKey(): string { return new Date().toISOString().slice(0, 10); }
-export function prevKey(): string { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); }
+function localDateKey(date: Date): string {
+  const year = String(date.getFullYear()).padStart(4, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function dateKey(now: Date = new Date()): string { return localDateKey(now); }
+export function prevKey(now: Date = new Date()): string {
+  const previous = new Date(now.getTime());
+  previous.setDate(previous.getDate() - 1);
+  return localDateKey(previous);
+}
+
+// ── Härtung: AbortSignal.timeout existiert erst ab iOS 16 / Safari 16.
+//    Auf älteren Geräten würde der Aufruf synchron werfen → hier ein
+//    sicherer Wrapper, der notfalls ohne Timeout-Signal arbeitet.
+export function timeoutSignal(ms: number): AbortSignal | undefined {
+  try {
+    if (typeof AbortSignal !== 'undefined' && typeof (AbortSignal as any).timeout === 'function') {
+      return (AbortSignal as any).timeout(ms);
+    }
+  } catch { /* noop */ }
+  return undefined;
+}

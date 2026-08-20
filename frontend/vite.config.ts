@@ -1,15 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// Build-Ziel ist das Repo-Root: GitHub Pages (Deploy from branch, / root)
-// serviert die gebaute App direkt. base './' hält alle Asset-Pfade relativ,
-// damit sowohl username.github.io als auch /repo-name/-Subpfade funktionieren.
+// Keep generated output out of the repository root. GitHub Pages receives the
+// dist directory through the deployment workflow; relative assets work both at
+// localhost and on a repository sub-path.
 export default defineConfig({
   plugins: [react()],
   base: './',
+  server: {
+    host: '0.0.0.0',
+    allowedHosts: ['terminal.local'],
+  },
   build: {
-    outDir: '..',
-    emptyOutDir: false,   // manifest.json, sw.js, icons/, legacy/, backend/ NIE löschen
+    outDir: 'dist',
+    emptyOutDir: true,
     assetsDir: 'assets',
+    manifest: 'asset-manifest.json',
   },
 });

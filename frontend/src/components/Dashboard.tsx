@@ -1,446 +1,751 @@
-// ── Dashboard — TS-Port: Protokoll, Makros, Materia-Scanner 2.1,
-//    Smart Cart mit Live-Preisen, Mana, Mission Log, Dynamic Glow
-import { useEffect, useRef, useState } from 'react';
-import { S, dateKey } from '../lib/storage';
-import { t } from '../lib/i18n';
-import { refresh, useAppState } from '../lib/store';
-import { theme, getCurrentTheme } from '../lib/themes';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
+
 import {
-  SDEFS, gainXP, checkAchievements, getStreak, finaliseStreak, completedToday,
-  getXPRankData, calcConsumed, getFoodLog, saveFoodLog, updateDynamicGlow, playSound,
-  type FoodEntry, type Macros, type ProtocolItem, type Profile,
+  asArray,
+  calcConsumed,
+  checkAchievements,
+  completedToday,
+  creditDailySupplementXP,
+  finaliseStreak,
+  gainXP,
+  getFoodLog,
+  getSafeProtocolDisplay,
+  getStreak,
+  normalizeFoodEntry,
+  playSound,
+  sanitizeFoodNumber,
+  saveFoodLog,
+  type FoodEntry,
+  type Macros,
+  type ProtocolItem,
 } from '../lib/engine';
-import { analyzeImageLocally, analyzeTextLocally } from '../lib/scanner';
-import { syncLivePrices, priceSyncState, runSmartCart, fmtEUR, LIVE_PRICES, MARKET_DB, type CartResult } from '../lib/cart';
-import { syncScanToBackend } from '../lib/backend';
+import { lang, t } from '../lib/i18n';
+import { useModalIsolation } from '../lib/modal';
+import { accuracyColor, accuracyScore, accuracyTier, rescaleServing } from '../lib/scanAccuracy';
+import { assessFoodForGoal } from '../lib/nutritionScoring';
+import { analyzeImageLocally, analyzeTextLocally, verifyNutritionLabel, type ScanResult } from '../lib/scanner';
+import { dateKey, S } from '../lib/storage';
+import { refresh, useAppState } from '../lib/store';
+import { PerformanceHero } from './PerformanceHero';
+import { ProgressPhotoReminder } from './ProgressPhotoReminder';
+import { SystemIcon } from './SystemIcon';
+import { loadUserProfile } from '../lib/profile';
 
-const IconFlame = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>;
-const IconWater = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/></svg>;
-const IconCamera = <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>;
-const IconEdit = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>;
-const IconTrash = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>;
-const IconPen = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>;
-const IconShoppingCart = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>;
-const IconActivity = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>;
-const IconDatabase = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>;
-const IconScroll = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 19H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M12 19v-6"/><path d="M12 13l-2-2"/><path d="M12 13l2-2"/></svg>;
-const IconRefresh = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>;
-const IconStore = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2v0v0a2 2 0 0 1-2-2V7"/></svg>;
-const IconMapPin = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>;
-const IconCheck = <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
-const IconInfo = <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
-const IconTarget = <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>;
+const copy = (de: string, en: string) => lang === 'de' ? de : en;
+const MAX_FOOD_PHOTO_BYTES = 8 * 1024 * 1024;
+const MAX_FOOD_PHOTO_EDGE = 1600;
 
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+async function prepareFoodPhoto(file: File): Promise<string> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = objectUrl;
+    await image.decode();
+    const scale = Math.min(1, MAX_FOOD_PHOTO_EDGE / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas unavailable');
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', .82);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
-function getChecked(): string[] { return S.get('day_' + dateKey()) || []; }
+function getChecked(): string[] {
+  return asArray<string>(S.get(`day_${dateKey()}`));
+}
 
-export function Dashboard({ onComplete }: { onComplete: (n: number) => void }) {
+function progressStyle(value: number): CSSProperties {
+  return { transform: `scaleX(${Math.max(0, Math.min(1, value))})` };
+}
+
+export function Dashboard({
+  onComplete,
+  onOpenProgressPhotos,
+}: {
+  onComplete: (streak: number) => void;
+  onOpenProgressPhotos: () => void;
+}) {
   useAppState();
-  const th = theme();
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
+  const currentDateKey = dateKey();
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
   const checked = getChecked();
+  const total = protocol.length;
+  const done = checked.filter(id => protocol.some(item => item.id === id)).length;
+  const consumed = calcConsumed();
+  const goals = S.get<Macros>('macros');
+  const streak = getStreak().count;
+  const today = new Intl.DateTimeFormat(lang === 'de' ? 'de-DE' : 'en-GB', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+  }).format(new Date());
+  const photoEligible = (loadUserProfile()?.age ?? 0) >= 18;
 
-  useEffect(() => { syncLivePrices(); }, []);
-  useEffect(() => { updateDynamicGlow(getChecked()); });
+  useEffect(() => {
+    const checkDate = () => {
+      if (dateKey() !== currentDateKey) refresh();
+    };
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 50);
+    const midnightTimer = window.setTimeout(checkDate, nextMidnight.getTime() - now.getTime());
+    const onVisibility = () => { if (!document.hidden) checkDate(); };
+    window.addEventListener('focus', checkDate);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearTimeout(midnightTimer);
+      window.removeEventListener('focus', checkDate);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [currentDateKey]);
 
-  const toggle = (id: string) => {
-    const ids = protocol.map(s => s.id);
+  const toggleSupplement = (id: string) => {
+    const ids = protocol.map(item => item.id);
     if (!ids.includes(id)) return;
-    const cur = getChecked();
-    const i = cur.indexOf(id);
-    const adding = i === -1;
-    if (i > -1) cur.splice(i, 1); else cur.push(id);
-    S.set('day_' + dateKey(), cur);
-    if (adding) gainXP(5);
-    if (ids.every(pid => cur.includes(pid)) && !completedToday()) {
+
+    const next = getChecked();
+    const index = next.indexOf(id);
+    const adding = index === -1;
+    if (adding) next.push(id);
+    else next.splice(index, 1);
+
+    S.set(`day_${dateKey()}`, next);
+    if (adding) creditDailySupplementXP(id);
+
+    if (ids.length > 0 && ids.every(protocolId => next.includes(protocolId)) && !completedToday()) {
       gainXP(20);
       S.set('complete_days_count', (S.get<number>('complete_days_count') || 0) + 1);
       checkAchievements();
-      const n = finaliseStreak();
+      const nextStreak = finaliseStreak();
       playSound();
-      onComplete(n);
+      onComplete(nextStreak);
     }
     refresh();
   };
 
-  const total = protocol.length;
-  const done = checked.filter(id => protocol.some(s => s.id === id)).length;
-  const circ = 2 * Math.PI * 38;
-  const xpData = getXPRankData();
-  const rankName = (th.ranks[xpData.idx] || th.ranks[0]).toUpperCase();
-
   return (
-    <div className="screen active" id="screen-dashboard">
-      <div className="status-bar">
-        <span>{th.sigil}</span>
-        <span className="sb-rank">{rankName}</span>
-        <span className="sb-streak">{IconFlame} {getStreak().count}</span>
-      </div>
-      <div className="dash-scroll">
-        <div className="prog-area">
-          <div className="prw">
-            <svg width="90" height="90" viewBox="0 0 90 90">
-              <defs>
-                <linearGradient id="pg" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#7c3aed" /><stop offset="100%" stopColor="#a855f7" />
-                </linearGradient>
-              </defs>
-              <circle className="pr-bg" cx="45" cy="45" r="38" />
-              <circle className="pr-fill" id="prog-ring" cx="45" cy="45" r="38"
-                strokeDasharray={circ} strokeDashoffset={circ * (1 - (total ? done / total : 0))} />
-            </svg>
-            <div className="pr-center">
-              <span className="pr-num">{done}/{total}</span>
-              <span className="pr-label">{t('prog_done')}</span>
-            </div>
-          </div>
+    <section className="screen active system-screen" id="screen-dashboard">
+      <div className="system-page today-page">
+        <PerformanceHero
+          variant="today"
+          icon="today"
+          title={copy('Heute', 'Today')}
+          description={`${today} · ${copy('Deine echten Einträge, ohne erfundene Bereitschafts- oder Rangwerte.', 'Your real entries, without invented readiness or rank scores.')}`}
+          status={(
+            <>
+              <span><small>{copy('Routine', 'Routine')}</small><strong>{total ? `${done}/${total}` : '–'}</strong></span>
+              <span><small>{copy('Serie', 'Streak')}</small><strong>{streak} {streak === 1 ? copy('Tag', 'day') : copy('Tage', 'days')}</strong></span>
+              <span><small>{copy('Energie', 'Energy')}</small><strong>{Math.round(consumed.kcal)} kcal</strong></span>
+            </>
+          )}
+        />
+
+        <ProgressPhotoReminder
+          onOpen={onOpenProgressPhotos}
+          eligible={photoEligible}
+          locale={lang === 'de' ? 'de' : 'en'}
+        />
+
+        <div className="today-command-grid">
+          <RoutinePanel protocol={protocol} checked={checked} onToggle={toggleSupplement} />
+          <MacroPanel consumed={consumed} goals={goals} />
+          <HydrationPanel />
         </div>
-        <MacroWidget />
-        <ScannerWidget />
-        <PhaseCards protocol={protocol} checked={checked} toggle={toggle} />
-        <SmartCartWidget />
-        <ManaWidget />
-        <MissionLog />
+
+        <div className="today-utility-grid">
+          <NutritionEntryPanel />
+          <DailyNotes key={currentDateKey} storageDateKey={currentDateKey} />
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
 
-// ═══ MAKRO-WIDGET ════════════════════════════════════════════════════
-function MacroWidget() {
-  const goals = S.get<Macros>('macros');
-  if (!goals) return null;
-  const c = calcConsumed();
-  const rows: { key: keyof Macros; label: string; cls: string; unit: string }[] = [
-    { key: 'kcal', label: t('m_kcal'), cls: 'mb-kcal', unit: '' },
-    { key: 'prot', label: t('m_prot'), cls: 'mb-prot', unit: 'g' },
-    { key: 'carb', label: t('m_carb'), cls: 'mb-carb', unit: 'g' },
-    { key: 'fat', label: t('m_fat'), cls: 'mb-fat', unit: 'g' },
-    { key: 'sug', label: t('m_sug'), cls: 'mb-sug', unit: 'g' },
-  ];
+function PanelHeading({ id, icon, title, meta }: { id: string; icon: Parameters<typeof SystemIcon>[0]['name']; title: string; meta?: string }) {
   return (
-    <div className="widget" id="macro-widget">
-      <div className="w-title">{t('w_macro')}</div>
-      <div className="macro-grid">
-        {rows.map(r => {
-          const pct = goals[r.key] > 0 ? Math.min(110, c[r.key] / goals[r.key] * 100) : 0;
+    <header className="ledger-heading">
+      <span aria-hidden="true"><SystemIcon name={icon} /></span>
+      <h2 id={id}>{title}</h2>
+      {meta && <small>{meta}</small>}
+    </header>
+  );
+}
+
+function RoutinePanel({
+  protocol,
+  checked,
+  onToggle,
+}: {
+  protocol: ProtocolItem[];
+  checked: string[];
+  onToggle: (id: string) => void;
+}) {
+  const total = protocol.length;
+  const done = checked.filter(id => protocol.some(item => item.id === id)).length;
+  const periodLabels = {
+    alpha: copy('Morgen', 'Morning'),
+    beta: copy('Tagsüber', 'Daytime'),
+    gamma: copy('Abends', 'Evening'),
+  } as const;
+
+  return (
+    <section className="system-ledger routine-ledger" aria-labelledby="today-routine-title">
+      <PanelHeading
+        id="today-routine-title"
+        icon="supplements"
+        title={copy('Supplement-Routine', 'Supplement routine')}
+        meta={total ? `${done} / ${total}` : undefined}
+      />
+      <div className="ledger-progress" role="progressbar" aria-label={copy('Fortschritt der Supplement-Routine', 'Supplement routine progress')} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
+        <span style={progressStyle(total ? done / total : 0)} />
+      </div>
+      {!protocol.length ? (
+        <div className="system-empty compact">
+          <SystemIcon name="info" />
+          <div>
+            <strong>{copy('Noch keine Routine gewählt', 'No routine selected')}</strong>
+            <p>{copy('Wähle unter „Supps“ nur Produkte aus, die du bereits nutzt oder fachlich geprüft hast.', 'Under “Supps”, select only products you already use or have reviewed with a qualified professional.')}</p>
+          </div>
+        </div>
+      ) : (
+        <div className="routine-periods">
+          {(['alpha', 'beta', 'gamma'] as const).map(period => {
+            const items = protocol.filter(item => item.phase === period);
+            if (!items.length) return null;
+            return (
+              <section className="routine-period" key={period} aria-label={periodLabels[period]}>
+                <h3>{periodLabels[period]}</h3>
+                <div>
+                  {items.map(item => {
+                    const display = getSafeProtocolDisplay(item.id);
+                    if (!display) return null;
+                    const isDone = checked.includes(item.id);
+                    return (
+                      <button
+                        type="button"
+                        className={isDone ? 'routine-row done' : 'routine-row'}
+                        key={item.id}
+                        aria-pressed={isDone}
+                        onClick={() => onToggle(item.id)}
+                      >
+                        <span className="routine-row-check" aria-hidden="true"><SystemIcon name={isDone ? 'check' : 'plus'} /></span>
+                        <span>{t(display.nameKey)}</span>
+                        <small>{isDone ? copy('Erledigt', 'Done') : copy('Offen', 'Open')}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      )}
+      <p className="ledger-footnote">{copy(
+        'Nur dokumentieren – Etikett und qualifizierte Beratung bleiben maßgeblich.',
+        'Track only — the product label and qualified advice remain decisive.',
+      )}</p>
+    </section>
+  );
+}
+
+function MacroPanel({ consumed, goals }: { consumed: Macros; goals: Macros | null }) {
+  const rows: { key: keyof Macros; label: string; unit: string }[] = [
+    { key: 'kcal', label: copy('Kalorien', 'Calories'), unit: 'kcal' },
+    { key: 'prot', label: copy('Protein', 'Protein'), unit: 'g' },
+    { key: 'carb', label: copy('Kohlenhydrate', 'Carbohydrates'), unit: 'g' },
+    { key: 'fat', label: copy('Fett', 'Fat'), unit: 'g' },
+    { key: 'sug', label: copy('Zucker', 'Sugar'), unit: 'g' },
+  ];
+
+  return (
+    <section className="system-ledger macro-ledger" aria-labelledby="today-macros-title">
+      <PanelHeading id="today-macros-title" icon="food" title={copy('Kalorien & Makros', 'Calories & macros')} />
+      <div className="macro-ledger-rows">
+        {rows.map(row => {
+          const target = goals?.[row.key] || 0;
+          const value = consumed[row.key];
+          const progress = target > 0 ? Math.min(1, value / target) : 0;
           return (
-            <div className="macro-item" key={r.key}>
-              <span className="macro-cg">
-                <span className="macro-curr">{c[r.key]}{r.unit}</span>
-                <span className="macro-sep">/</span>
-                <span className="macro-goal">{goals[r.key]}{r.unit}</span>
-              </span>
-              <div className="macro-bar-wrap">
-                <div className={`macro-bar ${r.cls}${pct > 100 ? ' over' : ''}`} style={{ width: Math.min(100, pct) + '%' }} />
+            <div className="macro-ledger-row" key={row.key}>
+              <div><span>{row.label}</span><strong>{Math.round(value)} <small>{row.unit}</small></strong></div>
+              <div className="ledger-progress" role="progressbar" aria-label={row.label} aria-valuemin={0} aria-valuemax={target || undefined} aria-valuenow={Math.round(value)}>
+                <span style={progressStyle(progress)} />
               </div>
-              <span className="macro-label">{r.label}</span>
+              <small>{target ? `${Math.round(value)} / ${Math.round(target)} ${row.unit}` : copy('Kein Ziel', 'No target')}</small>
             </div>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
-// ═══ MATERIA-SCANNER 2.1 ═════════════════════════════════════════════
-function ScannerWidget() {
-  const [txt, setTxt] = useState('');
-  const [imgB64, setImgB64] = useState<string | null>(null);
-  const [scanning, setScanning] = useState(false);
+function HydrationPanel() {
+  useAppState();
+  const count = S.get<number>(`mana_${dateKey()}`) || 0;
+
+  const setCount = (index: number) => {
+    const next = index + 1 <= count ? index : index + 1;
+    S.set(`mana_${dateKey()}`, next);
+    refresh();
+  };
+
+  return (
+    <section className="system-ledger hydration-ledger" aria-labelledby="today-hydration-title">
+      <PanelHeading id="today-hydration-title" icon="water" title={copy('Trinken', 'Hydration')} meta={`${count} / 8`} />
+      <p>{copy('Markiere Gläser als einfache Gedächtnisstütze – kein medizinisches Trinkziel.', 'Mark glasses as a simple memory aid — not a medical hydration target.')}</p>
+      <div className="hydration-grid">
+        {Array.from({ length: 8 }, (_, index) => (
+          <button
+            type="button"
+            key={index}
+            className={index < count ? 'hydration-cell filled' : 'hydration-cell'}
+            aria-label={`${copy('Trinken auf', 'Set hydration to')} ${index + 1} ${copy('von 8 Gläsern setzen', 'of 8 glasses')}`}
+            aria-pressed={index < count}
+            onClick={() => setCount(index)}
+          >
+            <SystemIcon name="water" />
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function NutritionEntryPanel() {
+  const [text, setText] = useState('');
+  const [imageData, setImageData] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [preview, setPreview] = useState<ScanResult | null>(null);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const log = getFoodLog();
-  const c = calcConsumed();
 
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (!f) return;
-    const r = new FileReader();
-    r.onload = ev => setImgB64(ev.target?.result as string);
-    r.readAsDataURL(f);
-    e.target.value = '';
-  };
+  useModalIsolation(Boolean(editing), {
+    backgroundSelectors: ['.today-page', '.system-topbar', '.system-bottom-nav'],
+    onEscape: () => setEditing(null),
+  });
 
-  const clearImage = () => { setImgB64(null); setScanning(false); if (fileRef.current) fileRef.current.value = ''; };
-
-  const submit = async () => {
-    const q = txt.trim();
-    if (!q && !imgB64) return;
+  const onFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+    if (!file.type.startsWith('image/') || file.size > MAX_FOOD_PHOTO_BYTES) {
+      setError(copy('Wähle ein Bild mit höchstens 8 MB.', 'Choose an image up to 8 MB.'));
+      return;
+    }
     setBusy(true);
-    if (imgB64) setScanning(true);
+    setError('');
+    setPreview(null);
     try {
-      let result;
-      if (imgB64) [result] = await Promise.all([analyzeImageLocally(imgB64, q), sleep(2000)]);
-      else result = await analyzeTextLocally(q);
-      const entry: FoodEntry = { id: Date.now(), name: result.name || q || '📷 Scan', ...result.macros, ts: Date.now() };
-      const l = getFoodLog(); l.push(entry); saveFoodLog(l);
-      syncScanToBackend({ name: entry.name, kcal: entry.kcal, prot: entry.prot, carb: entry.carb, fat: entry.fat, sug: entry.sug });
-      setTxt(''); clearImage();
-      gainXP(3); checkAchievements();
-      refresh();
+      setImageData(await prepareFoodPhoto(file));
+    } catch {
+      setError(copy('Das Foto konnte nicht verarbeitet werden.', 'The photo could not be processed.'));
     } finally {
-      setBusy(false); setScanning(false);
+      setBusy(false);
     }
   };
 
-  const del = (id: number) => { saveFoodLog(getFoodLog().filter(e => e.id !== id)); refresh(); };
-  const saveEdit = (e: FoodEntry) => {
-    saveFoodLog(getFoodLog().map(x => x.id === e.id ? e : x));
-    setEditing(null); refresh();
+  const clearImage = () => {
+    setImageData(null);
+    if (fileRef.current) fileRef.current.value = '';
   };
 
-  return (
-    <div className="widget" id="scanner-widget">
-      <div className="w-title">{t('w_scanner')}</div>
-      <div className="scanner-row">
-        <input type="text" className="scanner-input" value={txt} placeholder={t('scanner_ph')}
-          onChange={e => setTxt(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
-        <label className="scanner-file-btn" title={t('chat_upload')}>
-          {IconCamera}
-          <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onFile} />
-        </label>
-      </div>
-      {imgB64 && (
-        <div className={`scan-stage${scanning ? ' scanning' : ''}`} style={{ display: 'flex' }}>
-          <img className="scan-preview" src={imgB64} alt="Materia Preview" />
-          <div className="scan-overlay">
-            <div className="scan-grid" /><div className="scan-beam" />
-            <div className="scan-status">{t('scan_scanning')}</div>
-          </div>
-          <button className="scan-clear" onClick={clearImage}>✕</button>
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center' }}>
-        <button className="scan-btn" disabled={busy} onClick={submit}>{t('scan_btn')}</button>
-        {busy && <span className="scan-loading" style={{ display: 'block' }}>{t('scan_loading')}</span>}
-      </div>
-      <div className="tages-akte">
-        <div className="ta-header">
-          <span className="ta-title">{t('ta_title')}</span>
-          <span style={{ fontSize: '.62rem', color: 'var(--text3)' }}>{log.length ? `${c.kcal} kcal total` : ''}</span>
-        </div>
-        <div>
-          {!log.length && <div className="ta-empty">{t('ta_empty')}</div>}
-          {log.map(e => (
-            <div className="ta-item" key={e.id}>
-              <div className="ta-item-top">
-                <span className="ta-name">{e.name}</span>
-                <button className="ta-edit-btn" onClick={() => setEditing(e)} title={t('edit_title')}>{IconEdit}</button>
-                <button className="ta-del-btn" onClick={() => del(e.id)} title={t('edit_cancel')}>{IconTrash}</button>
-              </div>
-              <div className="ta-badges">
-                <span className="ta-badge tb-kcal">{e.kcal} kcal</span>
-                <span className="ta-badge tb-prot">{e.prot}g P</span>
-                <span className="ta-badge tb-carb">{e.carb}g C</span>
-                <span className="ta-badge tb-fat">{e.fat}g F</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      {editing && <EditFoodModal entry={editing} onSave={saveEdit} onClose={() => setEditing(null)} />}
-    </div>
-  );
-}
-
-function EditFoodModal({ entry, onSave, onClose }: { entry: FoodEntry; onSave: (e: FoodEntry) => void; onClose: () => void }) {
-  const [e, setE] = useState({ ...entry });
-  const num = (v: string) => parseFloat(v) || 0;
-  return (
-    <div className="edit-modal open">
-      <div className="edit-box">
-        <h3>{t('edit_title')}</h3>
-        <input className="edit-name-input" value={e.name} onChange={ev => setE({ ...e, name: ev.target.value })} />
-        <div className="edit-macro-grid">
-          <div className="edit-field"><label>KCAL</label><input type="number" value={e.kcal} onChange={ev => setE({ ...e, kcal: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>PROTEIN (g)</label><input type="number" value={e.prot} onChange={ev => setE({ ...e, prot: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>CARBS (g)</label><input type="number" value={e.carb} onChange={ev => setE({ ...e, carb: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>FETT (g)</label><input type="number" value={e.fat} onChange={ev => setE({ ...e, fat: num(ev.target.value) })} /></div>
-          <div className="edit-field"><label>ZUCKER (g)</label><input type="number" value={e.sug} onChange={ev => setE({ ...e, sug: num(ev.target.value) })} /></div>
-        </div>
-        <div className="edit-actions">
-          <button className="edit-cancel" onClick={onClose}>{t('edit_cancel')}</button>
-          <button className="edit-save" onClick={() => onSave(e)}>{t('edit_save')}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ═══ PHASE-CARDS mit Info-Icons ══════════════════════════════════════
-function PhaseCards({ protocol, checked, toggle }: { protocol: ProtocolItem[]; checked: string[]; toggle: (id: string) => void }) {
-  const [openInfo, setOpenInfo] = useState<string | null>(null);
-  const phConf = {
-    alpha: { cls: 'alpha', nk: 'phase_alpha', tk: 'phase_alpha_time' },
-    beta: { cls: 'beta', nk: 'phase_beta', tk: 'phase_beta_time' },
-    gamma: { cls: 'gamma', nk: 'phase_gamma', tk: 'phase_gamma_time' },
-  } as const;
-  return (
-    <div id="phase-cards">
-      {(['alpha', 'beta', 'gamma'] as const).map(ph => {
-        const items = protocol.filter(s => s.phase === ph);
-        if (!items.length) return null;
-        const pc = phConf[ph];
-        return (
-          <div className="phase-section" key={ph}>
-            <div className="phase-header">
-              <span className={`phase-badge ${pc.cls}`}>{t(pc.nk)}</span>
-              <span className="phase-time">{t(pc.tk)}</span>
-            </div>
-            {items.map(s => {
-              const d = SDEFS[s.id]; if (!d) return null;
-              const done = checked.includes(s.id);
-              const infoTxt = t(d.nk + '_info');
-              const hasInfo = infoTxt !== d.nk + '_info';
-              return (
-                <div className={`supp-card${done ? ' done' : ''}`} key={s.id} onClick={() => toggle(s.id)}>
-                  <div className="sc-chk">{done ? IconCheck : IconPlus}</div>
-                  <div className="sc-info">
-                    <div className="sc-name">{t(d.nk)}</div>
-                    <div className="sc-dose">{t(d.dk)}</div>
-                    {d.ok && <div className="sc-note">{t(d.ok)}</div>}
-                    {s.wk && <div className="sc-note">◈ {t(s.wk)}</div>}
-                    {hasInfo && <div className={`sc-infobox${openInfo === s.id ? ' open' : ''}`}>◈ {infoTxt}</div>}
-                  </div>
-                  {hasInfo && (
-                    <button className="sc-ib" aria-label="Info" title={infoTxt}
-                      onClick={ev => { ev.stopPropagation(); setOpenInfo(openInfo === s.id ? null : s.id); }}>{IconInfo}</button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ═══ SMART CART ══════════════════════════════════════════════════════
-function SmartCartWidget() {
-  const cfg = S.get<any>('cart_cfg') || {};
-  const [period, setPeriod] = useState<'week' | 'month'>(cfg.period || 'week');
-  const [budget, setBudget] = useState<number>(cfg.budget || 20);
-  const [addr, setAddr] = useState<string>(cfg.addr || '');
-  const [result, setResult] = useState<CartResult | null>(null);
-
-  const calc = () => {
-    const goal = (S.get<Profile>('profile') || {}).goal || 'bulk';
-    setResult(runSmartCart(period, budget, addr.trim(), goal));
+  const resetScan = () => {
+    setPreview(null);
+    setText('');
+    clearImage();
   };
 
-  const ps = priceSyncState;
-  const totalProducts = MARKET_DB.products.length;
-  const statusCls = ps.running ? 'loading' : ps.count > 0 ? 'ok' : 'err';
-  const statusTxt = ps.running ? '◈ ' + t('price_status_loading')
-    : ps.count > 0 ? `◈ ${ps.count}/${totalProducts} ${t('price_status_live')} · ${ps.ts ? new Date(ps.ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : ''}`
-    : '◈ ' + t('price_status_sim');
+  const submit = async () => {
+    const query = text.trim();
+    if ((!query && !imageData) || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = imageData
+        ? await analyzeImageLocally(imageData, query)
+        : await analyzeTextLocally(query);
 
-  const cd = result?.dists?.find(d => d.id === result.cheapest.id);
+      if (!result) {
+        setError(copy('Nichts zuverlässig erkannt. Beschreibe Lebensmittel und Menge genauer oder trage die Werte unter „Essen“ manuell ein.', 'Nothing reliable was detected. Describe the food and amount more precisely or enter the values manually under “Food”.'));
+        return;
+      }
 
-  return (
-    <div className="widget" id="cart-widget">
-      <div className="w-title">{t('w_cart')}</div>
-      <div className="price-status-row">
-        <span className={`price-status ${statusCls}`}>{statusTxt}</span>
-        <button className="seg-btn" onClick={() => syncLivePrices(true)}>{t('price_sync')}</button>
-      </div>
-      <div className="cart-form">
-        <div className="cart-row">
-          <span className="cart-label">{t('cart_period')}</span>
-          <div className="seg-row">
-            <button className={`seg-btn${period === 'week' ? ' sel' : ''}`} onClick={() => setPeriod('week')}>{t('cart_week')}</button>
-            <button className={`seg-btn${period === 'month' ? ' sel' : ''}`} onClick={() => setPeriod('month')}>{t('cart_month')}</button>
-          </div>
-        </div>
-        <div className="cart-row">
-          <span className="cart-label">{t('cart_budget')}</span>
-          <div className="seg-row">
-            {[10, 20, 30, 50].map(b => (
-              <button key={b} className={`seg-btn${budget === b ? ' sel' : ''}`} data-budget={b} onClick={() => setBudget(b)}>{b}€</button>
-            ))}
-          </div>
-        </div>
-        <input type="text" className="cart-addr" value={addr} placeholder={t('cart_addr_ph')} onChange={e => setAddr(e.target.value)} />
-        <button className="scan-btn cart-calc-btn" onClick={calc}>{t('cart_calc')}</button>
-      </div>
-      <div className="cart-results">
-        {result === null ? null : (
-          <>
-            <div className="cart-summary">
-              <div className="cart-stat"><span>{t('cart_total')}</span><b>{fmtEUR(result.total)}</b></div>
-              <div className="cart-stat"><span>{t('cart_saved')}</span><b style={{ color: 'var(--success)' }}>{fmtEUR(result.saved)}</b></div>
-              <div className="cart-stat"><span>{t('cart_fit')}</span><b>{result.util}%</b></div>
-            </div>
-            <div className="cart-budget-bar"><div className="cart-budget-fill" style={{ width: Math.min(100, result.util) + '%' }} /></div>
-            {result.dists && cd && (
-              <>
-                <div className="cart-dist">{IconMapPin} <span>{t('cart_nearest')}: <b>{result.cheapest.name}</b> · {String(cd.dist).replace('.', ',')} km · ~{Math.round(cd.dist * 12)} min 🚶</span></div>
-                <div className="cart-dist-list">
-                  {result.dists.slice().sort((a, b) => a.dist - b.dist).map(d => (
-                    <span className="cart-dist-chip" key={d.id}>{d.name} · {String(d.dist).replace('.', ',')} km</span>
-                  ))}
-                </div>
-              </>
-            )}
-            {Object.entries(result.groups).map(([mid, list]) => {
-              const m = MARKET_DB.markets.find(x => x.id === mid)!;
-              const sub = list.reduce((a, i) => a + i.price * i.qty, 0);
-              return (
-                <div className="cart-market" key={mid}>
-                  <div className="cart-market-hd"><span>{IconStore} {m.name}</span><small>{list.length} · {fmtEUR(sub)}</small></div>
-                  {list.map(i => (
-                    <div className="cart-item" key={i.product.id}>
-                      <span className="cart-item-ic">{i.product.icon}</span>
-                      <span className="cart-item-nm">{i.product.name}</span>
-                      <span className="cart-item-qty">×{i.qty}</span>
-                      {LIVE_PRICES[i.product.id] && <span className="cart-live">{t('cart_live')}</span>}
-                      {i.disc > 0 && <span className="cart-deal">−{Math.round(i.disc * 100)}% {t('cart_deal')}</span>}
-                      <span className="cart-item-pr">{fmtEUR(i.price * i.qty)}</span>
-                    </div>
-                  ))}
-                </div>
-              );
-            })}
-            <div className="cart-hint">{t('cart_hint')}</div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+      setPreview(result);
+    } finally {
+      setBusy(false);
+    }
+  };
 
-// ═══ MANA & MISSION LOG ══════════════════════════════════════════════
-function ManaWidget() {
-  useAppState();
-  const count = S.get<number>('mana_' + dateKey()) || 0;
-  const setCount = (i: number) => {
-    const next = i + 1 <= count ? i : i + 1;
-    S.set('mana_' + dateKey(), next);
+  const confirmPreview = () => {
+    if (!preview) return;
+    const entry = normalizeFoodEntry({
+      id: Date.now(),
+      name: preview.name,
+      ...preview.macros,
+      ts: Date.now(),
+    });
+    if (!entry) {
+      setError(copy('Der Eintrag war unvollständig und wurde nicht gespeichert.', 'The entry was incomplete and was not saved.'));
+      return;
+    }
+    saveFoodLog([...getFoodLog(), entry]);
+    resetScan();
+    gainXP(3);
+    checkAchievements();
     refresh();
   };
+
+  const deleteEntry = (id: number) => {
+    saveFoodLog(getFoodLog().filter(entry => entry.id !== id));
+    refresh();
+  };
+
+  const saveEntry = (entry: FoodEntry) => {
+    saveFoodLog(getFoodLog().map(current => current.id === entry.id ? entry : current));
+    setEditing(null);
+    refresh();
+  };
+
   return (
-    <div className="widget">
-      <div className="w-title">{t('w_mana')}</div>
-      <div className="mana-drops">
-        {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} className={`drop${i < count ? ' filled' : ''}`} title={`${i + 1}/8`} onClick={() => setCount(i)}>{IconWater}</div>
+    <section className="system-ledger nutrition-entry-ledger" aria-labelledby="today-food-entry-title">
+      <PanelHeading id="today-food-entry-title" icon="food" title={copy('Essen protokollieren', 'Log food')} meta={`${log.length} ${copy('Einträge', 'entries')}`} />
+      <div className="nutrition-entry-controls">
+        <label className="system-field wide">
+          <span>{copy('Lebensmittel und Menge', 'Food and amount')}</span>
+          <input
+            type="text"
+            value={text}
+            placeholder={copy('z. B. 250 g Skyr mit Beeren', 'e.g. 250 g skyr with berries')}
+            onChange={event => { setText(event.target.value); setPreview(null); }}
+            onKeyDown={event => { if (event.key === 'Enter') void submit(); }}
+          />
+        </label>
+        <div className="nutrition-entry-actions">
+          <label className="system-button quiet file-action" htmlFor="today-food-photo">
+            <SystemIcon name="camera" />
+            <span>{copy('Foto wählen', 'Choose photo')}</span>
+            <input ref={fileRef} id="today-food-photo" type="file" accept="image/*" capture="environment" onChange={onFile} />
+          </label>
+          <button className="system-button" type="button" disabled={busy || (!text.trim() && !imageData)} onClick={() => void submit()}>
+            <SystemIcon name="search" />
+            {busy ? copy('Lokal prüfen…', 'Checking locally…') : copy('Eintrag prüfen', 'Check entry')}
+          </button>
+        </div>
+      </div>
+
+      {imageData && (
+        <div className="nutrition-photo-preview">
+          <img src={imageData} alt={copy('Ausgewähltes Essensfoto', 'Selected food photo')} />
+           <span>{busy ? copy('Lokale Barcode-Prüfung läuft', 'Local barcode check in progress') : copy('Foto bleibt lokal; nur ein erkannter Barcode wird nachgeschlagen.', 'Photo stays local; only a detected barcode is looked up.')}</span>
+          <button type="button" className="system-icon-button" onClick={clearImage} aria-label={copy('Foto entfernen', 'Remove photo')}><SystemIcon name="close" /></button>
+        </div>
+      )}
+      {error && <p className="system-inline-error" role="alert">{error}</p>}
+      {preview && (
+        <FoodScanPreview
+          result={preview}
+          targets={S.get<Macros>('macros')}
+          consumed={calcConsumed()}
+          goal={loadUserProfile()?.goal ?? 'general_fitness'}
+          imageData={imageData}
+          onConfirm={confirmPreview}
+          onDiscard={resetScan}
+          onRescale={next => setPreview(next)}
+        />
+      )}
+
+      <div className="food-entry-list">
+        {!log.length && (
+          <div className="system-empty compact">
+            <SystemIcon name="food" />
+            <div><strong>{copy('Heute noch nichts erfasst', 'Nothing logged today')}</strong><p>{copy('Erkannte Produkte und lokale Schätzungen erscheinen hier und bleiben bearbeitbar.', 'Recognized products and local estimates appear here and remain editable.')}</p></div>
+          </div>
+        )}
+        {log.map(entry => (
+          <article className="food-entry-row" key={entry.id}>
+            <div>
+              <strong>{entry.name}</strong>
+              <span>{Math.round(entry.kcal)} kcal · {Math.round(entry.prot)} g P · {Math.round(entry.carb)} g C · {Math.round(entry.fat)} g F</span>
+            </div>
+            <button type="button" className="system-icon-button" onClick={() => setEditing(entry)} aria-label={`${entry.name}: ${copy('bearbeiten', 'edit')}`}><SystemIcon name="edit" /></button>
+            <button type="button" className="system-icon-button danger" onClick={() => deleteEntry(entry.id)} aria-label={`${entry.name}: ${copy('löschen', 'delete')}`}><SystemIcon name="delete" /></button>
+          </article>
         ))}
       </div>
-      <div className="mana-count">{count} / 8 {t('mana_label')}</div>
-    </div>
+      {editing && <EditFoodDialog entry={editing} onSave={saveEntry} onClose={() => setEditing(null)} />}
+    </section>
   );
 }
 
-function MissionLog() {
-  const [note, setNote] = useState<string>(() => S.get<string>('note_' + dateKey()) || '');
+function FoodScanPreview({
+  result,
+  targets,
+  consumed,
+  goal,
+  imageData,
+  onConfirm,
+  onDiscard,
+  onRescale,
+}: {
+  result: ScanResult;
+  targets: Macros | null;
+  consumed: Macros;
+  goal: NonNullable<ReturnType<typeof loadUserProfile>>['goal'];
+  imageData: string | null;
+  onConfirm: () => void;
+  onDiscard: () => void;
+  onRescale: (next: ScanResult) => void;
+}) {
+  const assessment = assessFoodForGoal(result, targets, consumed, goal, lang === 'de' ? 'de' : 'en');
+  const source = result.details?.confidence === 'database'
+    ? copy('Barcode-Datenbank', 'Barcode database')
+    : copy('Lokale Referenzschätzung', 'Local reference estimate');
+  const gaugeStyle = { '--scan-score': `${assessment.score * 3.6}deg` } as CSSProperties;
   return (
-    <div className="widget">
-      <div className="w-title">{t('w_mission')}</div>
-      <textarea className="mission-log" rows={4} value={note} placeholder={t('mission_ph')}
-        onChange={e => { setNote(e.target.value); S.set('note_' + dateKey(), e.target.value); }} />
+    <article className={`food-scan-result rating-${assessment.rating}`} aria-labelledby="scan-result-title">
+      <header className="food-scan-result-header">
+        <span><SystemIcon name="target" />{copy('SYSTEM-ANALYSE', 'SYSTEM ANALYSIS')}</span>
+        <small>{source}</small>
+      </header>
+      <div className="food-scan-result-main">
+        <div className="food-rating-meter" role="meter" aria-label={copy('Ziel-Fit Bewertung', 'Goal-fit rating')} aria-valuemin={0} aria-valuemax={100} aria-valuenow={assessment.score} style={gaugeStyle}>
+          <div><strong>{assessment.score}</strong><span>/ 100</span></div>
+          <small>{assessment.label}</small>
+        </div>
+        <div className="food-scan-verdict">
+          <small>{copy('FIT FÜR', 'FIT FOR')} {assessment.goalLabel}</small>
+          <h3 id="scan-result-title">{result.name}</h3>
+          <p>{assessment.verdict}</p>
+        </div>
+      </div>
+      <div className="food-scan-macros" aria-label={copy('Erkannte Nährwerte', 'Detected nutrition')}>
+        {([
+          ['kcal', Math.round(result.macros.kcal), 'kcal'],
+          ['P', Math.round(result.macros.prot * 10) / 10, 'g'],
+          ['C', Math.round(result.macros.carb * 10) / 10, 'g'],
+          ['F', Math.round(result.macros.fat * 10) / 10, 'g'],
+          [copy('Zucker', 'Sugar'), Math.round(result.macros.sug * 10) / 10, 'g'],
+        ] as Array<[string, number, string]>).map(([label, value, unit]) => (
+          <span key={label}><small>{label}</small><strong>{value}<em>{unit}</em></strong></span>
+        ))}
+      </div>
+      <ul className="food-scan-facts">
+        {assessment.facts.map(fact => <li key={fact}><SystemIcon name="check" /><span>{fact}</span></li>)}
+      </ul>
+      <ScanAccuracy result={result} imageData={imageData} onRescale={onRescale} />
+      <p className="food-scan-caveat"><SystemIcon name="info" />{result.details?.confidence === 'database'
+        ? copy('Datenbankwerte können vom Etikett abweichen. Prüfe Portion und Herstellerangaben.', 'Database values can differ from the label. Verify the serving and manufacturer values.')
+        : copy('Referenzschätzung für unverarbeitete Standardlebensmittel. Mengen prüfen und bei Bedarf nach dem Speichern bearbeiten.', 'Reference estimate for standard unprocessed foods. Verify amounts and edit after saving if needed.')}</p>
+      <footer>
+        <button className="system-button quiet" type="button" onClick={onDiscard}>{copy('Verwerfen', 'Discard')}</button>
+        <button className="system-button" type="button" onClick={onConfirm}><SystemIcon name="plus" />{copy('Für heute eintragen', 'Add to today')}</button>
+      </footer>
+    </article>
+  );
+}
+
+function EditFoodDialog({ entry, onSave, onClose }: { entry: FoodEntry; onSave: (entry: FoodEntry) => void; onClose: () => void }) {
+  const [draft, setDraft] = useState({ ...entry });
+  const [error, setError] = useState('');
+
+  const updateNumber = (key: keyof Macros, value: string) => {
+    setDraft(current => ({ ...current, [key]: sanitizeFoodNumber(value, key) }));
+  };
+
+  const save = (event: React.FormEvent) => {
+    event.preventDefault();
+    const normalized = normalizeFoodEntry(draft);
+    if (!normalized || !normalized.name.trim() || normalized.kcal <= 0 || normalized.sug > normalized.carb) {
+      setError(copy('Prüfe Name, Kalorien und dass Zucker nicht über den Kohlenhydraten liegt.', 'Check the name, calories, and ensure sugar does not exceed carbohydrates.'));
+      return;
+    }
+    onSave({ ...normalized, name: normalized.name.trim() });
+  };
+
+  const fields: { key: keyof Macros; label: string; max: number }[] = [
+    { key: 'kcal', label: copy('Kalorien', 'Calories'), max: 10000 },
+    { key: 'prot', label: copy('Protein (g)', 'Protein (g)'), max: 1000 },
+    { key: 'carb', label: copy('Kohlenhydrate (g)', 'Carbohydrates (g)'), max: 1500 },
+    { key: 'fat', label: copy('Fett (g)', 'Fat (g)'), max: 1000 },
+    { key: 'sug', label: copy('Zucker (g)', 'Sugar (g)'), max: 1500 },
+  ];
+
+  return createPortal(
+    <div className="system-dialog-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+      <form className="system-dialog compact-dialog" role="dialog" aria-modal="true" aria-labelledby="edit-food-title" onSubmit={save}>
+        <header>
+          <h2 id="edit-food-title">{copy('Eintrag bearbeiten', 'Edit entry')}</h2>
+          <button className="system-icon-button" type="button" onClick={onClose} aria-label={copy('Dialog schließen', 'Close dialog')}><SystemIcon name="close" /></button>
+        </header>
+        <label className="system-field wide">
+          <span>{copy('Name', 'Name')}</span>
+          <input required maxLength={100} value={draft.name} onChange={event => setDraft(current => ({ ...current, name: event.target.value }))} />
+        </label>
+        <div className="edit-nutrition-grid">
+          {fields.map(field => (
+            <label className="system-field" key={field.key}>
+              <span>{field.label}</span>
+              <input type="number" min={0} max={field.max} step="0.1" value={draft[field.key]} onChange={event => updateNumber(field.key, event.target.value)} />
+            </label>
+          ))}
+        </div>
+        {error && <p className="system-inline-error" role="alert">{error}</p>}
+        <footer>
+          <button className="system-button quiet" type="button" onClick={onClose}>{copy('Abbrechen', 'Cancel')}</button>
+          <button className="system-button" type="submit">{copy('Änderungen speichern', 'Save changes')}</button>
+        </footer>
+      </form>
+    </div>,
+    document.body,
+  );
+}
+
+function DailyNotes({ storageDateKey }: { storageDateKey: string }) {
+  const [note, setNote] = useState(() => S.get<string>(`note_${storageDateKey}`) || '');
+
+  return (
+    <section className="system-ledger daily-notes-ledger" aria-labelledby="today-notes-title">
+      <PanelHeading id="today-notes-title" icon="edit" title={copy('Tagesnotiz', 'Daily note')} />
+      <label className="system-field wide">
+        <span>{copy('Was heute relevant ist', 'What matters today')}</span>
+        <textarea
+          rows={8}
+          maxLength={1200}
+          value={note}
+          placeholder={copy('Training, Erholung, Appetit oder eine Beobachtung…', 'Training, recovery, appetite, or an observation…')}
+          onChange={event => {
+            setNote(event.target.value);
+            S.set(`note_${storageDateKey}`, event.target.value);
+          }}
+        />
+      </label>
+      <span className="field-counter">{note.length} / 1200</span>
+    </section>
+  );
+}
+
+// ── Scan-Genauigkeit: abgestufter Wert statt binärer Einstufung, plus
+//    Portionskorrektur. Die Menge ist die grösste Fehlerquelle im Scan.
+function ScanAccuracy({ result, imageData, onRescale }: {
+  result: ScanResult;
+  imageData: string | null;
+  onRescale: (next: ScanResult) => void;
+}) {
+  const details = result.details;
+  const [grams, setGrams] = useState(String(details?.servingGrams ?? 100));
+  const [open, setOpen] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState('');
+  if (!details) return null;
+
+  const score = accuracyScore(details);
+  const tier = accuracyTier(score);
+  const colour = accuracyColor(score);
+
+  const tierLabel: Record<string, [string, string]> = {
+    verified: ['Verifiziert', 'Verified'],
+    likely: ['Wahrscheinlich', 'Likely'],
+    rough: ['Grobe Schätzung', 'Rough estimate'],
+    guess: ['Reine Schätzung', 'Pure guess'],
+  };
+  const basisLabel: Record<string, [string, string]> = {
+    stated: ['Menge angegeben', 'Amount stated'],
+    manufacturer: ['Herstellerportion', 'Manufacturer serving'],
+    assumed: ['Menge angenommen', 'Amount assumed'],
+  };
+
+  const apply = () => {
+    const next = Number.parseInt(grams, 10);
+    if (!Number.isFinite(next) || next <= 0) return;
+    const rescaled = rescaleServing(result.macros, details, next);
+    onRescale({ ...result, macros: rescaled.macros, details: rescaled.details });
+    setOpen(false);
+  };
+
+  const verifyLabel = async () => {
+    if (!imageData || verifying) return;
+    setVerifying(true);
+    setVerificationError('');
+    try {
+      const verification = await verifyNutritionLabel(imageData, result);
+      onRescale({
+        ...result,
+        details: {
+          ...details,
+          labelVerification: verification,
+          fiber: details.fiber ?? verification.values?.fiber,
+          saturatedFat: details.saturatedFat ?? verification.values?.saturatedFat,
+          sodiumMg: details.sodiumMg ?? verification.values?.sodiumMg,
+        },
+      });
+      setOpen(true);
+    } catch (error) {
+      const code = String((error as Error).message);
+      setVerificationError(code === 'no_backend'
+        ? copy('Verbinde zuerst dein optionales Backend in den Einstellungen.', 'Connect your optional backend in Settings first.')
+        : copy('Das Etikett konnte nicht verifiziert werden. Nutze einen geraden, gut beleuchteten Ausschnitt.', 'The label could not be verified. Use a straight, well-lit crop.'));
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const verification = details.labelVerification;
+  const verificationLabel: Record<string, [string, string]> = {
+    matched: ['Etikett stimmt überein', 'Label matched'],
+    mismatch: ['Abweichung erkannt', 'Mismatch detected'],
+    'label-read': ['Etikett gelesen', 'Label read'],
+    failed: ['Nicht lesbar', 'Could not read'],
+  };
+
+  return (
+    <div className={`scan-accuracy tier-${tier}`}>
+      <button type="button" className="scan-accuracy-bar" onClick={() => setOpen(value => !value)}
+        aria-expanded={open}
+        aria-label={`${copy('Genauigkeit', 'Accuracy')} ${score}% — ${copy(...tierLabel[tier])}`}>
+        <span className="scan-accuracy-label">{copy('Genauigkeit', 'Accuracy')}</span>
+        <span className="scan-accuracy-track" aria-hidden="true">
+          <i style={{ width: `${score}%`, background: colour }} />
+        </span>
+        <span className="scan-accuracy-tier" style={{ color: colour }}>{verification?.state === 'matched' ? copy('Etikett bestätigt', 'Label matched') : copy(...tierLabel[tier])}</span>
+        <span className="scan-accuracy-score">{score}%</span>
+      </button>
+      {open && (
+        <div className="scan-accuracy-detail">
+          <p>{copy(...basisLabel[details.servingBasis ?? 'assumed'])}
+            {details.servingGrams ? ` · ${details.servingGrams} g` : ''}</p>
+          <div className="scan-accuracy-fix">
+            <label>
+              <span>{copy('Portion korrigieren', 'Correct the serving')}</span>
+              <input type="text" inputMode="numeric" value={grams}
+                onChange={event => setGrams(event.target.value.replace(/\D/g, ''))} />
+            </label>
+            <button type="button" className="guild-primary-button" onClick={apply}>
+              {copy('Übernehmen', 'Apply')}
+            </button>
+          </div>
+          {imageData && <div className="scan-label-verification">
+            <div>
+              <strong>{copy('Herstelleretikett prüfen', 'Verify manufacturer label')}</strong>
+              <small>{copy('Nur nach diesem Tipp wird das aktuelle Foto einmalig zur OCR an dein Backend gesendet.', 'Only after this tap is the current photo sent once to your backend for OCR.')}</small>
+            </div>
+            <button type="button" className="guild-ghost-button" disabled={verifying} onClick={() => void verifyLabel()}>{verifying ? copy('Lese Etikett…', 'Reading label…') : copy('Etikett verifizieren', 'Verify label')}</button>
+          </div>}
+          {verification && <div className={`scan-label-result ${verification.state}`} role="status">
+            <strong>{copy(...verificationLabel[verification.state])}</strong>
+            <span>OCR {verification.confidence}% · {verification.comparedFields} {copy('Felder verglichen', 'fields compared')}{verification.averageDifferencePct === undefined ? '' : ` · Δ ${verification.averageDifferencePct}%`}</span>
+            {verification.values && <small>{Object.entries(verification.values).map(([key, value]) => `${key} ${value}`).join(' · ')}</small>}
+          </div>}
+          {verificationError && <p className="scan-label-error" role="alert">{verificationError}</p>}
+        </div>
+      )}
     </div>
   );
 }

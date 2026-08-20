@@ -1,5 +1,15 @@
 fastapi>=0.115,<1.0
+pydantic>=2.9,<3.0
 uvicorn[standard]>=0.32,<1.0
 sqlalchemy>=2.0,<3.0
+psycopg[binary]>=3.2,<4.0
 httpx>=0.27,<1.0
 python-multipart>=0.0.12,<1.0
+# Foto-Scan (Barcode-Dekodierung vom Bild)
+zxing-cpp>=2.2
+Pillow>=10.0
+numpy>=1.26
+pytesseract>=0.3.13,<1.0
+# Closed-app Web Push (optional until VAPID keys are configured)
+pywebpush>=2.0,<3.0
+# Das tesseract-ocr-Binary wird im Produktionscontainer installiert.

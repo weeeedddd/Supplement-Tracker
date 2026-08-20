@@ -7,20 +7,29 @@ import { refresh } from './store';
 export const I18N: Record<string, Record<string, string>> = {};
 for (const lg of Object.keys(BASE)) I18N[lg] = { ...BASE[lg], ...(I18N_EXTRA[lg] || {}) };
 
-export let lang: string = S.get<string>('lang') || 'de';
+const SUPPORTED = ['de', 'en'];
+export let lang: string = (() => {
+  const stored = S.get<string>('lang');
+  if (stored) return SUPPORTED.includes(stored) ? stored : 'en';
+  const browserLanguage = typeof navigator !== 'undefined' ? navigator.language.slice(0, 2).toLowerCase() : '';
+  return SUPPORTED.includes(browserLanguage) ? browserLanguage : 'de';
+})();
 
 export function t(k: string): string {
   return (I18N[lang] || I18N.de)[k] || I18N.de[k] || k;
 }
 
 export function setLang(l: string): void {
-  lang = l;
-  S.set('lang', l);
+  lang = SUPPORTED.includes(l) ? l : 'en';
+  S.set('lang', lang);
+  if (typeof document !== 'undefined') document.documentElement.lang = lang;
   refresh();
 }
 
-export const LANGS = ['de', 'en', 'ja', 'ko', 'es'] as const;
+export function applyDocumentLanguage(): void {
+  if (typeof document !== 'undefined') document.documentElement.lang = lang;
+}
 
-export const LANG_NAMES: Record<string, string> = {
-  de: 'German', en: 'English', ja: 'Japanese', ko: 'Korean', es: 'Spanish',
-};
+export const LANGS = ['de', 'en'] as const;
+
+export const LANG_NAMES: Record<string, string> = { de: 'Deutsch', en: 'English' };

@@ -191,7 +191,8 @@ body{background:var(--bg);color:var(--text);
 .prw svg{transform:rotate(-90deg)}
 .pr-bg{fill:none;stroke:rgba(91,58,140,.18);stroke-width:6}
 .pr-fill{fill:none;stroke:url(#pg);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .55s ease}
-.pr-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.pr-center{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:.1rem;text-align:center}
 .pr-num{font-size:1.25rem;font-weight:700;display:block;line-height:1;
   background:linear-gradient(135deg,var(--accent2),var(--accent3));
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
@@ -540,16 +541,28 @@ body{background:var(--bg);color:var(--text);
 .po-rk{font-size:.76rem;font-weight:600;text-align:center;margin-bottom:1.3rem;
   background:linear-gradient(90deg,var(--gold),#ffb300);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.po-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.65rem;margin-bottom:1.3rem}
-.po-stat{background:var(--s1);border:1px solid var(--border);border-radius:var(--r2);
-  padding:.65rem;text-align:center}
-.po-stat-l{font-size:.62rem;color:var(--text3);letter-spacing:.07em;margin-bottom:.2rem}
-.po-stat-v{font-size:.95rem;font-weight:600;color:var(--text)}
+/* Basiswerte: edle, quadratische Glassmorphism-Kacheln mit feinem lila Rahmen */
+.po-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem;margin-bottom:1.1rem}
+.po-stat{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:.15rem;aspect-ratio:1.9/1;padding:.5rem;text-align:center;border-radius:14px;
+  background:linear-gradient(150deg,rgba(124,58,237,.1),rgba(124,58,237,.02));
+  border:1px solid var(--border2);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);transition:border-color .25s,box-shadow .25s}
+.po-stat:hover{border-color:var(--accent2);box-shadow:0 0 14px rgba(var(--glow-rgb),.2)}
+.po-stat-l{font-size:.56rem;font-weight:700;color:var(--text3);letter-spacing:.1em;text-transform:uppercase}
+.po-stat-v{font-size:1.15rem;font-weight:700;color:var(--text);line-height:1;font-variant-numeric:tabular-nums}
+.po-stat-v em{font-size:.6rem;font-weight:600;font-style:normal;color:var(--text3);margin-left:.12rem}
 .po-sec-title{font-size:.65rem;font-weight:700;letter-spacing:.12em;color:var(--text3);margin-bottom:.65rem}
-.po-macro-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.55rem;margin-bottom:1.2rem}
-.po-macro-item{background:var(--s1);border:1px solid var(--border);border-radius:var(--r3);padding:.6rem}
-.po-macro-l{font-size:.62rem;color:var(--text3)}
-.po-macro-v{font-size:.9rem;font-weight:600;color:var(--text)}
+.po-sec-hint{font-weight:600;letter-spacing:.04em;color:var(--accent3);opacity:.75}
+/* Attribut-Matrix + Makros als ein Block */
+.po-matrix{background:linear-gradient(160deg,rgba(124,58,237,.07),rgba(124,58,237,0));
+  border:1px solid var(--border);border-radius:16px;padding:.7rem .7rem .4rem;margin-bottom:.55rem}
+.po-macro-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.4rem;margin-bottom:1.2rem}
+.po-macro-tight{margin-top:0;margin-bottom:1.3rem}
+.po-macro-item{background:var(--s1);border:1px solid var(--border);border-radius:var(--r3);
+  padding:.5rem .3rem;text-align:center}
+.po-macro-l{font-size:.54rem;font-weight:600;color:var(--text3);letter-spacing:.04em}
+.po-macro-v{font-size:.82rem;font-weight:700;color:var(--text);margin-top:.12rem;font-variant-numeric:tabular-nums}
 .po-supp-tags{margin-top:.5rem}
 .po-stag{display:inline-block;margin:.18rem;padding:.22rem .55rem;
   background:rgba(124,58,237,.18);border:1px solid rgba(124,58,237,.32);
@@ -799,13 +812,21 @@ html[data-theme="ghoul"] .supp-card::after{
   color:var(--accent2);font-weight:700;box-shadow:0 0 10px rgba(124,58,237,.3)}
 .title-chip.locked{opacity:.3;cursor:default;pointer-events:none}
 
-/* Achievement grid */
+/* Achievement grid — freigeschaltete Karte ist zugleich Titel (klickbar) */
 .po-achieve-grid{display:grid;grid-template-columns:1fr 1fr;gap:.42rem;margin-top:.45rem;margin-bottom:.5rem}
-.achieve-card{padding:.48rem .55rem;border-radius:var(--r3);
+.achieve-card{position:relative;padding:.48rem .55rem;border-radius:var(--r3);
   background:var(--s1);border:1px solid rgba(91,58,140,.18);
-  opacity:.38;transition:opacity .3s,box-shadow .3s,border-color .3s}
-.achieve-card.unlocked{opacity:1;border-color:rgba(168,85,247,.38);
+  opacity:.38;transition:opacity .3s,box-shadow .3s,border-color .3s,transform .2s}
+.achieve-card.unlocked{opacity:1;border-color:rgba(168,85,247,.38);cursor:pointer;
   box-shadow:0 0 10px rgba(124,58,237,.15)}
+.achieve-card.unlocked:hover{border-color:var(--accent2);transform:translateY(-1px);
+  box-shadow:0 0 16px rgba(var(--glow-rgb),.28)}
+.achieve-card.equipped{border-color:var(--accent2);
+  background:linear-gradient(150deg,rgba(124,58,237,.2),rgba(124,58,237,.04));
+  box-shadow:0 0 16px rgba(var(--glow-rgb),.35)}
+.achieve-eq{position:absolute;top:.34rem;right:.34rem;font-size:.5rem;font-weight:800;letter-spacing:.1em;
+  color:var(--accent3);background:rgba(var(--glow-rgb),.2);border:1px solid var(--border2);
+  border-radius:99px;padding:.08rem .32rem}
 .achieve-icon{font-size:.95rem}
 .achieve-name{font-size:.64rem;font-weight:700;color:var(--accent3);
   margin-top:.12rem;line-height:1.25}
@@ -1076,9 +1097,9 @@ html[data-theme="ghoul"] .scan-grid{
   .po-av{width:60px;height:60px;font-size:1.6rem}
   .po-uid{font-size:1.3rem}
   .po-nm{font-size:.88rem}
-  .po-grid{grid-template-columns:1fr;gap:.35rem}
-  .po-stat{padding:.45rem .25rem}
-  .po-stat-v{font-size:.74rem}
+  .po-grid{grid-template-columns:repeat(2,1fr);gap:.4rem}
+  .po-stat{padding:.4rem .3rem}
+  .po-stat-v{font-size:1rem}
   .po-stat-l{font-size:.52rem}
   .rpg-radar-svg{width:160px;height:160px}
   .rpg-attrs{gap:.35rem .5rem}

@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { S, dateKey, prevKey } from './storage';
 import { t } from './i18n';
+import { clampNutritionNumber, type NutritionField } from './nutritionBounds';
 
 // ── Typen ────────────────────────────────────────────────────────────
 export interface Macros { kcal: number; prot: number; carb: number; fat: number; sug: number; }
@@ -35,6 +36,16 @@ export const SDEFS: Record<string, { nk: string; dk: string; ok: string | null }
   iron:       { nk: 'supp_iron', dk: 'supp_iron_dose', ok: 'supp_iron_note' },
   citrullin:  { nk: 'supp_citrullin', dk: 'supp_citrullin_dose', ok: 'supp_citrullin_note' },
 };
+
+// Automatic suggestions are deliberately limited to the lower-risk choices also
+// supported by the optional tracking flow. Cards expose names only: no generated
+// dose, schedule, or outcome claim is presented as personal guidance.
+const SAFE_AUTOMATIC_TRACKING_IDS = new Set(['omega', 'kreatin', 'protein', 'vitd', 'magnesium']);
+
+export function getSafeProtocolDisplay(id: string): { nameKey: string } | null {
+  const definition = SDEFS[id];
+  return definition ? { nameKey: definition.nk } : null;
+}
 
 // ═══ MAKRO-BERECHNUNG (Mifflin-St. Jeor, geschlechts- & ziel-spezifisch) ═══
 export function calcMacros(age: number, heightCm: number, weightKg: number,
@@ -101,7 +112,9 @@ export function generateSmartProtocol(profile: Partial<Profile>, answers: Record
   if (bmi >= 30 && goal !== 'bulk') { add('greentea', 'alpha', 3, 'why_cut'); add('lcarnitin', 'beta', 2, 'why_cut'); }
 
   const THRESHOLD = 3;
-  const picked = C.filter(c => c.score >= THRESHOLD && SDEFS[c.id]).sort((a, b) => b.score - a.score);
+  const picked = C
+    .filter(c => c.score >= THRESHOLD && SDEFS[c.id] && SAFE_AUTOMATIC_TRACKING_IDS.has(c.id))
+    .sort((a, b) => b.score - a.score);
   const perPhase: Record<string, number> = { alpha: 0, beta: 0, gamma: 0 };
   const out: ProtocolItem[] = [];
   for (const c of picked) {
@@ -109,7 +122,7 @@ export function generateSmartProtocol(profile: Partial<Profile>, answers: Record
     perPhase[c.phase]++;
     out.push({ id: c.id, phase: c.phase, wk: c.wk });
   }
-  if (!out.length) out.push({ id: 'multi', phase: 'alpha', wk: 'why_base' }, { id: 'magnesium', phase: 'gamma', wk: 'why_base' });
+  if (!out.length) out.push({ id: 'magnesium', phase: 'gamma' });
   const ord: Record<string, number> = { alpha: 0, beta: 1, gamma: 2 };
   return out.sort((a, b) => ord[a.phase] - ord[b.phase]);
 }
@@ -130,15 +143,27 @@ export function finaliseStreak(): number {
 
 // ═══ XP / RANK / ACHIEVEMENTS ════════════════════════════════════════
 export const XP_RANKS = [
-  { min: 0, label: 'Shadow Novice' },
-  { min: 100, label: 'Shadow Initiate' },
-  { min: 300, label: 'Seven Shadows Elite' },
-  { min: 700, label: 'Eminence in Shadow' },
+  { min: 0, label: 'Consistency Starter' },
+  { min: 100, label: 'Routine Builder' },
+  { min: 300, label: 'Training Regular' },
+  { min: 700, label: 'Consistency Leader' },
 ];
 const XP_THRESHOLDS = [100, 300, 700, Infinity];
 
 export function getXP(): number { return S.get<number>('xp') || 0; }
 export function gainXP(amount: number): void { if (amount > 0) S.set('xp', getXP() + amount); }
+export function creditDailySupplementXP(id: string, amount = 5, now: Date = new Date()): boolean {
+  if (!id || !Number.isFinite(amount) || amount <= 0) return false;
+  const storageKey = 'supplement_xp_' + dateKey(now);
+  const stored = S.get<unknown>(storageKey);
+  const credited = Array.isArray(stored)
+    ? stored.filter((value): value is string => typeof value === 'string')
+    : [];
+  if (credited.includes(id)) return false;
+  S.set(storageKey, [...credited, id]);
+  gainXP(amount);
+  return true;
+}
 export function getXPRankData() {
   const xp = getXP();
   let idx = 0;
@@ -150,18 +175,40 @@ export function getXPRankData() {
 }
 
 export const ACHIEVE_DEFS: Record<string, { icon: string; name: string; desc: string; xp: number }> = {
-  novice:     { icon: '◈', name: 'Shadow Novice', desc: 'Erste Schritte in die Void', xp: 0 },
-  servant:    { icon: '⚔', name: 'Diener der Schatten', desc: '7 Tage perfektes Tracking', xp: 50 },
-  nightWalk:  { icon: '🌙', name: 'Nachtwandler', desc: 'Nahrung nach 23:00 Uhr gescannt', xp: 15 },
-  sustenance: { icon: '🍖', name: 'Lord of Sustenance', desc: '10 Mahlzeiten dokumentiert', xp: 20 },
-  airfryer:   { icon: '🔥', name: 'Meister des Airfryers', desc: '5× Cordon Bleu eingetragen', xp: 30 },
-  alchemist:  { icon: '⚗', name: 'Protokoll-Alchemist', desc: '3× Supplements vollständig', xp: 25 },
+  novice:     { icon: '◈', name: 'Getting Started', desc: 'Set up your first routine', xp: 0 },
+  servant:    { icon: '⚔', name: 'Seven-Day Rhythm', desc: 'Complete your routine for 7 days', xp: 50 },
+  nightWalk:  { icon: '🌙', name: 'Late Log', desc: 'Log a meal after 23:00', xp: 15 },
+  sustenance: { icon: '🍖', name: 'Nutrition Logger', desc: 'Document 10 meals', xp: 20 },
+  airfryer:   { icon: '🔥', name: 'Repeat Meal', desc: 'Log Cordon Bleu 5 times', xp: 30 },
+  alchemist:  { icon: '⚗', name: 'Routine Regular', desc: 'Complete your supplement routine 3 times', xp: 25 },
 };
 
-export function getUnlockedAchievements(): string[] { return S.get('achievements') || ['novice']; }
+// Härtung: Storage-Werte können korrupt sein (Nicht-Array) — nie durchreichen
+export function asArray<T>(v: unknown, fallback: T[] = []): T[] { return Array.isArray(v) ? (v as T[]) : fallback; }
+
+export function getUnlockedAchievements(): string[] { return asArray<string>(S.get('achievements'), ['novice']); }
 export function getEquippedTitle(): string { return S.get('title_equipped') || 'novice'; }
 export function equipTitle(id: string): void {
   if (getUnlockedAchievements().includes(id)) S.set('title_equipped', id);
+}
+// Anzeigename des aktuell ausgerüsteten Titels (für Chat/Sidebar/Bot)
+export function equippedTitleName(): string {
+  return ACHIEVE_DEFS[getEquippedTitle()]?.name || 'Getting Started';
+}
+
+// RPG-Snapshot für den Backend-Sync (Shadow Bot !profile / !stats)
+export function buildStatsSnapshot(uid: string, name: string, rank: string) {
+  const xp = getXPRankData();
+  const unlocked = getUnlockedAchievements();
+  return {
+    uid, name, rank,
+    xp: xp.xp, level: xp.idx + 1,
+    attrs: calcRPGStats(),
+    achievements: unlocked.length,
+    titles: unlocked.length,
+    equipped_title: equippedTitleName(),
+    streak: getStreak().count,
+  };
 }
 
 export function getAllFoodEntries(): FoodEntry[] {
@@ -198,8 +245,8 @@ export function checkAchievements(): void {
 export function calcRPGStats() {
   const profile = S.get<Profile>('profile') || ({} as Partial<Profile>);
   const macros = S.get<Macros>('macros') || ({} as Partial<Macros>);
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
-  const chk = S.get<string[]>('day_' + dateKey()) || [];
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
+  const chk = asArray<string>(S.get('day_' + dateKey()));
   const streak = getStreak().count;
   const total = protocol.length;
   const done = total ? chk.filter(id => protocol.some(s => s.id === id)).length : 0;
@@ -247,27 +294,62 @@ export function buildRadarSVG(stats: ReturnType<typeof calcRPGStats>, attrs: str
 // ═══ BUFFS / DEBUFFS (theme-aware, Theme-Objekt wird injiziert) ═══════
 export function calcBuffsDebuffs(th: any) {
   const kiAns = S.get<Record<string, string>>('ki_ans') || {};
-  const chk = S.get<string[]>('day_' + dateKey()) || [];
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
+  const chk = asArray<string>(S.get('day_' + dateKey()));
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
   const macros = S.get<Macros>('macros') || ({} as Partial<Macros>);
   const streak = getStreak().count;
   const buffs: { icon: string; name: string; desc: string }[] = [];
   const debuffs: { icon: string; name: string; desc: string }[] = [];
 
-  if (kiAns.sleep === 'sleepless') debuffs.push({ icon: '💤', name: th.sleep2.name, desc: th.sleep2.desc });
-  else if (kiAns.sleep === 'restless') debuffs.push({ icon: '😴', name: th.sleep1.name, desc: th.sleep1.desc });
+  // Härtung: jedes Theme-Feld defensiv — Buffs fallen weg statt zu crashen
+  if (kiAns.sleep === 'sleepless' && th?.sleep2) debuffs.push({ icon: '💤', name: th.sleep2.name, desc: th.sleep2.desc });
+  else if (kiAns.sleep === 'restless' && th?.sleep1) debuffs.push({ icon: '😴', name: th.sleep1.name, desc: th.sleep1.desc });
 
   const alphaDone = ['omega', 'multi'].every(id => chk.includes(id) && protocol.some(s => s.id === id));
-  if (alphaDone) buffs.push({ icon: '⚡', name: th.alpha.name, desc: th.alpha.desc });
-  if (streak >= 7) buffs.push({ icon: '🔥', name: th.streak.name(streak), desc: th.streak.desc });
+  if (alphaDone && th?.alpha) buffs.push({ icon: '⚡', name: th.alpha.name, desc: th.alpha.desc });
+  if (streak >= 7) {
+    const nm = typeof th?.streak?.name === 'function' ? th.streak.name(streak) : `Streak ${streak}d`;
+    buffs.push({ icon: '🔥', name: nm, desc: th?.streak?.desc ?? '' });
+  }
   const sugRatio = (macros.carb || 0) > 0 ? (macros.sug || 0) / (macros.carb || 1) : 0;
-  if (sugRatio > 0.28) debuffs.push({ icon: '🍬', name: th.sugar.name, desc: th.sugar.desc });
+  if (sugRatio > 0.28 && th?.sugar) debuffs.push({ icon: '🍬', name: th.sugar.name, desc: th.sugar.desc });
   return { buffs, debuffs };
 }
 
 // ═══ FOOD LOG ════════════════════════════════════════════════════════
-export function getFoodLog(): FoodEntry[] { return S.get('food_' + dateKey()) || []; }
-export function saveFoodLog(log: FoodEntry[]): void { S.set('food_' + dateKey(), log); }
+export function sanitizeFoodNumber(value: unknown, field: NutritionField = 'kcal'): number {
+  const numeric = typeof value === 'number'
+    ? value
+    : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : Number.NaN;
+  return clampNutritionNumber(field, numeric);
+}
+
+export function normalizeFoodEntry(value: unknown): FoodEntry | null {
+  if (!value || typeof value !== 'object') return null;
+  const entry = value as Partial<FoodEntry>;
+  if (typeof entry.name !== 'string' || !Number.isFinite(entry.id) || !Number.isFinite(entry.ts)) return null;
+  return {
+    id: entry.id as number,
+    name: entry.name,
+    ts: entry.ts as number,
+    kcal: sanitizeFoodNumber(entry.kcal, 'kcal'),
+    prot: sanitizeFoodNumber(entry.prot, 'prot'),
+    carb: sanitizeFoodNumber(entry.carb, 'carb'),
+    fat: sanitizeFoodNumber(entry.fat, 'fat'),
+    sug: sanitizeFoodNumber(entry.sug, 'sug'),
+  };
+}
+
+function normalizeFoodLog(value: unknown): FoodEntry[] {
+  return asArray<unknown>(value)
+    .map(normalizeFoodEntry)
+    .filter((entry): entry is FoodEntry => entry !== null);
+}
+
+export function getFoodLog(): FoodEntry[] { return normalizeFoodLog(S.get('food_' + dateKey())); }
+export function saveFoodLog(log: FoodEntry[]): void { S.set('food_' + dateKey(), normalizeFoodLog(log)); }
 export function calcConsumed(): Macros {
   return getFoodLog().reduce((a, e) => ({
     kcal: a.kcal + (e.kcal || 0), prot: a.prot + (e.prot || 0),
@@ -278,7 +360,7 @@ export function calcConsumed(): Macros {
 // ═══ DYNAMIC GLOW — Zielnähe 0→1 ═════════════════════════════════════
 export function goalProximity(checked: string[]): number {
   const parts: number[] = [];
-  const protocol = S.get<ProtocolItem[]>('protocol') || [];
+  const protocol = asArray<ProtocolItem>(S.get('protocol'));
   if (protocol.length) {
     const done = checked.filter(id => protocol.some(s => s.id === id)).length;
     parts.push(done / protocol.length);

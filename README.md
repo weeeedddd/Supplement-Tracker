@@ -1,85 +1,138 @@
-# ◈ SHADOW~1 · Supplement Protocol — Full-Stack
+# CORELINE · Supplement, nutrition and training tracker
 
-**Shadow Garden Terminal** als Full-Stack-App: React + TypeScript-Frontend
-(PWA, GitHub-Pages-tauglich) und Python/FastAPI-Backend mit SQL-Datenbank,
-Community-Chat und Shadow-Bot-Moderation.
+CORELINE is a mobile-first, offline-first React PWA for planning and recording
+supplements, food and training. The public app works without an account or
+server: profile data, plans, meals, supplement checks and workout sessions stay
+in the browser and can be exported as JSON.
 
+**Live app:** https://weeeedddd.github.io/Supplement-Tracker/
+
+## Product principles
+
+- Local data is the source of truth. A configured server never silently turns
+  on cloud sync.
+- Supplement information is educational and evidence-oriented; the app does
+  not prescribe doses, diagnose conditions or promise fictional physiques.
+- “AI” labels are used only for a verified remote provider response. Otherwise
+  the assistant and onboarding fall back to clearly labelled local rules.
+- Address or coordinates are sent only after one-time location consent and only
+  to the store-search endpoint. They are never included in AI context.
+- The visual system is original: a restrained obsidian dossier aesthetic with
+  text-only inspiration profiles and no franchise artwork.
+
+## Current features
+
+- Four-step onboarding with Own Path, text-only Inspiration Profiles and an
+  optional remote AI plan path; age, schedule, sleep, food, experience,
+  equipment and recovery context are bounded before plan generation.
+- Profile dashboard with local plan, nutrition, training, supplement and
+  activity summaries.
+- Daily supplement routine plus a bilingual knowledge library.
+- Calories, protein, carbohydrates, fat and sugar targets/logging; curated
+  recipe architecture that can accept a larger imported catalog later.
+- Manual daily workouts, local plan generation, resumable set tracking and
+  completion guards.
+- Contextual guide with a safe local fallback and an explicit consent boundary
+  for a real server-side AI provider.
+- Nearby-store UI for country, budget, radius and address/current location;
+  search unlocks only when the server enables the maps integration, and the UI
+  shows results only after a successful live provider response.
+- Installable PWA shell, local assets, safe-area support and offline reload.
+- Account-backed friends, live presence, RPG stat inspection, Aura/Focus,
+  revision-aware cross-device sync, Guild rosters, weekly leaderboards and raids.
+- Adaptive character quests that preserve the equipped character path while
+  reducing real sets/reps and increasing rest when the 48-hour heatmap is high.
+- Optional Web Push while the PWA is closed, including quiet hours, snooze,
+  streak rescue, unfinished sets, hydration/meal checks, recovery and routines.
+- Explicit nutrition-label OCR verification with a visible confidence and
+  database-versus-label mismatch state. The image is uploaded only after a tap.
+
+## Repository layout
+
+```text
+frontend/                    React 18 + TypeScript + Vite PWA
+backend/app/integration_app.py
+                             Public account/Guild/push/verification + provider API
+backend/app/main.py           Historical compatibility server
+backend/tests/                System, provider, safety and boundary tests
+.github/workflows/pages.yml   Validation and GitHub Pages deployment
+DESIGN.md                     Current product visual language
+legacy/                       Historical reference only
 ```
-├── index.html + assets/     ← gebautes Frontend (GitHub Pages serviert das Root)
-├── manifest.json · sw.js    ← PWA-Installation & Offline-Cache
-├── frontend/                ← React + TypeScript-Quellcode (Vite)
-├── backend/                 ← Python/FastAPI-Server (siehe backend/README.md)
-└── legacy/index.html        ← ursprüngliche Vanilla-Single-File-App (Referenz)
-```
 
-## Frontend (React + TypeScript)
+## Frontend development
+
+Node.js 24 is used in CI (minimum supported runtime: Node.js 20.19).
 
 ```bash
 cd frontend
-npm install
-npm run dev        # Entwicklung (Vite)
-npm run build      # Typecheck + Build → Repo-Root (für GitHub Pages)
+npm ci
+npm run test
+npm run build
+npm run dev
 ```
 
-Der komplette Funktionsumfang der Vanilla-App wurde typisiert portiert:
-Theme-Switching (◈ Shadow Garden · ⚡ Solo Leveling · 👁 Tokyo Ghoul),
-i18n (de/en/ja/ko/es), Shadow-KI-Onboarding (Sprach-Fix, „Access Granted"-
-Lesezeit ~15 s), Smart Supplement Engine mit Info-Icons, Materia-Scanner
-(Barcode → Open Food Facts, Gramm-Parsing), Proviant-Kalkulator mit
-Live-Marktpreisen, RPG-Profil (mobil optimiert), Dynamic Glow — plus neu
-der **👥 Shadow Nexus** Community-Chat.
+The production build is written to `frontend/dist`. Pushes to `main` run the
+locked dependency audit, tests and production build before GitHub Pages is
+deployed. Do not commit `dist` or place API keys in `VITE_*` variables.
 
-Alle Nutzerdaten bleiben lokal (`localStorage`, Prefix `sg_`) — die App
-läuft **vollständig ohne Server**. Ein konfiguriertes Backend erweitert sie.
+An optional backend URL can be entered under **Settings → Integrations** or set
+at build time as `VITE_BACKEND_URL`. The UI verifies provider capabilities; a
+saved URL alone does not enable remote AI or maps.
 
-## Backend (Python / FastAPI / SQL)
+## Optional CORELINE System backend
 
-Auth, Scan-Historie, serverseitige Live-Preise (Open-Prices-Proxy mit
-SQL-Cache), präzise Food-Analyse (Open-Food-Facts-Proxy) und der
-WebSocket-Chat mit **◈ Shadow Bot** (Scam-/Toxizitäts-/Spam-Filter,
-mystische Verwarnungen). Details & Endpunkte: [`backend/README.md`](backend/README.md).
+The recommended deployment target exposes the bounded account, friend, Guild,
+revisioned sync, push-subscription, label-verification, AI-plan, assistant and
+nearby-store routes. It does not expose the historical chat, media upload or
+anonymous scan-history routes from `app.main`.
 
 ```bash
 cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# Linux/macOS: source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest -q
+
+# Public system process
+uvicorn app.integration_app:app --host 0.0.0.0 --port 8000
+
+# Or build the unprivileged container
+docker build -t coreline-system .
+docker run --rm -p 8000:8000 --env-file .env coreline-system
 ```
 
-Frontend ↔ Backend verbinden: im Tab **👥 NEXUS** die Server-URL eintragen
-(wird lokal gespeichert) oder beim Build `VITE_BACKEND_URL` setzen.
+Copy `backend/.env.example` to an untracked environment file on the server.
+Required provider settings are documented in [backend/README.md](backend/README.md).
+Secrets must remain in the hosting platform's secret manager.
 
-## Community-Chat & Shadow Bot
+Closed-app push additionally needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`,
+`VAPID_SUBJECT` and `PUSH_CRON_SECRET`. Run `python -m app.push_worker` from a
+platform scheduler every 5–10 minutes, or call the protected
+`POST /api/v1/push/process` route with `X-Coreline-Cron`. The worker enforces
+each account's timezone, quiet hours, snooze and per-message deduplication.
 
-- Räume: `global` + Sprachräume (`de`, `en`, `ja`, `ko`, `es`) passend zur App-Sprache
-- Foto-Uploads (Mahlzeiten, Gym-Fortschritt) direkt in den Chat
-- Shadow Bot blockt Scam-Links/Phishing, Beleidigungen (mehrsprachig) und
-  Spam **vor** dem Broadcast — der Absender erhält eine mystische Verwarnung
-  in seiner Sprache; saubere Nachrichten landen in der SQL-Historie
+Important: the current provider routes are anonymous and protected only by
+strict schemas, bounded payloads/timeouts and a process-local rate limit. Do
+not expose cost-bearing OpenAI or Google Maps keys publicly until the product
+chooses either real accounts with per-user quotas or a deliberately limited
+guest policy with edge rate limiting, bot protection and a hard spend cap.
+Even with provider keys present, the server is default-deny until an operator
+explicitly sets `PUBLIC_INTEGRATIONS_ENABLED=true` after those controls exist.
 
-## Live-Marktpreise
+## Validation baseline
 
-Quelle ist die kostenlose, API-Key-freie **[Open Prices API](https://prices.openfoodfacts.org)**
-(Open Food Facts). Mit Backend: serverseitiger 12h-SQL-Cache für alle Clients.
-Ohne Backend: direkter Browser-Zugriff (CORS-frei) mit 24h-localStorage-Cache.
-In beiden Fällen: Plausibilitäts-Klammer + Median, Stale-while-error,
-Simulations-Fallback — der Kalkulator liefert immer ein Ergebnis.
+```bash
+cd frontend
+npm run typecheck
+npm test
+npm audit --omit=dev --audit-level=high
+npm run build
 
-## Deployment
+cd ../backend
+.venv\Scripts\python.exe -m pytest -q   # Windows
+```
 
-**GitHub Pages (Frontend):** Settings → Pages → *Deploy from a branch* →
-`main` / `/ (root)`. Alle Pfade sind relativ (`base: './'`), `.nojekyll`
-liegt bei — funktioniert unter Root- und Projekt-Subpfad. Nach
-Frontend-Änderungen `npm run build` ausführen und das Root mitcommitten.
-
-**Backend:** beliebiger Python-Host (VPS, Railway, Fly.io, Render …).
-`CORS_ORIGINS` auf die Pages-Domain setzen, `DATABASE_URL` optional auf
-Postgres. Das Frontend degradiert ohne Backend sauber (Chat zeigt
-Offline-Panel, alles andere läuft lokal weiter).
-
-## Themes
-
-| Theme | Stil |
-|---|---|
-| ◈ Shadow Garden | Violett · Glassmorphism |
-| ⚡ The System (Solo Leveling) | Neon-Cyan · angulare Kanten |
-| 👁 CCG Database (Tokyo Ghoul) | Crimson · Scanlines & Glitch |
+For architecture and safety boundaries, see [PRODUCT.md](PRODUCT.md),
+[DESIGN.md](DESIGN.md) and [backend/README.md](backend/README.md).

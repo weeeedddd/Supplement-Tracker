@@ -3,7 +3,7 @@
 //  Live-Preise: bevorzugt das Python-Backend (/api/prices/live),
 //  fällt auf die Open Prices API direkt zurück, dann auf Simulation.
 // ═══════════════════════════════════════════════════════════════════
-import { S } from './storage';
+import { S, timeoutSignal } from './storage';
 import { refresh } from './store';
 import { getBackendUrl } from './backend';
 
@@ -82,6 +82,27 @@ export function marketDistances(addr: string) {
   }));
 }
 
+// ── Standort-Details je Supermarkt (Region Österreich) ───────────────
+export interface StoreInfo { region: string; hours: string; note: string; }
+export const MARKET_LOCATIONS: Record<string, StoreInfo> = {
+  hofer: { region: 'Österreichweit · z. B. Mariahilfer Straße 120, 1070 Wien',
+    hours: 'Mo–Fr 8:00–19:30 · Sa 8:00–18:00', note: 'Diskont · über 530 Filialen in Österreich' },
+  lidl: { region: 'Österreichweit · z. B. Landstraßer Hauptstraße 1B, 1030 Wien',
+    hours: 'Mo–Fr 8:00–20:00 · Sa 8:00–18:00', note: 'Diskont · rund 250 Filialen' },
+  billa: { region: 'Österreichweit · z. B. Praterstern 1, 1020 Wien',
+    hours: 'Mo–Fr 7:15–19:30 · Sa 7:15–18:00', note: 'Supermarkt · über 1.000 Filialen' },
+  billaplus: { region: 'Ballungszentren · z. B. SCS Vösendorf, 2334',
+    hours: 'Mo–Fr 8:00–20:00 · Sa 8:00–18:00', note: 'Großfläche · frühere Merkur-Märkte' },
+  spar: { region: 'Österreichweit · z. B. Getreidegasse 20, 5020 Salzburg',
+    hours: 'Mo–Fr 7:30–19:30 · Sa 7:30–18:00', note: 'Supermarkt · dichtestes Filialnetz' },
+};
+
+/** Google-Maps-Suche nach der nächsten Filiale rund um die Wohnadresse. */
+export function storeMapsLink(name: string, addr: string): string {
+  const q = `${name}${addr ? ' ' + addr : ' in der Nähe'}`;
+  return 'https://www.google.com/maps/search/' + encodeURIComponent(q);
+}
+
 export function fmtEUR(v: number): string { return v.toFixed(2).replace('.', ',') + ' €'; }
 
 // ═══ LIVE PRICE SYNC — Backend bevorzugt, Open Prices API als Fallback ═══
@@ -105,7 +126,7 @@ function median(arr: number[]): number {
 
 async function fetchCategoryPrices(tag: string): Promise<any[]> {
   const url = `${PRICE_API.endpoint}?category_tag=${encodeURIComponent(tag)}&${PRICE_API.query}`;
-  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(PRICE_API.timeoutMs) });
+  const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: timeoutSignal(PRICE_API.timeoutMs) });
   if (!res.ok) throw new Error('HTTP ' + res.status);
   const data = await res.json();
   if (!data || !Array.isArray(data.items)) throw new Error('Malformed API response');
@@ -153,7 +174,7 @@ export async function syncLivePrices(force = false): Promise<void> {
   const backend = getBackendUrl();
   if (backend) {
     try {
-      const res = await fetch(`${backend}/api/prices/live`, { signal: AbortSignal.timeout(8000) });
+      const res = await fetch(`${backend}/api/prices/live`, { signal: timeoutSignal(8000) });
       if (res.ok) {
         const data = await res.json();
         if (data && typeof data.prices === 'object') results = data.prices;
