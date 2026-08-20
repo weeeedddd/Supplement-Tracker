@@ -4,10 +4,22 @@
 //  ohne Backend läuft die identische Kaskade direkt gegen Open Food
 //  Facts (funktioniert auch auf GitHub Pages). Nie werfende Fallbacks.
 // ═══════════════════════════════════════════════════════════════════
+import { getBackendUrl } from './backend';
 import { S, timeoutSignal } from './storage';
 import type { Macros } from './engine';
 
 export type ServingBasis = 'stated' | 'manufacturer' | 'assumed';
+export type LabelVerificationState = 'matched' | 'mismatch' | 'label-read' | 'failed';
+
+export interface LabelVerification {
+  state: LabelVerificationState;
+  confidence: number;
+  basis?: 'per100g' | 'serving';
+  comparedFields: number;
+  averageDifferencePct?: number;
+  values?: Partial<Macros> & { fiber?: number; saturatedFat?: number; sodiumMg?: number };
+  message?: string;
+}
 
 export interface ScanDetails {
   source: 'barcode-database' | 'local-reference' | 'legacy-estimate';
@@ -21,9 +33,80 @@ export interface ScanDetails {
   saturatedFat?: number;
   sodiumMg?: number;
   components?: number;
+  /** Explicit server OCR result. The photo is uploaded only after a tap. */
+  labelVerification?: LabelVerification;
 }
 
 export interface ScanResult { name: string; macros: Macros; details?: ScanDetails; }
+
+interface LabelApiResult {
+  found: boolean;
+  basis?: 'per100g' | 'serving';
+  confidence?: number;
+  values?: Partial<Macros> & { fiber?: number; saturatedFat?: number; sodiumMg?: number };
+  capabilities?: { ocr?: boolean };
+}
+
+function dataUrlBlob(value: string): Blob {
+  const [header, data] = value.split(',', 2);
+  if (!header || !data) throw new Error('invalid_image');
+  const mime = header.match(/^data:([^;]+)/)?.[1] || 'image/jpeg';
+  const bytes = atob(data);
+  return new Blob([Uint8Array.from(bytes, character => character.charCodeAt(0))], { type: mime });
+}
+
+export function compareNutritionLabel(result: ScanResult, label: LabelApiResult): LabelVerification {
+  if (!label.found || !label.values) {
+    return {
+      state: 'failed', confidence: Math.max(0, Math.min(100, Math.round(label.confidence || 0))),
+      comparedFields: 0,
+      message: label.capabilities?.ocr === false ? 'server_ocr_unavailable' : 'label_not_read',
+    };
+  }
+  const factor = label.basis === 'per100g'
+    ? 100 / Math.max(1, result.details?.servingGrams || 100)
+    : 1;
+  const current: Partial<Macros> = {
+    kcal: result.macros.kcal * factor,
+    prot: result.macros.prot * factor,
+    carb: result.macros.carb * factor,
+    fat: result.macros.fat * factor,
+    sug: result.macros.sug * factor,
+  };
+  const differences = (['kcal', 'prot', 'carb', 'fat', 'sug'] as const).flatMap(field => {
+    const reference = Number(label.values?.[field]);
+    const candidate = Number(current[field]);
+    if (!Number.isFinite(reference) || !Number.isFinite(candidate)) return [];
+    const denominator = Math.max(1, Math.abs(reference));
+    return [Math.abs(candidate - reference) / denominator * 100];
+  });
+  const average = differences.length
+    ? Math.round(differences.reduce((sum, value) => sum + value, 0) / differences.length)
+    : undefined;
+  const state: LabelVerificationState = differences.length < 3
+    ? 'label-read'
+    : (average || 0) <= 15 ? 'matched' : 'mismatch';
+  return {
+    state,
+    confidence: Math.max(0, Math.min(100, Math.round(label.confidence || 0))),
+    basis: label.basis,
+    comparedFields: differences.length,
+    averageDifferencePct: average,
+    values: label.values,
+  };
+}
+
+export async function verifyNutritionLabel(imageData: string, result: ScanResult): Promise<LabelVerification> {
+  const base = getBackendUrl();
+  if (!base) throw new Error('no_backend');
+  const data = new FormData();
+  data.append('file', dataUrlBlob(imageData), 'nutrition-label.jpg');
+  const response = await fetch(`${base}/api/food/label`, {
+    method: 'POST', body: data, signal: timeoutSignal(15_000),
+  });
+  if (!response.ok) throw new Error(`label_${response.status}`);
+  return compareNutritionLabel(result, await response.json() as LabelApiResult);
+}
 
 const FOOD_API = {
   product: 'https://world.openfoodfacts.org/api/v2/product/',

@@ -24,7 +24,8 @@ from sqlalchemy.orm import Session
 
 from .db import get_db
 from .models import (
-    AuthToken, Guild, GuildInvite, GuildMember, Raid, RaidContribution, SyncBlob, User,
+    AuthToken, Guild, GuildInvite, GuildMember, Raid, RaidContribution,
+    SocialProfile, SyncBlob, User,
 )
 from .security import InMemoryRateLimiter
 
@@ -119,15 +120,27 @@ def _guild_payload(db: Session, guild: Guild, me: User) -> dict:
         .order_by(GuildMember.joined, GuildMember.id)
     ).all()
     stamp = time.time()
-    members = [
-        {
-            "uid": u.uid_tag, "username": u.username, "role": gm.role,
-            "joined": gm.joined, "lastSeen": gm.last_seen,
-            "online": (stamp - gm.last_seen) < PRESENCE_WINDOW,
-            "me": u.id == me.id,
-        }
-        for gm, u in rows
-    ]
+    profiles = {
+        profile.user_id: profile
+        for profile in db.scalars(select(SocialProfile).where(
+            SocialProfile.user_id.in_([user.id for _, user in rows])
+        )).all()
+    } if rows else {}
+    members = []
+    for gm, user in rows:
+        profile = profiles.get(user.id)
+        last_seen = max(gm.last_seen, profile.last_seen if profile else 0)
+        members.append({
+            "uid": user.uid_tag, "username": user.username, "role": gm.role,
+            "joined": gm.joined, "lastSeen": last_seen,
+            "online": (stamp - last_seen) < PRESENCE_WINDOW,
+            "characterPath": profile.character_path if profile else "",
+            "activePlan": profile.active_plan if profile else "",
+            "activityLabel": profile.activity_label if profile else "",
+            "activityAt": profile.activity_at if profile else 0,
+            "streak": profile.streak if profile else 0,
+            "me": user.id == me.id,
+        })
     return {
         "id": guild.id, "name": guild.name, "tag": guild.tag, "motto": guild.motto,
         # Öffentliche uid statt interner Zeilen-ID.

@@ -1030,6 +1030,40 @@
 .tx-unit-input input { padding-right: 31px; }
 .tx-unit-input small { position: absolute; top: 50%; right: 7px; color: var(--cl-dim); font-size: .43rem; transform: translateY(-50%); pointer-events: none; }
 
+.adaptive-quest-card {
+  display: grid;
+  gap: 0;
+  margin-top: 14px;
+  background: rgba(9, 12, 12, .96);
+  border: 1px solid var(--cl-line-focus);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .28);
+}
+.adaptive-quest-card.adjusted { border-left: 2px solid var(--cl-warning, #e9c36a); }
+.adaptive-quest-card.deload { border-left: 2px solid var(--cl-danger, #ef6675); }
+.adaptive-quest-card > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-bottom: 1px solid var(--cl-line); }
+.adaptive-quest-card > header span { display: inline-flex; align-items: center; gap: 7px; color: var(--cl-cyan); font-size: .53rem; letter-spacing: .14em; }
+.adaptive-quest-card > header svg { width: 14px; }
+.adaptive-quest-card > header b { padding: 3px 6px; color: var(--cl-cyan-soft); background: rgba(var(--cl-cyan-rgb), .06); border: 1px solid var(--cl-line); font-size: .47rem; letter-spacing: .1em; }
+.adaptive-quest-main { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 14px 12px; }
+.adaptive-quest-main > div { display: grid; gap: 4px; }
+.adaptive-quest-main > div small { color: var(--cl-muted); font-size: .53rem; letter-spacing: .06em; text-transform: uppercase; }
+.adaptive-quest-main h2 { font-family: var(--cl-display); font-size: 1.18rem; letter-spacing: .045em; text-transform: uppercase; }
+.adaptive-quest-main p { max-width: 62ch; color: var(--cl-muted); font-size: .61rem; line-height: 1.55; }
+.adaptive-quest-main > strong { display: grid; grid-template-columns: auto auto; align-items: baseline; color: var(--cl-cyan); font-family: var(--cl-display); font-size: 1.55rem; font-variant-numeric: tabular-nums; }
+.adaptive-quest-main > strong > small { font-size: .66rem; }
+.adaptive-quest-main > strong > em { grid-column: 1 / -1; color: var(--cl-dim); font-family: var(--cl-body); font-size: .45rem; font-style: normal; letter-spacing: .07em; text-transform: uppercase; }
+.adaptive-quest-muscles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-block: 1px solid var(--cl-line); }
+.adaptive-quest-muscles > span { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 7px; min-width: 0; padding: 9px; border-right: 1px solid var(--cl-line); }
+.adaptive-quest-muscles > span:last-child { border-right: 0; }
+.adaptive-quest-muscles small { grid-column: 1 / -1; overflow: hidden; color: var(--cl-muted); font-size: .46rem; text-overflow: ellipsis; white-space: nowrap; }
+.adaptive-quest-muscles i { height: 4px; overflow: hidden; background: rgba(255, 255, 255, .06); }
+.adaptive-quest-muscles i em { display: block; height: 100%; }
+.adaptive-quest-muscles b { font-family: var(--cl-display); font-size: .62rem; }
+.adaptive-quest-card > footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; }
+.adaptive-quest-card > footer > span { color: var(--cl-dim); font-size: .53rem; }
+.adaptive-quest-card > footer button { min-height: 44px; width: auto; margin: 0; padding-inline: 16px; white-space: nowrap; }
+.adaptive-quest-card > footer button svg { width: 15px; }
+
 @media (max-width: 760px) {
   .training-page > .performance-hero-training { display: none; }
   .muscle-map-stage { min-height: 0; height: auto; }
@@ -1049,6 +1083,9 @@
     box-shadow: 0 14px 24px rgba(0, 0, 0, .46);
   }
   .tracker-target-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .adaptive-quest-muscles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .adaptive-quest-muscles > span:nth-child(2) { border-right: 0; }
+  .adaptive-quest-muscles > span:nth-child(-n+2) { border-bottom: 1px solid var(--cl-line); }
 }
 
 @media (max-width: 480px) {
@@ -1064,6 +1101,10 @@
   .tx-head { align-items: flex-start; flex-direction: column; gap: 4px; }
   .tx-live-inputs { padding-inline: 9px; }
   .tx-live-inputs input { padding-inline: 4px; }
+  .adaptive-quest-main { align-items: end; }
+  .adaptive-quest-main h2 { font-size: 1.02rem; }
+  .adaptive-quest-card > footer { align-items: stretch; flex-direction: column; }
+  .adaptive-quest-card > footer button { width: 100%; justify-content: center; }
 }
 
 @media (prefers-reduced-motion: reduce) {

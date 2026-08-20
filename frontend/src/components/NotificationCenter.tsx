@@ -13,9 +13,11 @@ import {
   processDueNotifications,
   requestSystemNotificationPermission,
   saveNotificationPreferences,
+  snoozeLocalNotifications,
   type CorelineNotificationItem,
   type CorelineNotificationPermission,
 } from '../lib/notifications';
+import { getClosedAppPushStatus, snoozeClosedAppPush, type ClosedAppPushState } from '../lib/push';
 import { showScreen } from '../lib/store';
 import { SystemIcon, type SystemIconName } from './SystemIcon';
 import '../notifications.css';
@@ -26,6 +28,8 @@ const KIND_ICON: Record<CorelineNotificationItem['kind'], SystemIconName> = {
   training: 'training',
   recovery: 'moon',
   supplements: 'supplements',
+  hydration: 'water',
+  meals: 'food',
   system: 'spark',
 };
 
@@ -60,6 +64,7 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
   const [preferences, setPreferences] = useState(() => loadNotificationPreferences());
   const [permission, setPermission] = useState<CorelineNotificationPermission>(() => getSystemNotificationPermission());
   const [clock, setClock] = useState(() => Date.now());
+  const [pushState, setPushState] = useState<ClosedAppPushState>('unsupported');
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -81,6 +86,7 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
     if (!open) return;
     closeRef.current?.focus();
     void processDueNotifications().then(setItems);
+    void getClosedAppPushStatus().then(status => setPushState(status.state)).catch(() => setPushState('not-configured'));
   }, [open]);
 
   const delivered = useMemo(() => items.filter(item => item.deliveredAt).slice(0, 20), [items]);
@@ -101,6 +107,8 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
   const openDestination = (item: CorelineNotificationItem) => {
     markNotificationRead(item.id);
     if (item.kind === 'supplements') showScreen('ki');
+    if (item.kind === 'meals') showScreen('fuel');
+    if (item.kind === 'hydration') showScreen('dashboard');
     if (item.kind === 'training' || item.kind === 'recovery') showScreen('training');
     onClose();
   };
@@ -121,9 +129,17 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
         </header>
 
         <div className="notification-status-line">
-          <span className={preferences.enabled ? 'active' : ''}>{permissionLabel(permission)}</span>
+          <span className={preferences.enabled ? 'active' : ''}>{permissionLabel(permission)} · {pushState === 'subscribed' ? copy('HINTERGRUND VERBUNDEN', 'BACKGROUND CONNECTED') : copy('LOKAL', 'LOCAL')}</span>
           {unread > 0 && <b>{unread} {copy('neu', 'new')}</b>}
         </div>
+
+        {preferences.enabled && <div className="notification-quick-actions">
+          <button type="button" onClick={() => {
+            setPreferences(snoozeLocalNotifications(60));
+            if (pushState === 'subscribed') void snoozeClosedAppPush(60);
+          }}><SystemIcon name="moon" />{copy('1 Std. snoozen', 'Snooze 1h')}</button>
+          <span>{copy(`Ruhezeit ${preferences.quietStart}–${preferences.quietEnd}`, `Quiet ${preferences.quietStart}–${preferences.quietEnd}`)}</span>
+        </div>}
 
         {!preferences.enabled && <section className="notification-equip-card">
           <SystemIcon name="bell" />
@@ -156,14 +172,14 @@ export function NotificationCenter({ open, onClose }: { open: boolean; onClose: 
               <span>{relativeDue(item, clock)}</span>
               <h3>{item.title}</h3>
               <p>{item.body}</p>
-              {item.kind !== 'system' && <button type="button" onClick={() => openDestination(item)}>{item.kind === 'supplements' ? copy('Routine öffnen', 'Open routine') : copy('Heatmap öffnen', 'Open heatmap')}<SystemIcon name="chevron" /></button>}
+              {item.kind !== 'system' && <button type="button" onClick={() => openDestination(item)}>{item.kind === 'supplements' ? copy('Routine öffnen', 'Open routine') : item.kind === 'meals' ? copy('Essen öffnen', 'Open food') : item.kind === 'hydration' ? copy('Heute öffnen', 'Open today') : copy('Heatmap öffnen', 'Open heatmap')}<SystemIcon name="chevron" /></button>}
             </div>
           </article>) : <div className="notification-empty"><SystemIcon name="bell" /><strong>{copy('Noch keine Systemhinweise', 'No system notices yet')}</strong><p>{copy('Fällige Impulse erscheinen hier, ohne deinen Dashboard-Flow zu unterbrechen.', 'Due prompts appear here without interrupting your dashboard flow.')}</p></div>}
         </section>
 
         <footer className="notification-boundary"><SystemIcon name="info" /><span>{copy(
-          'In dieser Stufe werden Systemhinweise ausgelöst, sobald CORELINE geöffnet oder wieder aktiv wird. Push bei vollständig geschlossener App folgt mit einem optionalen Backend.',
-          'At this stage, system notices fire when CORELINE is open or becomes active again. Push while the app is fully closed will follow with an optional backend.',
+          'Lokale Hinweise laufen beim Öffnen der App. Wenn Hintergrund-Push in den Einstellungen verbunden ist, liefert der optionale Server dieselben ausgewählten Checks auch bei geschlossener App – mit Ruhezeit und Snooze.',
+          'Local notices run when the app opens. When background push is connected in Settings, the optional server delivers the same selected checks while the app is closed — with quiet hours and snooze.',
         )}</span></footer>
       </section>
     </div>

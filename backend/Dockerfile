@@ -6,8 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements-integrations.txt ./requirements.txt
-RUN pip install --no-cache-dir --requirement requirements.txt \
+COPY requirements.txt ./requirements.txt
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes tesseract-ocr tesseract-ocr-deu \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --requirement requirements.txt \
     && addgroup --system coreline \
     && adduser --system --ingroup coreline coreline
 

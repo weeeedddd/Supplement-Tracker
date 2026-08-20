@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 
+import { buildAdaptiveCharacterQuest, type AdaptiveCharacterQuest } from '../lib/adaptiveQuest';
 import {
   completeWorkoutSession,
   createDailyWorkout,
@@ -35,7 +36,16 @@ import {
   localizedCharacterCopy,
 } from '../lib/characterPaths';
 import { loadUserProfile } from '../lib/profile';
-import { MUSCLE_IDS, calculateMuscleLoads, muscleLoadColor, type ExerciseMuscleTarget, type MuscleId } from '../lib/muscleLoad';
+import {
+  MUSCLE_IDS,
+  MUSCLE_LOAD_STORAGE_KEY,
+  MUSCLE_LOAD_UPDATED_EVENT,
+  calculateMuscleLoads,
+  muscleLoadColor,
+  sanitizeMuscleLoadEntries,
+  type ExerciseMuscleTarget,
+  type MuscleId,
+} from '../lib/muscleLoad';
 import { lang, t } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
 import { scheduleRecoveryReminder } from '../lib/notifications';
@@ -102,6 +112,13 @@ export function TrainingScreen() {
   const [dailyWorkout, setDailyWorkout] = useState<Workout | null>(() => loadActiveDailyWorkout());
   const [sessions, setSessions] = useState<WorkoutSession[]>(() => getWorkoutSessions());
   const [toast, setToast] = useState('');
+  const [questClock, setQuestClock] = useState(() => Date.now());
+
+  useEffect(() => {
+    const update = () => setQuestClock(Date.now());
+    window.addEventListener(MUSCLE_LOAD_UPDATED_EVENT, update);
+    return () => window.removeEventListener(MUSCLE_LOAD_UPDATED_EVENT, update);
+  }, []);
 
   useModalIsolation(Boolean(active || creating || manualDaily || building), {
     backgroundSelectors: ['.training-page', '.system-topbar', '.system-bottom-nav'],
@@ -124,6 +141,16 @@ export function TrainingScreen() {
   };
   useEffect(load, []);
 
+  const adaptiveQuest = useMemo(() => character
+    ? buildAdaptiveCharacterQuest(
+      plans,
+      sessions,
+      sanitizeMuscleLoadEntries(S.get<unknown>(MUSCLE_LOAD_STORAGE_KEY)),
+      character.id,
+      questClock,
+    )
+    : null, [character, plans, questClock, sessions]);
+
   const flash = (message: string) => {
     setToast(message);
     window.setTimeout(() => setToast(''), 3200);
@@ -139,6 +166,7 @@ export function TrainingScreen() {
       }
       setActive(null);
       setSessions(getWorkoutSessions());
+      setQuestClock(Date.now());
       refresh();
       flash(copy(`${workout.name} mit ${result.session?.completedSets ?? 0} Sätzen gespeichert.`, `${workout.name} saved with ${result.session?.completedSets ?? 0} completed sets.`));
     } else if (result.status === 'already-completed') {
@@ -195,6 +223,10 @@ export function TrainingScreen() {
           </div>
           <div className="character-path-tags">{character.tags.map(tag => <span key={tag.en}>{localizedCharacterCopy(tag, lang)}</span>)}</div>
         </section>}
+
+        {character && adaptiveQuest && (
+          <AdaptiveQuestCard quest={adaptiveQuest} characterName={character.name} onStart={() => setActive(adaptiveQuest.workout)} />
+        )}
 
         {!character && <section className="training-mode-grid" aria-label={copy('Training auswählen', 'Choose training mode')}>
           <button type="button" className="training-mode primary" onClick={() => dailyWorkout ? setActive(dailyWorkout) : setManualDaily(true)}>
@@ -263,6 +295,60 @@ export function TrainingScreen() {
       }} />}
       {building && <LocalPlanBuilder onClose={() => setBuilding(false)} onGenerated={useGeneratedPlan} />}
       {toast && <div className="system-toast" role="status" aria-live="polite"><SystemIcon name="check" /><span>{toast}</span></div>}
+    </section>
+  );
+}
+
+function AdaptiveQuestCard({
+  quest,
+  characterName,
+  onStart,
+}: {
+  quest: AdaptiveCharacterQuest;
+  characterName: string;
+  onStart: () => void;
+}) {
+  const levelLabel = {
+    standard: copy('STANDARDLAST', 'STANDARD LOAD'),
+    adjusted: copy('ANGEPASST', 'ADJUSTED'),
+    deload: copy('ENTLASTUNG', 'DELOAD'),
+  }[quest.level];
+  const reasonText = quest.level === 'standard'
+    ? copy('Reihenfolge und aktuelle Muskelbelastung erlauben die normale Charakter-Einheit.', 'Sequence and current muscle load allow the normal character session.')
+    : quest.level === 'deload'
+      ? copy('Hohe oder anhaltende Belastung erkannt. Der Charakter-Pfad bleibt gleich; Sätze, Wiederholungen und Pausen wurden reduziert.', 'High or persistent load detected. The character path stays intact; sets, reps, and rest were adjusted.')
+      : copy('Die nächste Charakter-Einheit wurde auf deine aktuelle Heatmap abgestimmt.', 'The next character session was adjusted to your current heatmap.');
+  return (
+    <section className={`adaptive-quest-card ${quest.level}`} aria-labelledby="adaptive-quest-title">
+      <header>
+        <span><SystemIcon name="spark" />{copy('NÄCHSTE SYSTEM-QUEST', 'NEXT SYSTEM QUEST')}</span>
+        <b>{levelLabel}</b>
+      </header>
+      <div className="adaptive-quest-main">
+        <div>
+          <small>{characterName} · {copy('dynamischer Pfad', 'dynamic path')}</small>
+          <h2 id="adaptive-quest-title">{quest.baseWorkout.name}</h2>
+          <p>{reasonText}</p>
+        </div>
+        <strong>{quest.fatigue}<small>%</small><em>{copy('Vorbelastung', 'pre-load')}</em></strong>
+      </div>
+      <div className="adaptive-quest-muscles">
+        {quest.forecast.slice(0, 4).map(item => (
+          <span key={item.muscleId}>
+            <small>{muscleLabel(item.muscleId)} · {item.share}% {copy('Zielanteil', 'target share')}</small>
+            <i><em style={{ width: `${item.current}%`, background: muscleLoadColor(item.current) }} /></i>
+            <b>{item.current}%</b>
+          </span>
+        ))}
+      </div>
+      <footer>
+        <span>{quest.changedExercises
+          ? copy(`${quest.changedExercises} Übungen automatisch angepasst`, `${quest.changedExercises} exercises adjusted automatically`)
+          : copy('Keine Reduktion notwendig', 'No reduction needed')}</span>
+        <button type="button" className="system-primary-action" onClick={onStart}>
+          <SystemIcon name="training" />{copy('Quest starten', 'Start quest')}
+        </button>
+      </footer>
     </section>
   );
 }

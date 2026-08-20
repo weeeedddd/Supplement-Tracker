@@ -94,4 +94,34 @@ describe('local notification engine', () => {
     await processDueNotifications(mondayAfter, 'en');
     expect(loadNotifications(mondayAfter).find(item => item.kind === 'training')?.deliveredAt).toBeUndefined();
   });
+
+  it('respects quiet hours and snooze before delivering check-ins', async () => {
+    const evening = new Date(2026, 7, 17, 23, 0).getTime();
+    saveNotificationPreferences({
+      enabled: true, training: false, hydration: true,
+      quietStart: '22:00', quietEnd: '07:00',
+    });
+    syncScheduledNotifications(evening, 'en');
+    await processDueNotifications(evening, 'en');
+    expect(loadNotifications(evening).find(item => item.kind === 'hydration')?.deliveredAt).toBeUndefined();
+
+    const afternoon = new Date(2026, 7, 18, 15, 0).getTime();
+    saveNotificationPreferences({ snoozedUntil: afternoon + 60_000 });
+    syncScheduledNotifications(afternoon, 'en');
+    await processDueNotifications(afternoon, 'en');
+    expect(loadNotifications(afternoon).find(item => item.id.endsWith('2026-08-18'))?.deliveredAt).toBeUndefined();
+  });
+
+  it('delivers an honest unfinished-set check independently of daily training reminders', async () => {
+    const now = new Date(2026, 7, 17, 21, 0).getTime();
+    saveNotificationPreferences({ enabled: true, training: false, unfinishedSets: true });
+    S.set('train_session_drafts', {
+      toji: { completedSets: { 0: [true, false, false] } },
+    });
+    const reminder = syncScheduledNotifications(now, 'en').find(item => item.id.startsWith('daily:unfinished'));
+    expect(reminder?.kind).toBe('training');
+    await processDueNotifications(now, 'en');
+    expect(loadNotifications(now).find(item => item.id.startsWith('daily:unfinished'))?.deliveredAt).toBe(now);
+    expect(S.get<any>('train_session_drafts').toji.completedSets[0]).toEqual([true, false, false]);
+  });
 });

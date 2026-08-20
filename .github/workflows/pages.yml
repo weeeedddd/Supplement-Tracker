@@ -61,14 +61,20 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: backend/requirements-integrations-dev.txt
-      - name: Install integration dependencies
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install backend dependencies
         working-directory: backend
-        run: python -m pip install --requirement requirements-integrations-dev.txt
-      - name: Lint integration boundary
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Lint system backend
         working-directory: backend
-        run: python -m ruff check app/api_v1.py app/integration_app.py app/integration_models.py app/integrations.py app/security.py tests/test_integrations.py
-      - name: Test integration boundary
+        run: >-
+          python -m ruff check
+          app/account_api.py app/api_v1.py app/food_label_api.py app/guild_api.py
+          app/integration_app.py app/integration_models.py app/integrations.py app/models.py
+          app/push_api.py app/push_service.py app/push_worker.py app/security.py
+          app/services/vision.py app/social_api.py
+          tests/test_integrations.py tests/test_social_guild_push.py tests/test_vision_label.py
+      - name: Test system backend
         working-directory: backend
         run: python -m pytest -q
 

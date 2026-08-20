@@ -37,7 +37,10 @@ export function accuracyScore(details?: ScanDetails): number {
   const base = SOURCE_BASE[details.source] ?? SOURCE_BASE['legacy-estimate'];
   const basis = BASIS_ADJUSTMENT[details.servingBasis ?? 'assumed'];
   const confirmed = details.servingConfirmed ? CONFIRMED_BONUS : 0;
-  return Math.max(5, Math.min(99, Math.round(base + basis + confirmed)));
+  const labelAdjustment = details.labelVerification?.state === 'matched' ? 5
+    : details.labelVerification?.state === 'mismatch' ? -28
+      : details.labelVerification?.state === 'label-read' ? 2 : 0;
+  return Math.max(5, Math.min(99, Math.round(base + basis + confirmed + labelAdjustment)));
 }
 
 export function accuracyTier(score: number): AccuracyTier {

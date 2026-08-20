@@ -162,14 +162,14 @@ def test_status_is_honest_when_integrations_are_unconfigured():
     assert response.json()["stores"]["available"] is False
 
 
-def test_public_integration_app_is_minimal_and_reports_capabilities():
+def test_public_system_app_reports_capabilities_and_exposes_bounded_account_routes():
     response = client.get("/api/health")
 
     assert response.status_code == 200
     assert response.json() == {
         "ok": True,
         "service": "coreline-integrations",
-        "version": "1.0.0",
+        "version": "2.0.0",
         "integrations": {
             "ai": {
                 "available": False,
@@ -188,7 +188,9 @@ def test_public_integration_app_is_minimal_and_reports_capabilities():
     }
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["x-content-type-options"] == "nosniff"
-    assert client.post("/api/auth/register", json={}).status_code == 404
+    assert client.post("/api/auth/register", json={}).status_code == 422
+    assert client.get("/api/v1/friends").status_code == 401
+    assert client.get("/api/v1/push/public-key").status_code == 200
     assert client.post("/api/scans", json={}).status_code == 404
     assert client.get("/docs").status_code == 404
 

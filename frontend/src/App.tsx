@@ -21,13 +21,17 @@ import {
   type BackendCapabilities,
 } from './lib/backend';
 import { lang } from './lib/i18n';
+import { GUILD_UPDATED_EVENT, getAccount, syncNow } from './lib/guild';
 import { removeLegacyPseudoAuth, resolveInitialScreen } from './lib/localMode';
 import { useModalIsolation } from './lib/modal';
 import {
   NOTIFICATION_UPDATED_EVENT,
   getUnreadNotificationCount,
   processDueNotifications,
+  snoozeLocalNotifications,
 } from './lib/notifications';
+import { snoozeClosedAppPush } from './lib/push';
+import { publishSocialPresence } from './lib/social';
 import type { InitialPlan } from './lib/plans';
 import { calculateNutritionTargetsForProfile, loadUserProfile } from './lib/profile';
 import { requestAiInitialPlan } from './lib/remotePlan';
@@ -185,6 +189,33 @@ export default function App() {
   }, [onApp]);
 
   useEffect(() => {
+    if (!onApp) return;
+    let running = false;
+    const syncConnectedAccount = async () => {
+      if (running || !getBackendUrl() || !getAccount()) return;
+      running = true;
+      try {
+        const result = await syncNow();
+        if (result.status === 'pulled') refresh();
+        await publishSocialPresence();
+      } catch { /* local tracking must remain unaffected while the server is offline */ }
+      running = false;
+    };
+    const onVisibility = () => { if (document.visibilityState === 'visible') void syncConnectedAccount(); };
+    void syncConnectedAccount();
+    const interval = window.setInterval(() => { void syncConnectedAccount(); }, 90_000);
+    window.addEventListener(GUILD_UPDATED_EVENT, syncConnectedAccount);
+    window.addEventListener(BACKEND_CONFIGURATION_EVENT, syncConnectedAccount);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener(GUILD_UPDATED_EVENT, syncConnectedAccount);
+      window.removeEventListener(BACKEND_CONFIGURATION_EVENT, syncConnectedAccount);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [onApp]);
+
+  useEffect(() => {
     applyTheme(getCurrentTheme());
     removeLegacyPseudoAuth();
     document.documentElement.style.setProperty(
@@ -199,7 +230,23 @@ export default function App() {
       '--coreline-performance-still-life',
       `url("${performanceStillLifeUrl}")`,
     );
-    showScreen(loadUserProfile() ? 'dashboard' : resolveInitialScreen((key) => S.get(key)));
+    const currentProfile = loadUserProfile();
+    const params = new URLSearchParams(window.location.search);
+    const requested = params.get('screen');
+    const allowedScreens = new Set<Screen>(['dashboard', 'fuel', 'training', 'ki', 'profile', 'shopping']);
+    if (params.get('pushAction') === 'snooze') {
+      snoozeLocalNotifications(60);
+      void snoozeClosedAppPush(60).catch(() => undefined);
+    }
+    showScreen(currentProfile && requested && allowedScreens.has(requested as Screen)
+      ? requested as Screen
+      : currentProfile ? 'dashboard' : resolveInitialScreen((key) => S.get(key)));
+    if (requested || params.has('pushAction')) {
+      params.delete('screen');
+      params.delete('pushAction');
+      const query = params.toString();
+      window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    }
   }, [actionPlateUrl, performanceStillLifeUrl, textureUrl]);
 
   useEffect(() => {
@@ -275,7 +322,12 @@ export default function App() {
         <button className="system-wordmark wordmark-button" type="button" onClick={() => profile && showScreen('dashboard')}>
           CORELINE
         </button>
-        <span className="system-sigil" aria-hidden="true" />
+        <img
+          className="system-sigil"
+          src="./icons/coreline-mark.webp"
+          alt=""
+          aria-hidden="true"
+        />
         <div className="system-top-actions">
           <span className="system-sync-state">
             {backendLabel(backendCapabilities)}

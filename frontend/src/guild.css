@@ -66,7 +66,7 @@
   padding: .9rem;
   background: var(--cl-panel, rgba(255, 255, 255, .03));
   border: 1px solid var(--cl-line, var(--border));
-  border-radius: 14px;
+  border-radius: 2px;
 }
 .guild-card-head {
   display: flex;
@@ -90,7 +90,7 @@
   padding: .55rem .75rem;
   background: var(--cl-panel-2, rgba(255, 255, 255, .02));
   border: 1px solid var(--cl-line, var(--border));
-  border-radius: 12px;
+  border-radius: 2px;
 }
 .guild-account-row em { font-style: normal; color: var(--cl-cyan, var(--accent3)); font-size: .74rem; }
 .guild-sync-row > span {
@@ -113,7 +113,7 @@
   color: var(--cl-muted, var(--text2));
   background: rgba(233, 195, 106, .08);
   border: 1px solid var(--cl-warning, rgba(233, 195, 106, .4));
-  border-radius: 12px;
+  border-radius: 2px;
 }
 
 .guild-message {
@@ -121,7 +121,7 @@
   color: var(--cl-muted, var(--text2));
   padding: .5rem .7rem;
   border: 1px solid var(--cl-line, var(--border));
-  border-radius: 10px;
+  border-radius: 2px;
 }
 .guild-message.bad {
   color: var(--cl-danger, var(--danger));
@@ -140,13 +140,13 @@
 }
 .guild-field input {
   width: 100%;
-  min-height: 42px;
+  min-height: 44px;
   padding: .5rem .7rem;
   font-size: .88rem;
   color: var(--cl-bone, var(--text));
   background: rgba(0, 0, 0, .35);
   border: 1px solid var(--cl-line, var(--border));
-  border-radius: 10px;
+  border-radius: 2px;
   outline: none;
   transition: border-color .18s;
 }
@@ -158,12 +158,12 @@
 .guild-tab,
 .guild-ghost-button,
 .guild-primary-button {
-  min-height: 42px;
+  min-height: 44px;
   padding: .5rem .9rem;
   font-size: .74rem;
   font-weight: 600;
   letter-spacing: .06em;
-  border-radius: 10px;
+  border-radius: 2px;
   cursor: pointer;
   transition: border-color .18s, background .18s, color .18s, opacity .18s;
 }
@@ -176,7 +176,7 @@
 .guild-tab.active {
   color: var(--cl-cyan, var(--accent3));
   border-color: var(--cl-line-focus, var(--border2));
-  background: rgba(var(--cl-cyan-rgb, 124, 58, 237), .12);
+  background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .12);
 }
 .guild-tab:hover,
 .guild-ghost-button:hover { color: var(--cl-bone, var(--text)); border-color: var(--cl-line-focus, var(--border2)); }
@@ -199,10 +199,12 @@
   align-items: center;
   gap: .5rem;
   padding: .35rem .5rem;
-  border-radius: 9px;
+  border-radius: 2px;
   background: rgba(0, 0, 0, .22);
 }
-.guild-member.me { background: rgba(var(--cl-cyan-rgb, 124, 58, 237), .1); }
+.guild-member.me { background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .1); }
+.guild-member-identity { display: grid; flex: 1; min-width: 0; }
+.guild-member-identity small { overflow: hidden; color: var(--cl-dim, var(--text3)); font-size: .57rem; text-overflow: ellipsis; white-space: nowrap; }
 .guild-member strong {
   flex: 1;
   min-width: 0;
@@ -212,6 +214,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.guild-member-streak { color: var(--cl-cyan, var(--accent3)); font-size: .62rem; }
 .guild-member em { font-style: normal; font-size: .66rem; color: var(--cl-dim, var(--text3)); }
 .guild-role {
   font-size: .58rem;
@@ -241,7 +244,7 @@
   padding: .5rem .7rem;
   background: rgba(0, 0, 0, .32);
   border: 1px dashed var(--cl-line-focus, var(--border2));
-  border-radius: 10px;
+  border-radius: 2px;
 }
 .guild-invite code {
   font-size: 1rem;
@@ -275,11 +278,11 @@
   align-items: center;
   gap: .55rem;
   padding: .32rem .5rem;
-  border-radius: 9px;
+  border-radius: 2px;
   background: rgba(0, 0, 0, .22);
   font-variant-numeric: tabular-nums;
 }
-.guild-board-row.me { background: rgba(var(--cl-cyan-rgb, 124, 58, 237), .12); }
+.guild-board-row.me { background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .12); }
 .guild-board-rank { width: 16px; text-align: center; font-size: .66rem; color: var(--cl-dim, var(--text3)); }
 .guild-board-row strong {
   flex: 1;
@@ -303,7 +306,7 @@
   gap: .5rem;
   margin: .2rem 0 .6rem;
   padding: .75rem .85rem;
-  border-radius: 14px;
+  border-radius: 2px;
   border: 1px solid var(--cl-line, var(--border));
   background: var(--cl-panel, rgba(255, 255, 255, .03));
 }
@@ -359,7 +362,7 @@
   align-items: center;
   gap: .5rem;
   padding: .3rem .5rem;
-  border-radius: 9px;
+  border-radius: 2px;
   background: rgba(0, 0, 0, .24);
 }
 .deload-suggestion strong {
@@ -583,7 +586,7 @@
   padding: .55rem .65rem;
   background: rgba(0, 0, 0, .3);
   border: 1px solid var(--cl-line, var(--border));
-  border-radius: 10px;
+  border-radius: 2px;
 }
 .scan-accuracy-detail p { font-size: .72rem; color: var(--cl-muted, var(--text2)); }
 .scan-accuracy-fix { display: flex; align-items: flex-end; gap: .5rem; }
@@ -596,19 +599,180 @@
 }
 .scan-accuracy-fix input {
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   padding: .4rem .6rem;
   font-size: .85rem;
   font-weight: 700;
   color: var(--cl-bone, var(--text));
   background: rgba(0, 0, 0, .4);
   border: 1px solid var(--cl-line, var(--border));
-  border-radius: 9px;
+  border-radius: 2px;
   outline: none;
   font-variant-numeric: tabular-nums;
 }
 .scan-accuracy-fix input:focus { border-color: var(--cl-line-focus, var(--border2)); }
+.scan-label-verification {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .55rem;
+  padding-top: .55rem;
+  border-top: 1px solid var(--cl-line, var(--border));
+}
+.scan-label-verification > div { display: grid; gap: .15rem; }
+.scan-label-verification strong { font-size: .7rem; }
+.scan-label-verification small { color: var(--cl-dim, var(--text3)); font-size: .59rem; line-height: 1.45; }
+.scan-label-verification button { min-height: 44px; white-space: nowrap; }
+.scan-label-result { display: grid; gap: .15rem; padding: .5rem .55rem; border-left: 2px solid var(--cl-cyan, var(--accent3)); background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .045); }
+.scan-label-result.mismatch, .scan-label-result.failed { border-left-color: var(--cl-danger, #ef6675); background: rgba(239, 102, 117, .05); }
+.scan-label-result strong { font-size: .7rem; }
+.scan-label-result span, .scan-label-result small { color: var(--cl-muted, var(--text2)); font-size: .59rem; }
+.scan-label-result small { overflow-wrap: anywhere; }
+.scan-label-error { color: var(--cl-danger, #ef6675) !important; }
+
+@media (max-width: 520px) {
+  .scan-label-verification { grid-template-columns: 1fr; }
+  .scan-label-verification button { width: 100%; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .scan-accuracy-track i { transition: none; }
+}
+
+/* ═══════════════════════════════════════════════════════
+   ◈ REAL FRIENDS · PRESENCE · STAT INSPECTION
+   Sharp additions inside the existing CORELINE system language.
+═══════════════════════════════════════════════════════ */
+.guild-friends { position: relative; }
+
+.friend-buff-feed {
+  display: grid;
+  gap: .25rem;
+  padding: .55rem .65rem;
+  border-left: 2px solid var(--cl-cyan, var(--accent3));
+  background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .07);
+}
+.friend-buff-feed span { display: flex; align-items: center; gap: .35rem; font-size: .72rem; color: var(--cl-muted, var(--text2)); }
+.friend-buff-feed svg { width: 14px; color: var(--cl-cyan, var(--accent3)); }
+
+.friend-invite-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: .5rem;
+}
+.friend-invite-row .guild-primary-button { min-height: 44px; display: inline-flex; align-items: center; gap: .3rem; }
+.friend-invite-row .guild-primary-button svg { width: 15px; }
+
+.friend-request-list { display: grid; gap: .45rem; padding-top: .4rem; border-top: 1px solid var(--cl-line, var(--border)); }
+.friend-request { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.friend-request > span { display: grid; min-width: 0; }
+.friend-request strong { font-size: .8rem; }
+.friend-request small { font-size: .62rem; color: var(--cl-dim, var(--text3)); }
+.friend-request > div { display: flex; gap: .35rem; }
+.friend-request button { min-height: 44px; }
+.friend-pending-line { font-size: .68rem; color: var(--cl-dim, var(--text3)); }
+
+.friend-roster { display: grid; gap: 1px; background: var(--cl-line, var(--border)); border: 1px solid var(--cl-line, var(--border)); }
+.friend-status-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto 18px;
+  align-items: center;
+  gap: .55rem;
+  width: 100%;
+  min-height: 68px;
+  padding: .55rem .65rem;
+  color: var(--cl-bone, var(--text));
+  text-align: left;
+  background: var(--cl-panel-2, #0b0e0e);
+  border: 0;
+  cursor: pointer;
+}
+.friend-status-card:hover, .friend-status-card:focus-visible { background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .06); outline: 1px solid var(--cl-line-focus, var(--border2)); outline-offset: -1px; }
+.friend-status-main { display: grid; gap: .1rem; min-width: 0; }
+.friend-status-main strong { font-size: .82rem; }
+.friend-status-main small, .friend-status-main em { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-status-main small { font-size: .64rem; color: var(--cl-muted, var(--text2)); }
+.friend-status-main em { font-size: .61rem; font-style: normal; color: var(--cl-dim, var(--text3)); }
+.friend-streak { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: .2rem; text-align: right; }
+.friend-streak svg { width: 13px; color: var(--cl-cyan, var(--accent3)); }
+.friend-streak strong { color: var(--cl-cyan, var(--accent3)); font-size: .82rem; }
+.friend-streak small { grid-column: 1 / -1; font-size: .52rem; letter-spacing: .08em; color: var(--cl-dim, var(--text3)); }
+.friend-status-card > svg { width: 15px; color: var(--cl-dim, var(--text3)); }
+
+.friend-leaderboard { display: grid; gap: 1px; padding-top: .4rem; }
+.friend-leaderboard > div { display: grid; grid-template-columns: 20px minmax(80px, 1fr) auto auto auto; align-items: center; gap: .45rem; min-height: 38px; padding: .35rem .45rem; background: rgba(0, 0, 0, .22); }
+.friend-leaderboard > div > b { color: var(--cl-cyan, var(--accent3)); font-size: .68rem; }
+.friend-leaderboard > div > strong { overflow: hidden; text-overflow: ellipsis; font-size: .74rem; }
+.friend-leaderboard > div > span { font-size: .6rem; color: var(--cl-muted, var(--text2)); white-space: nowrap; }
+
+.friend-inspect {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  color: var(--cl-bone, var(--text));
+  background: linear-gradient(155deg, rgba(14, 17, 17, .995), rgba(5, 7, 7, .998));
+}
+.friend-inspect > header { display: flex; align-items: flex-start; justify-content: space-between; gap: .6rem; padding: .9rem 1rem; border-bottom: 1px solid var(--cl-line-focus, var(--border2)); }
+.friend-inspect > header > span { display: grid; gap: .08rem; }
+.friend-inspect > header small { color: var(--cl-cyan, var(--accent3)); font-size: .56rem; letter-spacing: .19em; }
+.friend-inspect > header h3 { font-size: 1rem; }
+.friend-inspect > header em { color: var(--cl-dim, var(--text3)); font-size: .6rem; font-style: normal; }
+.friend-inspect-scroll { overflow: auto; display: grid; align-content: start; gap: .75rem; padding: .9rem 1rem 1.3rem; }
+.friend-path-line { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: .55rem; padding: .7rem; border: 1px solid var(--cl-line, var(--border)); background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .045); }
+.friend-path-line > svg { color: var(--cl-cyan, var(--accent3)); }
+.friend-path-line > span { display: grid; gap: .1rem; }
+.friend-path-line > span strong { font-size: .84rem; }
+.friend-path-line > span small { color: var(--cl-muted, var(--text2)); font-size: .62rem; }
+.friend-path-line > b { color: var(--cl-cyan, var(--accent3)); font-size: 1.05rem; }
+.friend-path-line > b small { font-size: .5rem; letter-spacing: .08em; }
+
+.friend-stat-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--cl-line, var(--border)); }
+.friend-stat-grid > span { display: grid; gap: .15rem; min-height: 66px; padding: .55rem; border-right: 1px solid var(--cl-line, var(--border)); border-bottom: 1px solid var(--cl-line, var(--border)); }
+.friend-stat-grid > span:nth-child(2n) { border-right: 0; }
+.friend-stat-grid > span:nth-last-child(-n+2) { border-bottom: 0; }
+.friend-stat-grid small { color: var(--cl-dim, var(--text3)); font-size: .55rem; letter-spacing: .08em; text-transform: uppercase; }
+.friend-stat-grid strong { font-size: 1.05rem; }
+.friend-stat-grid em { font-size: .55rem; font-style: normal; color: var(--cl-muted, var(--text2)); }
+
+.friend-inspect-section { display: grid; gap: .4rem; padding-top: .65rem; border-top: 1px solid var(--cl-line, var(--border)); }
+.friend-muscle-summary { display: grid; gap: .3rem; }
+.friend-muscle-summary > span { display: grid; grid-template-columns: 72px minmax(0, 1fr) 34px; align-items: center; gap: .4rem; }
+.friend-muscle-summary small { overflow: hidden; text-overflow: ellipsis; font-size: .62rem; text-transform: capitalize; color: var(--cl-muted, var(--text2)); }
+.friend-muscle-summary i { height: 5px; overflow: hidden; background: rgba(255, 255, 255, .06); }
+.friend-muscle-summary i em { display: block; height: 100%; background: linear-gradient(90deg, var(--cl-cyan-soft, var(--accent)), var(--cl-cyan, var(--accent3))); }
+.friend-muscle-summary b { text-align: right; font-size: .66rem; }
+.friend-lifts { display: grid; gap: 1px; background: var(--cl-line, var(--border)); }
+.friend-lifts span { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-height: 36px; padding: .35rem .5rem; background: rgba(0, 0, 0, .28); }
+.friend-lifts strong { font-size: .7rem; }
+.friend-lifts b { color: var(--cl-cyan, var(--accent3)); font-size: .68rem; white-space: nowrap; }
+
+.coop-overview { display: grid; grid-template-columns: 1fr auto 1fr; gap: .5rem; align-items: center; padding: .5rem; border: 1px solid var(--cl-line, var(--border)); }
+.coop-overview span { display: grid; font-size: .6rem; color: var(--cl-dim, var(--text3)); }
+.coop-overview span:last-child { text-align: right; }
+.coop-overview b { color: var(--cl-bone, var(--text)); font-size: .76rem; }
+.coop-overview em { color: var(--cl-cyan, var(--accent3)); font-size: .56rem; font-style: normal; }
+.coop-row { display: grid; grid-template-columns: minmax(70px, 1fr) auto 34px auto; gap: .35rem; align-items: center; padding: .3rem .45rem; background: rgba(0, 0, 0, .22); font-size: .64rem; }
+.coop-row strong { overflow: hidden; text-overflow: ellipsis; }
+.coop-row em { text-align: center; color: var(--cl-cyan, var(--accent3)); font-style: normal; }
+.friend-achievement { display: flex; align-items: center; gap: .4rem; padding: .55rem; border-left: 2px solid var(--cl-cyan, var(--accent3)); background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .06); font-size: .72rem; }
+.friend-achievement svg { width: 14px; }
+.friend-inspect-actions { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem; }
+.friend-inspect-actions button { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: .3rem; }
+.friend-inspect-actions .danger { grid-column: 1 / -1; }
+.friend-inspect-actions svg { width: 14px; }
+
+@media (max-width: 520px) {
+  .guild-panel { width: 100%; max-height: 92dvh; align-self: end; }
+  .guild-body { padding-inline: .7rem; }
+  .friend-invite-row { grid-template-columns: 1fr; }
+  .friend-invite-row .guild-primary-button { width: 100%; justify-content: center; }
+  .friend-leaderboard > div { grid-template-columns: 18px minmax(72px, 1fr) auto auto; }
+  .friend-leaderboard > div > span:last-child { display: none; }
+  .friend-request { align-items: flex-start; flex-direction: column; }
+  .friend-request > div { width: 100%; }
+  .friend-request button { flex: 1; }
 }

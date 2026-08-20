@@ -2,9 +2,39 @@ import { describe, expect, it } from 'vitest';
 
 import { accuracyColor, accuracyScore, accuracyTier, rescaleServing } from './scanAccuracy';
 import type { ScanDetails } from './scanner';
+import { compareNutritionLabel } from './scanner';
 
 const details = (over: Partial<ScanDetails> = {}): ScanDetails => ({
   source: 'barcode-database', confidence: 'database', servingGrams: 100, ...over,
+});
+
+describe('nutrition label verification', () => {
+  const scan = {
+    name: 'Protein yoghurt (200 g)',
+    macros: { kcal: 200, prot: 20, carb: 16, fat: 5, sug: 7 },
+    details: details({ servingGrams: 200 }),
+  };
+
+  it('matches per-100g OCR values after normalizing the serving', () => {
+    const verification = compareNutritionLabel(scan, {
+      found: true, basis: 'per100g', confidence: 91,
+      values: { kcal: 100, prot: 10, carb: 8, fat: 2.5, sug: 3.5 },
+    });
+    expect(verification.state).toBe('matched');
+    expect(verification.comparedFields).toBe(5);
+    expect(verification.averageDifferencePct).toBe(0);
+  });
+
+  it('makes a material database/label disagreement visible', () => {
+    const verification = compareNutritionLabel(scan, {
+      found: true, basis: 'per100g', confidence: 88,
+      values: { kcal: 180, prot: 4, carb: 24, fat: 9, sug: 15 },
+    });
+    expect(verification.state).toBe('mismatch');
+    expect(verification.averageDifferencePct).toBeGreaterThan(15);
+    expect(accuracyScore({ ...scan.details, labelVerification: verification }))
+      .toBeLessThan(accuracyScore(scan.details));
+  });
 });
 
 describe('scan accuracy', () => {

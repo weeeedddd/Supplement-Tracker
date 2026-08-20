@@ -6,6 +6,7 @@
 // ═══════════════════════════════════════════════════════════════════
 import { S } from './storage';
 import { getFoodLog, saveFoodLog, type FoodEntry } from './engine';
+import { parsePlannedDurationSeconds, parsePlannedReps, parsePlannedWeightKg } from './exerciseMuscles';
 import { lang } from './i18n';
 import { clampNutritionNumber, NUTRITION_LIMITS } from './nutritionBounds';
 import { CURATED_RECIPES, recipeToDish } from './recipes';
@@ -48,8 +49,17 @@ export interface Exercise {
 export interface Workout {
   id: number | string; name: string; kind: string; focus: string;
   exercises: Exercise[]; icon: string; is_preset?: boolean;
-  source?: 'preset' | 'manual' | 'generated' | 'daily';
+  source?: 'preset' | 'manual' | 'generated' | 'daily' | 'adaptive';
   inspirationProfile?: InspirationProfileId;
+  adaptation?: WorkoutAdaptation;
+}
+export interface WorkoutAdaptation {
+  baseWorkoutId: string;
+  level: 'standard' | 'adjusted' | 'deload';
+  fatigue: number;
+  changedExercises: number;
+  strainedMuscles: string[];
+  generatedAt: number;
 }
 export interface Buff { label: string; icon: string; desc: string; boosts: Record<string, number>; expires_at: number; source?: string; }
 export interface WorkoutLogInput {
@@ -65,10 +75,19 @@ export interface WorkoutExercisePerformance {
   weightKg: number;
   durationSeconds: number;
 }
+export interface WorkoutSessionExercise {
+  name: string;
+  completedSets: number;
+  reps: number;
+  weightKg: number;
+  durationSeconds: number;
+  volumeKg: number;
+}
 export type WorkoutPerformanceMap = Record<number, WorkoutExercisePerformance>;
 export interface WorkoutDraft {
   sessionId: string;
   workoutId: string;
+  workoutName?: string;
   startedAt: number;
   updatedAt: number;
   completedSets: CompletedSetMap;
@@ -84,6 +103,11 @@ export interface WorkoutSession {
   completedSets: number;
   totalSets: number;
   setState: CompletedSetMap;
+  exercises?: WorkoutSessionExercise[];
+  totalVolumeKg?: number;
+  inspirationProfile?: InspirationProfileId;
+  adaptationLevel?: WorkoutAdaptation['level'];
+  baseWorkoutId?: string;
 }
 export interface WorkoutCompletion {
   status: 'completed' | 'incomplete' | 'invalid' | 'already-completed';
@@ -276,10 +300,11 @@ export function loadWorkoutDraft(workout: Workout): WorkoutDraft {
   const saved = drafts[key];
   const now = Date.now();
   const draft: WorkoutDraft = saved
-    ? { ...saved, workoutId: key, completedSets: normalizeCompletedSets(workout, saved.completedSets) }
+    ? { ...saved, workoutId: key, workoutName: workout.name, completedSets: normalizeCompletedSets(workout, saved.completedSets) }
     : {
       sessionId: newSessionId(workout, now),
       workoutId: key,
+      workoutName: workout.name,
       startedAt: now,
       updatedAt: now,
       completedSets: normalizeCompletedSets(workout),
@@ -301,6 +326,7 @@ export function saveWorkoutProgress(
   const draft: WorkoutDraft = {
     sessionId,
     workoutId: key,
+    workoutName: workout.name,
     startedAt,
     updatedAt: Date.now(),
     completedSets: normalizeCompletedSets(workout, completedSets),
@@ -343,6 +369,23 @@ export async function completeWorkoutSession(workout: Workout, draft: WorkoutDra
   });
   if (!buff) return { status: 'already-completed', buff: null };
 
+  const exercises: WorkoutSessionExercise[] = workout.exercises.map((exercise, index) => {
+    const completed = completedSets[index]?.filter(Boolean).length || 0;
+    const logged = draft.performance?.[index];
+    const reps = Math.max(0, Math.min(200, Math.floor(Number(logged?.reps ?? parsePlannedReps(exercise.reps)) || 0)));
+    const weightKg = Math.max(0, Math.min(500, Number(logged?.weightKg ?? parsePlannedWeightKg(exercise.weight)) || 0));
+    const durationSeconds = Math.max(0, Math.min(21_600, Math.floor(Number(logged?.durationSeconds ?? parsePlannedDurationSeconds(exercise.reps)) || 0)));
+    return {
+      name: exercise.name,
+      completedSets: completed,
+      reps,
+      weightKg,
+      durationSeconds,
+      volumeKg: rounded(completed * reps * weightKg),
+    };
+  });
+  const totalVolumeKg = rounded(exercises.reduce((sum, exercise) => sum + exercise.volumeKg, 0));
+
   const session: WorkoutSession = {
     id: draft.sessionId,
     workoutId: workoutKey(workout),
@@ -353,6 +396,11 @@ export async function completeWorkoutSession(workout: Workout, draft: WorkoutDra
     completedSets: counts.completed,
     totalSets: counts.total,
     setState: completedSets,
+    exercises,
+    totalVolumeKg,
+    inspirationProfile: workout.inspirationProfile,
+    adaptationLevel: workout.adaptation?.level,
+    baseWorkoutId: workout.adaptation?.baseWorkoutId,
   };
   S.set(SESSIONS_KEY, [session, ...sessions].slice(0, 100));
   clearWorkoutDraft(workout, draft.sessionId);

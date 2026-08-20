@@ -12,7 +12,13 @@ import {
   resolveWithRemote, startRaid, syncNow, weekContribution,
   type GuildView, type RaidKind, type RaidView,
 } from '../lib/guild';
+import {
+  compareWithFriend, fetchFriends, inviteFriend, publishSocialPresence,
+  removeFriend, respondToFriend, sendFriendBuff,
+  type FriendsView, type SocialProfileView,
+} from '../lib/social';
 import { SystemIcon } from './SystemIcon';
+import { refresh } from '../lib/store';
 
 const copy = (de: string, en: string): string => lang === 'de' ? de : en;
 
@@ -28,6 +34,25 @@ const ROLE_LABEL: Record<string, [string, string]> = {
   member: ['Mitglied', 'Member'],
 };
 
+const EMPTY_FRIENDS: FriendsView = { friends: [], incoming: [], outgoing: [], buffs: [] };
+const CHARACTER_NAMES: Record<string, string> = {
+  toji: 'Toji', goku: 'Son Goku', tanjiro: 'Tanjiro', kaneki: 'Ken Kaneki',
+  sanji: 'Sanji', baki: 'Baki Hanma', mikasa: 'Mikasa',
+};
+
+function stampMs(value: number): number { return value > 0 && value < 10_000_000_000 ? value * 1000 : value; }
+
+function relativeTime(value: number): string {
+  const elapsed = Math.max(0, Date.now() - stampMs(value));
+  const minutes = Math.floor(elapsed / 60_000);
+  if (minutes < 1) return copy('gerade eben', 'just now');
+  if (minutes < 60) return copy(`vor ${minutes} Min.`, `${minutes}m ago`);
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return copy(`vor ${hours} Std.`, `${hours}h ago`);
+  const days = Math.floor(hours / 24);
+  return copy(`vor ${days} T.`, `${days}d ago`);
+}
+
 export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [guild, setGuild] = useState<GuildView | null>(null);
   const [raid, setRaid] = useState<RaidView | null>(null);
@@ -37,6 +62,8 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [account, setAccountState] = useState(getAccount);
+  const [friends, setFriends] = useState<FriendsView>(EMPTY_FRIENDS);
+  const [inspected, setInspected] = useState<SocialProfileView | null>(null);
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -49,14 +76,43 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
   const load = useCallback(async () => {
     if (!backend || !getAccount()) { setLoaded(true); return; }
     try {
-      const current = await fetchGuild();
+      await publishSocialPresence();
+      const [current, friendState] = await Promise.all([fetchGuild(), fetchFriends()]);
       setGuild(current);
+      setFriends(friendState);
       if (current) setRaid((await fetchRaid()).raid);
     } catch (error) { say(String((error as Error).message), true); }
     setLoaded(true);
   }, [backend]);
 
   useEffect(() => { if (open) void load(); }, [open, load, account?.token]);
+
+  useEffect(() => {
+    if (!open || !backend || !account) return;
+    const heartbeat = () => { if (document.visibilityState === 'visible') void load(); };
+    const interval = window.setInterval(heartbeat, 30_000);
+    document.addEventListener('visibilitychange', heartbeat);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', heartbeat);
+    };
+  }, [account, backend, load, open]);
+
+  useEffect(() => {
+    if (!open || !backend || !account) return;
+    let active = true;
+    const sync = async () => {
+      try {
+        const result = await syncNow();
+        if (!active) return;
+        if (result.status === 'conflict') setConflict({ remote: result.remote, rev: result.rev });
+        if (result.status === 'pulled') refresh();
+      } catch { /* presence can remain available when sync is temporarily offline */ }
+    };
+    void sync();
+    const interval = window.setInterval(() => { void sync(); }, 90_000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [account, backend, open]);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setMessage(null);
@@ -110,6 +166,7 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
                   const result = await syncNow();
                   if (result.status === 'conflict') setConflict({ remote: result.remote, rev: result.rev });
                   else if (result.status === 'pulled') say(copy(`${result.applied} Einträge vom Server übernommen`, `Pulled ${result.applied} entries from server`));
+                  else if (result.status === 'unchanged') say(copy('Bereits aktuell', 'Already up to date'));
                   else say(copy('Daten hochgeladen', 'Data uploaded'));
                 })}>{copy('Jetzt synchronisieren', 'Sync now')}</button>
               </div>
@@ -134,6 +191,21 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
               {message && (
                 <p className={message.bad ? 'guild-message bad' : 'guild-message'} role="status">{message.text}</p>
               )}
+
+              <FriendsCard
+                state={friends}
+                busy={busy}
+                onInspect={setInspected}
+                onInvite={identifier => run(async () => {
+                  await inviteFriend(identifier);
+                  setFriends(await fetchFriends());
+                  say(copy('Freundesanfrage gesendet.', 'Friend request sent.'));
+                })}
+                onRespond={(id, action) => run(async () => {
+                  await respondToFriend(id, action);
+                  setFriends(await fetchFriends());
+                })}
+              />
 
               {!loaded ? <p className="guild-empty">…</p>
                 : !guild ? (
@@ -165,9 +237,151 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
             </>
           )}
         </div>
+        {inspected && <FriendInspect friend={inspected} busy={busy} onClose={() => setInspected(null)}
+          onBuff={kind => run(async () => {
+            await sendFriendBuff(inspected.uid, kind);
+            say(kind === 'aura' ? copy('Aura gesendet.', 'Aura sent.') : copy('Fokus gesendet.', 'Focus sent.'));
+          })}
+          onRemove={() => run(async () => {
+            await removeFriend(inspected.uid);
+            setInspected(null);
+            setFriends(await fetchFriends());
+            say(copy('Freund entfernt.', 'Friend removed.'));
+          })} />}
       </section>
     </div>
   );
+}
+
+function FriendsCard({
+  state,
+  busy,
+  onInspect,
+  onInvite,
+  onRespond,
+}: {
+  state: FriendsView;
+  busy: boolean;
+  onInspect: (friend: SocialProfileView) => void;
+  onInvite: (identifier: string) => void;
+  onRespond: (id: number, action: 'accept' | 'decline') => void;
+}) {
+  const [identifier, setIdentifier] = useState('');
+  const ranking = [...state.friends].sort((a, b) => (
+    (b.weekly?.activeDays || 0) - (a.weekly?.activeDays || 0)
+    || (b.weekly?.volumeKg || 0) - (a.weekly?.volumeKg || 0)
+  ));
+  return (
+    <section className="guild-card guild-friends" aria-labelledby="friend-roster-title">
+      <div className="guild-card-head">
+        <div><strong id="friend-roster-title">{copy('Freundesliste', 'Friend list')}</strong></div>
+        <span className="guild-presence-count">{state.friends.filter(friend => friend.online).length}/{state.friends.length} {copy('online', 'online')}</span>
+      </div>
+
+      {state.buffs.length > 0 && <div className="friend-buff-feed" role="status">
+        {state.buffs.slice(0, 3).map(buff => <span key={buff.id}>
+          <SystemIcon name="spark" /><strong>{buff.from.username}</strong> {buff.kind === 'aura' ? copy('sendet Aura', 'sent Aura') : copy('sendet Fokus', 'sent Focus')}
+        </span>)}
+      </div>}
+
+      <form className="friend-invite-row" onSubmit={event => {
+        event.preventDefault();
+        if (!identifier.trim()) return;
+        onInvite(identifier);
+        setIdentifier('');
+      }}>
+        <label className="guild-field"><span>{copy('Name oder UID', 'Name or UID')}</span><input value={identifier} maxLength={80} placeholder="#004" onChange={event => setIdentifier(event.target.value)} /></label>
+        <button type="submit" className="guild-primary-button" disabled={busy || identifier.trim().length < 2}><SystemIcon name="plus" />{copy('Hinzufügen', 'Add')}</button>
+      </form>
+
+      {state.incoming.length > 0 && <div className="friend-request-list">
+        <p className="guild-section-title">{copy('Offene Anfragen', 'Incoming requests')}</p>
+        {state.incoming.map(request => <div key={request.id} className="friend-request">
+          <span><strong>{request.username}</strong><small>{request.uid}</small></span>
+          <div><button type="button" disabled={busy} className="guild-primary-button" onClick={() => onRespond(request.id, 'accept')}>{copy('Annehmen', 'Accept')}</button><button type="button" disabled={busy} className="guild-ghost-button" onClick={() => onRespond(request.id, 'decline')}>{copy('Ablehnen', 'Decline')}</button></div>
+        </div>)}
+      </div>}
+      {state.outgoing.length > 0 && <p className="friend-pending-line">{copy('Ausstehend', 'Pending')}: {state.outgoing.map(request => request.username).join(', ')}</p>}
+
+      <div className="friend-roster">
+        {state.friends.map(friend => <button type="button" className="friend-status-card" key={friend.uid} onClick={() => onInspect(friend)}>
+          <span className={friend.online ? 'guild-presence online' : 'guild-presence'} aria-hidden="true" />
+          <span className="friend-status-main">
+            <strong>{friend.username}</strong>
+            <small>{CHARACTER_NAMES[friend.characterPath] ? `${CHARACTER_NAMES[friend.characterPath]} Path` : copy('Eigener Pfad', 'Own path')} · {friend.activePlan || copy('Kein aktiver Plan', 'No active plan')}</small>
+            <em>{friend.activity?.label || copy('Ruhetag', 'Rest day')} · {relativeTime(friend.activity?.at || friend.lastSeen)}</em>
+          </span>
+          <span className="friend-streak"><SystemIcon name="spark" /><strong>{friend.streak || 0}</strong><small>{copy('Tage', 'days')}</small></span>
+          <SystemIcon name="chevron" />
+        </button>)}
+        {!state.friends.length && <p className="guild-empty">{copy('Noch keine bestätigten Freunde. Nutze den exakten Namen oder die UID eines echten CORELINE-Kontos.', 'No confirmed friends yet. Use the exact name or UID of a real CORELINE account.')}</p>}
+      </div>
+
+      {ranking.length > 0 && <div className="friend-leaderboard">
+        <p className="guild-section-title">{copy('Wöchentliches Sparring', 'Weekly sparring')}</p>
+        {ranking.slice(0, 6).map((friend, index) => <div key={friend.uid}>
+          <b>{index + 1}</b><strong>{friend.username}</strong>
+          <span>{friend.weekly?.activeDays || 0}/7 {copy('Tage', 'days')}</span>
+          <span>{friend.weekly?.workouts || 0} {copy('Einheiten', 'sessions')}</span>
+          <span>{Math.round(friend.weekly?.volumeKg || 0).toLocaleString()} kg</span>
+        </div>)}
+      </div>}
+    </section>
+  );
+}
+
+function FriendInspect({ friend, busy, onClose, onBuff, onRemove }: {
+  friend: SocialProfileView;
+  busy: boolean;
+  onClose: () => void;
+  onBuff: (kind: 'aura' | 'focus') => void;
+  onRemove: () => void;
+}) {
+  const comparison = compareWithFriend(friend);
+  const muscles = Object.entries(friend.muscleLoads || {})
+    .filter((entry): entry is [string, number] => Number.isFinite(entry[1]))
+    .sort((a, b) => b[1] - a[1]).slice(0, 6);
+  return <div className="friend-inspect" role="dialog" aria-modal="true" aria-labelledby="friend-inspect-title">
+    <header>
+      <span><small>{copy('STAT-INSPEKTION', 'STAT INSPECTION')}</small><h3 id="friend-inspect-title">{friend.username}</h3><em>{friend.uid} · {friend.online ? copy('ONLINE', 'ONLINE') : relativeTime(friend.lastSeen)}</em></span>
+      <button type="button" className="system-icon-button" onClick={onClose} aria-label={copy('Inspektion schließen', 'Close inspection')}><SystemIcon name="close" /></button>
+    </header>
+    <div className="friend-inspect-scroll">
+      <section className="friend-path-line"><SystemIcon name="shield" /><span><strong>{CHARACTER_NAMES[friend.characterPath] || copy('Eigener Pfad', 'Own path')}</strong><small>{friend.activePlan || copy('Kein aktiver Plan', 'No active plan')}</small></span><b>{friend.streak || 0}<small>{copy(' TAGE', ' DAYS')}</small></b></section>
+      <section className="friend-stat-grid">
+        <span><small>{copy('Wochenvolumen', 'Weekly volume')}</small><strong>{Math.round(friend.weekly?.volumeKg || 0).toLocaleString()}<em> KG</em></strong></span>
+        <span><small>{copy('Einheiten', 'Workouts')}</small><strong>{friend.weekly?.workouts || 0}</strong></span>
+        <span><small>{copy('Aktive Tage', 'Active days')}</small><strong>{friend.weekly?.activeDays || 0}<em>/7</em></strong></span>
+        <span><small>{copy('Quests', 'Quests')}</small><strong>{friend.weekly?.completedQuests || 0}</strong></span>
+      </section>
+
+      <section className="friend-inspect-section">
+        <p className="guild-section-title">{copy('Muskelzustand', 'Muscle condition')}</p>
+        <div className="friend-muscle-summary">{muscles.map(([id, load]) => <span key={id}><small>{id}</small><i><em style={{ width: `${Math.max(0, Math.min(100, load))}%` }} /></i><b>{Math.round(load)}%</b></span>)}</div>
+        {!muscles.length && <p className="guild-empty">{copy('Noch keine Heatmap-Daten geteilt.', 'No heatmap data shared yet.')}</p>}
+      </section>
+
+      <section className="friend-inspect-section">
+        <p className="guild-section-title">{copy('Top-Gewichte', 'Top lifts')}</p>
+        <div className="friend-lifts">{friend.topLifts?.map(lift => <span key={lift.exerciseKey}><strong>{lift.name}</strong><b>{lift.weightKg} kg × {lift.reps}</b></span>)}</div>
+        {!friend.topLifts?.length && <p className="guild-empty">{copy('Keine geloggten Gewichte in dieser Woche.', 'No logged weights this week.')}</p>}
+      </section>
+
+      <section className="friend-inspect-section">
+        <p className="guild-section-title">{copy('Co-op Vergleich', 'Co-op comparison')}</p>
+        <div className="coop-overview"><span>{copy('Du', 'You')} <b>{comparison.weeklyVolume.mine.toLocaleString()} kg</b></span><em>VS</em><span>{friend.username} <b>{comparison.weeklyVolume.theirs.toLocaleString()} kg</b></span></div>
+        {comparison.shared.map(row => <div className="coop-row" key={row.exerciseKey}><strong>{row.name}</strong><span>{row.mine} kg</span><em>{row.delta === 0 ? '=' : row.delta > 0 ? `+${row.delta}` : row.delta}</em><span>{row.theirs} kg</span></div>)}
+        {!comparison.shared.length && <p className="guild-empty">{copy('Noch keine identische Übung mit geloggtem Gewicht.', 'No identical exercise with logged weight yet.')}</p>}
+      </section>
+
+      {friend.achievement && <p className="friend-achievement"><SystemIcon name="spark" />{friend.achievement}</p>}
+      <div className="friend-inspect-actions">
+        <button type="button" className="guild-primary-button" disabled={busy} onClick={() => onBuff('aura')}><SystemIcon name="spark" />{copy('Aura senden', 'Send Aura')}</button>
+        <button type="button" className="guild-ghost-button" disabled={busy} onClick={() => onBuff('focus')}><SystemIcon name="target" />{copy('Fokus senden', 'Send Focus')}</button>
+        <button type="button" className="guild-ghost-button danger" disabled={busy} onClick={onRemove}>{copy('Entfernen', 'Remove')}</button>
+      </div>
+    </div>
+  </div>;
 }
 
 function AccountForm({ onDone }: { onDone: (account: ReturnType<typeof getAccount>) => void }) {
@@ -218,7 +432,7 @@ function AccountForm({ onDone }: { onDone: (account: ReturnType<typeof getAccoun
           onChange={event => setPassword(event.target.value)} />
       </label>
       {error && <p className="guild-message bad">{error}</p>}
-      <button type="button" className="guild-primary-button" disabled={busy || !email || password.length < 6}
+      <button type="button" className="guild-primary-button" disabled={busy || !email || password.length < 8}
         onClick={submit}>{mode === 'login' ? copy('Anmelden', 'Sign in') : copy('Registrieren', 'Register')}</button>
     </div>
   );
@@ -293,8 +507,9 @@ function GuildCard({ guild, invite, onInvite, onLeave }: {
         {guild.members.map(member => (
           <li key={member.uid} className={member.me ? 'guild-member me' : 'guild-member'}>
             <span className={member.online ? 'guild-presence online' : 'guild-presence'} aria-hidden="true" />
-            <strong>{member.username}</strong>
-            <em>{member.uid}</em>
+            <span className="guild-member-identity"><strong>{member.username}</strong><small>{member.activityLabel || member.activePlan || (member.online ? copy('Aktiv', 'Active') : relativeTime(member.lastSeen))}</small></span>
+            <em>{CHARACTER_NAMES[member.characterPath || ''] || member.uid}</em>
+            {Boolean(member.streak) && <b className="guild-member-streak">{member.streak}◇</b>}
             <span className="guild-role">{copy(...(ROLE_LABEL[member.role] || ['Mitglied', 'Member']))}</span>
           </li>
         ))}
