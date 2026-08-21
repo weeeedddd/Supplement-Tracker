@@ -1,0 +1,15 @@
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name __CORELINE_IPV4__;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/coreline-certbot;
+        default_type text/plain;
+    }
+
+    location / {
+        default_type text/plain;
+        return 200 "CORELINE HTTPS bootstrap ready\n";
+    }
+}

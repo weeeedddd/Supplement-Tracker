@@ -14,6 +14,10 @@ backend/shadow.db
 backend/media/
 backend/.env
 
+# Production deployment secrets and local backups
+deploy/.env
+deploy/backups/
+
 # Misc
 *.log
 .DS_Store

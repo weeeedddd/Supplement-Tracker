@@ -1,0 +1,57 @@
+limit_req_zone $binary_remote_addr zone=coreline_api:10m rate=30r/s;
+
+map $http_upgrade $coreline_connection_upgrade {
+    default upgrade;
+    '' close;
+}
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name __CORELINE_IPV4__;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/coreline-certbot;
+        default_type text/plain;
+    }
+
+    location / {
+        return 308 https://__CORELINE_IPV4__$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name __CORELINE_IPV4__;
+
+    ssl_certificate /etc/letsencrypt/live/__CORELINE_IPV4__/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/__CORELINE_IPV4__/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_session_cache shared:CORELINE_TLS:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+
+    client_max_body_size 10m;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "no-referrer" always;
+
+    location / {
+        limit_req zone=coreline_api burst=60 nodelay;
+
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $coreline_connection_upgrade;
+        proxy_connect_timeout 10s;
+        proxy_read_timeout 65s;
+        proxy_send_timeout 65s;
+    }
+}

@@ -12,7 +12,9 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --no-cache-dir --requirement requirements.txt \
     && addgroup --system coreline \
-    && adduser --system --ingroup coreline coreline
+    && adduser --system --ingroup coreline coreline \
+    && mkdir -p /app/media \
+    && chown coreline:coreline /app/media
 
 COPY app ./app
 
