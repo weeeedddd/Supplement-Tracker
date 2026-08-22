@@ -44,6 +44,9 @@ in the browser and can be exported as JSON.
   search unlocks only when the server enables the maps integration, and the UI
   shows results only after a successful live provider response.
 - Installable PWA shell, local assets, safe-area support and offline reload.
+- A real installable Android app (Capacitor). The web bundle ships inside the
+  APK, so the app runs from local files rather than loading the hosted site,
+  and reminders become genuine OS alarms that survive a reboot.
 - Account-backed friends, live presence, RPG stat inspection, Aura/Focus,
   revision-aware cross-device sync, Guild rosters, weekly leaderboards and raids.
 - Adaptive character quests that preserve the equipped character path while
@@ -60,14 +63,53 @@ in the browser and can be exported as JSON.
 
 ```text
 frontend/                    React 18 + TypeScript + Vite PWA
+frontend/android/            Capacitor shell for the installable Android app
+frontend/capacitor.config.ts Native app id, name and plugin configuration
 backend/app/integration_app.py
                              Public account/Guild/push/verification + provider API
 backend/app/main.py           Historical compatibility server
 backend/tests/                System, provider, safety and boundary tests
 .github/workflows/pages.yml   Validation and GitHub Pages deployment
+.github/workflows/android.yml Android APK / Play bundle builds
 DESIGN.md                     Current product visual language
 legacy/                       Historical reference only
 ```
+
+## Android app
+
+The installable app wraps the same web build in a Capacitor shell. Nothing is
+loaded from GitHub Pages at runtime: `npx cap sync` copies `frontend/dist` into
+the APK. Because the app is its own origin, it starts with empty local data —
+it does not inherit anything stored by the website.
+
+Reminders behave differently in the app. Instead of the browser fallback the
+shell schedules real `LocalNotifications` alarms, so training, routine,
+hydration and meal checks fire while the app is fully closed and are restored
+after a reboot.
+
+```bash
+cd frontend
+npm ci
+npm run build            # produce dist/
+npx cap sync android     # copy the bundle and plugin config into android/
+cd android
+./gradlew assembleDebug  # app/build/outputs/apk/debug/app-debug.apk
+```
+
+Requires JDK 21 and an Android SDK (`ANDROID_HOME`); the Gradle build downloads
+the platform and build tools it needs. `node scripts/generate-android-icons.mjs`
+(with `npm install --no-save sharp`) regenerates the launcher, notification and
+splash artwork from the CORELINE mark.
+
+Run **Actions → Build Android app** to get a sideloadable debug APK as a
+workflow artifact. Pushing a `v*` tag additionally builds a release APK and a
+Play `.aab` and attaches both to a GitHub release. The release build is signed
+only if the repository defines `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` and `ANDROID_KEY_PASSWORD`;
+without them it is produced unsigned and cannot be uploaded to Play.
+
+An iOS build is not set up: it needs macOS, Xcode and a paid Apple Developer
+account, none of which CI here provides.
 
 ## Frontend development
 
@@ -141,6 +183,14 @@ npm run build
 
 cd ../backend
 .venv\Scripts\python.exe -m pytest -q   # Windows
+```
+
+For the native shell, add:
+
+```bash
+cd frontend
+npx cap sync android
+cd android && ./gradlew assembleDebug
 ```
 
 For architecture and safety boundaries, see [PRODUCT.md](PRODUCT.md),

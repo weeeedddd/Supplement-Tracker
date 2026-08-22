@@ -27,6 +27,13 @@ import {
   type BackgroundReminderState,
 } from '../lib/backgroundReminders';
 import {
+  getNativeNotificationPermission,
+  isNativeApp,
+  requestNativeNotificationPermission,
+  syncNativeNotifications,
+  type NativeNotificationPermission,
+} from '../lib/nativeApp';
+import {
   disableClosedAppPush,
   enableClosedAppPush,
   getClosedAppPushStatus,
@@ -104,6 +111,8 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
   const [notificationStatus, setNotificationStatus] = useState('');
   const [closedPushState, setClosedPushState] = useState<ClosedAppPushState>('unsupported');
   const [backgroundState, setBackgroundState] = useState<BackgroundReminderState>('unsupported');
+  const [nativePermission, setNativePermission] = useState<NativeNotificationPermission>('unavailable');
+  const [nativeScheduled, setNativeScheduled] = useState(0);
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -127,6 +136,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     void getBackgroundReminderStatus()
       .then(status => setBackgroundState(status.state))
       .catch(() => setBackgroundState('unsupported'));
+    void getNativeNotificationPermission().then(setNativePermission).catch(() => setNativePermission('unavailable'));
     closeRef.current?.focus();
   }, [open, onClose]);
 
@@ -218,15 +228,21 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     if (closedPushState === 'subscribed') void syncClosedAppPushPreferences(next).catch(() => {
       setNotificationStatus(copy('Lokale Einstellung gespeichert; Server-Sync ist gerade nicht erreichbar.', 'Local setting saved; server sync is currently unavailable.'));
     });
-    void publishBackgroundSchedule();
+    if (isNativeApp()) void syncNativeNotifications(next).then(setNativeScheduled);
+    else void publishBackgroundSchedule();
     void processDueNotifications();
   };
 
   const activateNotifications = async () => {
-    const permission = await requestSystemNotificationPermission();
+    const permission = isNativeApp() ? 'granted' : await requestSystemNotificationPermission();
     setNotificationPermission(permission);
     const next = saveNotificationPreferences({ enabled: true });
     setNotificationPreferences(next);
+    if (isNativeApp()) {
+      const granted = await requestNativeNotificationPermission();
+      setNativePermission(granted);
+      setNativeScheduled(await syncNativeNotifications(next));
+    }
     if (closedPushState === 'subscribed') {
       await syncClosedAppPushPreferences(next).catch(() => {
         setNotificationStatus(copy('Lokale Hinweise sind aktiv; der Push-Server ist gerade nicht erreichbar.', 'Local notices are active; the push server is currently unavailable.'));
@@ -237,7 +253,9 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     await getBackgroundReminderStatus().then(status => setBackgroundState(status.state)).catch(() => undefined);
     await processDueNotifications();
     setNotificationStatus(permission === 'granted'
-      ? copy('Systemhinweise sind aktiv. CORELINE erinnert dich auf diesem Gerät zu deinen gewählten Zeiten.', 'System notices are active. CORELINE will remind you on this device at your selected times.')
+      ? isNativeApp()
+        ? copy('Erinnerungen laufen als echte System-Alarme — auch wenn die App vollständig geschlossen ist.', 'Reminders now run as real system alarms — including while the app is fully closed.')
+        : copy('Systemhinweise sind aktiv. CORELINE erinnert dich auf diesem Gerät zu deinen gewählten Zeiten.', 'System notices are active. CORELINE will remind you on this device at your selected times.')
       : copy('In-App-Erinnerungen sind aktiv. Der Browser hat Systemhinweise nicht freigegeben; du kannst die Browser-Berechtigung später ändern.', 'In-app reminders are active. The browser did not allow system notices; you can change the browser permission later.'));
   };
 
@@ -316,19 +334,33 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
                 : <button type="button" className="secondary-button" disabled={!['ready'].includes(closedPushState)} onClick={() => void connectClosedPush()}>{copy('Verbinden', 'Connect')}</button>}
             </div>
 
-            <div className={`notification-push-state ${backgroundState === 'active' ? 'active' : ''}`}>
+            <div className={`notification-push-state ${nativePermission === 'granted' || backgroundState === 'active' ? 'active' : ''}`}>
               <span>
                 <strong>{copy('Erinnerungen bei geschlossener App', 'Reminders while the app is closed')}</strong>
-                <small>{backgroundReminderLabel(backgroundState)}</small>
+                <small>{isNativeApp()
+                  ? nativePermission === 'granted'
+                    ? copy(`System-Alarme aktiv (${nativeScheduled} geplant)`, `System alarms active (${nativeScheduled} scheduled)`)
+                    : copy('Erlaube CORELINE Benachrichtigungen in den Android-Einstellungen', 'Allow CORELINE notifications in the Android settings')
+                  : backgroundReminderLabel(backgroundState)}</small>
               </span>
-              {backgroundState === 'active'
-                ? <button type="button" className="secondary-button" onClick={() => void toggleBackgroundReminders(false)}>{copy('Ausschalten', 'Switch off')}</button>
-                : <button
+              {isNativeApp()
+                ? <button
                   type="button"
                   className="secondary-button"
-                  disabled={!['available', 'needs-permission'].includes(backgroundState)}
-                  onClick={() => void toggleBackgroundReminders(true)}
-                >{copy('Einschalten', 'Switch on')}</button>}
+                  onClick={() => void requestNativeNotificationPermission()
+                    .then(async (granted) => {
+                      setNativePermission(granted);
+                      setNativeScheduled(await syncNativeNotifications(notificationPreferences));
+                    })}
+                >{copy('Neu planen', 'Reschedule')}</button>
+                : backgroundState === 'active'
+                  ? <button type="button" className="secondary-button" onClick={() => void toggleBackgroundReminders(false)}>{copy('Ausschalten', 'Switch off')}</button>
+                  : <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={!['available', 'needs-permission'].includes(backgroundState)}
+                    onClick={() => void toggleBackgroundReminders(true)}
+                  >{copy('Einschalten', 'Switch on')}</button>}
             </div>
 
             <div className="notification-toggle-grid">

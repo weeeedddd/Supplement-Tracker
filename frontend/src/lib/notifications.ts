@@ -1,4 +1,5 @@
 import { lang } from './i18n';
+import { isNativeApp } from './nativeApp';
 import { S, dateKey } from './storage';
 
 export type CorelineNotificationKind = 'training' | 'recovery' | 'supplements' | 'hydration' | 'meals' | 'system';
@@ -253,6 +254,9 @@ export async function requestSystemNotificationPermission(): Promise<CorelineNot
 }
 
 async function showSystemNotification(item: CorelineNotificationItem): Promise<boolean> {
+  // In the installed app the operating system owns the reminder; showing a
+  // second web notification for the same item would duplicate it.
+  if (isNativeApp()) return false;
   if (getSystemNotificationPermission() !== 'granted') return false;
   const options: NotificationOptions = {
     body: item.body,

@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { applyDocumentLanguage, lang } from './lib/i18n';
+import { isNativeApp } from './lib/nativeApp';
 import './fonts.css';
 import './legacy.css';
 import './app.css';
@@ -50,7 +51,10 @@ function paintFatalIfBlank(event: ErrorEvent | PromiseRejectionEvent) {
   document.body.replaceChildren(panel);
 }
 
-if ('serviceWorker' in navigator) {
+// The native shell already ships every asset inside the app and schedules its
+// reminders through the operating system, so the offline service worker is a
+// browser-only concern there.
+if ('serviceWorker' in navigator && !isNativeApp()) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
       .then(registration => {

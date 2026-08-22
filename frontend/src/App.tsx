@@ -23,10 +23,12 @@ import { publishBackgroundSchedule } from './lib/backgroundReminders';
 import { lang } from './lib/i18n';
 import { GUILD_UPDATED_EVENT, getAccount, syncNow } from './lib/guild';
 import { removeLegacyPseudoAuth, resolveInitialScreen } from './lib/localMode';
+import { initNativeShell, isNativeApp, syncNativeNotifications } from './lib/nativeApp';
 import { useModalIsolation } from './lib/modal';
 import {
   NOTIFICATION_UPDATED_EVENT,
   getUnreadNotificationCount,
+  loadNotificationPreferences,
   processDueNotifications,
   snoozeLocalNotifications,
 } from './lib/notifications';
@@ -183,13 +185,27 @@ export default function App() {
   }, [verifyBackend]);
 
   useEffect(() => {
+    if (!onApp || !isNativeApp()) return;
+    // In the installed app the reminders are real OS alarms, so they are
+    // rewritten whenever the preferences change or the app comes back up.
+    const reschedule = () => { void syncNativeNotifications(loadNotificationPreferences()); };
+    void initNativeShell(
+      (target) => showScreen(target as Screen),
+      reschedule,
+    );
+    reschedule();
+    window.addEventListener(NOTIFICATION_UPDATED_EVENT, reschedule);
+    return () => window.removeEventListener(NOTIFICATION_UPDATED_EVENT, reschedule);
+  }, [onApp]);
+
+  useEffect(() => {
     if (!onApp) return;
     const updateCount = () => setUnreadNotifications(getUnreadNotificationCount());
     const process = () => {
       void processDueNotifications().finally(() => {
         updateCount();
-        // Refresh the plan the service worker uses while the app is closed.
-        void publishBackgroundSchedule();
+        // Browser fallback only: the native shell uses real OS alarms.
+        if (!isNativeApp()) void publishBackgroundSchedule();
       });
     };
     const onVisibility = () => { if (document.visibilityState === 'visible') process(); };
