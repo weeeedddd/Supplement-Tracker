@@ -7,6 +7,7 @@ import {
 import { LANG_NAMES, lang, setLang } from '../lib/i18n';
 import { collectExportableLocalData, LOCAL_SYNC_STATE } from '../lib/localMode';
 import { useModalIsolation } from '../lib/modal';
+import { freeLocationSearchAvailable } from '../lib/openStreetMap';
 import {
   createActivationNotice,
   getSystemNotificationPermission,
@@ -134,7 +135,8 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
       ));
       return;
     }
-    if (capabilities.ai && capabilities.nearbyStores) {
+    const locationAvailable = capabilities.nearbyStores || freeLocationSearchAvailable();
+    if (capabilities.ai && locationAvailable) {
       setBackendStatus(copy(
         'Alle CORELINE-Dienste sind bereit: Kontosync, KI-Planung und Standortsuche.',
         'All CORELINE services are ready: account sync, AI planning, and location search.',
@@ -143,7 +145,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     }
     const active = [
       capabilities.ai ? copy('KI-Planung', 'AI planning') : '',
-      capabilities.nearbyStores ? copy('Standortsuche', 'location search') : '',
+      locationAvailable ? copy('kostenlose Standortsuche', 'free location search') : '',
     ].filter(Boolean).join(' · ');
     setBackendStatus(copy(
       active ? `Kontosync ist bereit. Zusätzlich aktiv: ${active}.` : 'Kontosync ist bereit. Optionale KI- und Standortfunktionen sind noch nicht aktiviert.',
