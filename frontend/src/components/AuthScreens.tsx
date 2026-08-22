@@ -39,13 +39,6 @@ import {
 import { S } from '../lib/storage';
 import { lang } from '../lib/i18n';
 import { showScreen } from '../lib/store';
-import {
-  DEFAULT_PROGRESS_PHOTO_REMINDER_WEEKS,
-  saveProgressPhotoCheckIn,
-  type ProgressPhotoReminderWeeks,
-} from '../lib/progressPhotos';
-import { setProgressPhotoCadence } from '../lib/progressPhotoPreferences';
-import { ProgressPhotoCapture, type ProgressPhotoDraft } from './ProgressPhotoCapture';
 import { SystemIcon } from './SystemIcon';
 import '../onboarding.css';
 
@@ -79,7 +72,7 @@ export interface OnboardScreenProps {
   onAiConsentChange?: (consented: boolean) => void;
 }
 
-type OnboardingStep = 1 | 2 | 3 | 4 | 5;
+type OnboardingStep = 1 | 2 | 3 | 4;
 type PlanErrors = ReturnType<typeof validatePlanInput>['errors'];
 
 interface LifestyleDraft {
@@ -101,15 +94,29 @@ interface LifestyleDraft {
 type LifestyleErrorKey = keyof LifestyleDraft;
 type LifestyleErrors = Partial<Record<LifestyleErrorKey, string>>;
 
-const TOTAL_STEPS = 5;
+const TOTAL_STEPS = 4;
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
 const STEP_TITLES: Record<OnboardingStep, { de: string; en: string }> = {
-  1: { de: 'Wähle deinen Planungsweg', en: 'Choose your planning path' },
-  2: { de: 'Erstelle dein Trainingsdossier', en: 'Build your training dossier' },
-  3: { de: 'Optionaler Foto-Startpunkt', en: 'Optional photo baseline' },
-  4: { de: 'Beschreibe deine echte Woche', en: 'Describe your real week' },
-  5: { de: 'Prüfe deine erste Woche', en: 'Review your first week' },
+  1: { de: 'Wähle deinen Pfad', en: 'Choose your path' },
+  2: { de: 'Lege deine Werte fest', en: 'Set your stats' },
+  3: { de: 'Passe das System an', en: 'Tune the system' },
+  4: { de: 'Dein System-Ergebnis', en: 'Your system result' },
 };
+
+const CHARACTER_ART: Record<InspirationProfileId, string> = {
+  toji: 'toji.webp',
+  goku: 'goku.webp',
+  tanjiro: 'tanjiro.webp',
+  kaneki: 'kaneki.webp',
+  sanji: 'sanji.webp',
+  baki: 'baki.webp',
+  mikasa: 'mikasa.webp',
+};
+
+function characterArt(id: InspirationProfileId): string {
+  const base = (import.meta as any).env?.BASE_URL || '/';
+  return `${base}assets/coreline/character-paths/${CHARACTER_ART[id]}`;
+}
 
 const DIFFICULTIES: Array<{ id: PlanDifficulty; label: string; detail: string }> = [
   { id: 'light', label: 'Light', detail: 'Shorter sessions and lower volume' },
@@ -228,11 +235,37 @@ const cookingLabel = (id: CookingAccess) => ({
   full: copy('Voll ausgestattete Küche', 'Full kitchen access'),
 })[id];
 
+const activityLabel = (id: ActivityLevel) => ACTIVITY_OPTIONS.find((item) => item.id === id)
+  ? copy(
+    ACTIVITY_OPTIONS.find((item) => item.id === id)!.de,
+    ACTIVITY_OPTIONS.find((item) => item.id === id)!.en,
+  )
+  : id;
+
+function bmiSnapshot(heightCm: number, weightKg: number): { value: number; label: string; level: 'low' | 'healthy' | 'high' | 'very-high' } | null {
+  if (!Number.isFinite(heightCm) || !Number.isFinite(weightKg) || heightCm <= 0 || weightKg <= 0) return null;
+  const value = weightKg / ((heightCm / 100) ** 2);
+  if (value < 18.5) return { value, label: copy('Unter dem Referenzbereich', 'Below reference range'), level: 'low' };
+  if (value < 25) return { value, label: copy('Im Referenzbereich', 'Within reference range'), level: 'healthy' };
+  if (value < 30) return { value, label: copy('Über dem Referenzbereich', 'Above reference range'), level: 'high' };
+  return { value, label: copy('Deutlich über dem Referenzbereich', 'Well above reference range'), level: 'very-high' };
+}
+
+function systemAdvice(goal: TrainingGoal): string {
+  const advice: Record<TrainingGoal, [string, string]> = {
+    general_fitness: ['Steigere Umfang und Belastung nur schrittweise. Ausgewogene Ganzkörpereinheiten und verlässliche Erholung bleiben die Priorität.', 'Increase volume and load gradually. Balanced full-body sessions and reliable recovery stay the priority.'],
+    build_muscle: ['Priorisiere progressive Überlastung, ausreichend Protein und einen kontrollierten Energieüberschuss. Der Plan passt Volumen an deine Trainingstage an.', 'Prioritize progressive overload, sufficient protein, and a controlled energy surplus. The plan adjusts volume to your available training days.'],
+    get_stronger: ['Halte die Hauptübungen technisch sauber, protokolliere Last und Wiederholungen und erhöhe erst, wenn die Zielwiederholungen stabil sind.', 'Keep main lifts technically clean, log load and reps, and increase only when target reps are stable.'],
+    fat_loss: ['Das System nutzt ein moderates Defizit und hält Protein hoch, damit Gewohnheiten, Leistung und Muskelerhalt zusammenpassen.', 'The system uses a moderate deficit and keeps protein high so habits, performance, and muscle retention work together.'],
+  };
+  return copy(...advice[goal]);
+}
+
 function inspirationCopy(id: InspirationProfileId): { tagline: string; description: string } {
   const labels: Record<InspirationProfileId, { de: string; en: string; deDescription: string; enDescription: string }> = {
-    toji: { de: 'Direkte Kraft', en: 'Direct strength', deDescription: 'Ein textbasiertes Kraft-Archetypprofil mit einfachen Grundbewegungen und großzügiger Erholung.', enDescription: 'A text-only strength archetype built around simple compound movement patterns and generous recovery.' },
-    goku: { de: 'Athletische Vielfalt', en: 'Athletic variety', deDescription: 'Ein textbasiertes Konditions-Archetypprofil mit Ganzkörperkraft, Bewegungsqualität und lockeren Intervallen.', enDescription: 'A text-only conditioning archetype that alternates full-body strength, movement quality, and easy intervals.' },
-    tanjiro: { de: 'Stabile Balance', en: 'Steady balance', deDescription: 'Ein textbasiertes, ausgewogenes Archetypprofil mit wiederholbarer Praxis, Mobilität und kontrollierter Belastung.', enDescription: 'A text-only balanced archetype that prioritizes repeatable practice, mobility, and controlled effort.' },
+    toji: { de: 'Direkte Kraft', en: 'Direct strength', deDescription: 'Dichte funktionelle Kraft mit einfachen Grundbewegungen und großzügiger Erholung.', enDescription: 'Dense functional strength built around simple compound movements and generous recovery.' },
+    goku: { de: 'Athletische Vielfalt', en: 'Athletic variety', deDescription: 'Ganzkörper-Hypertrophie, Kondition und kontrolliert steigendes Trainingsvolumen.', enDescription: 'Full-body hypertrophy, conditioning, and progressively increasing training volume.' },
+    tanjiro: { de: 'Stabile Balance', en: 'Steady balance', deDescription: 'Ausgewogene Kraft, Mobilität, Atemkontrolle und wiederholbare Belastung.', enDescription: 'Balanced strength, mobility, breath control, and repeatable effort.' },
     kaneki: { de: 'Adaptive Kontrolle', en: 'Adaptive control', deDescription: 'Zugkraft, Griffarbeit, Rumpfspannung und kontrollierte Kondition für einen anpassungsfähigen Athleten.', enDescription: 'Pulling strength, grip work, trunk tension, and controlled conditioning for an adaptive athlete.' },
     sanji: { de: 'Beinpräzision', en: 'Leg precision', deDescription: 'Ein Unterkörper-Pfad mit einbeiniger Kraft, Balance, Fußarbeit, Wadenkapazität und Kondition.', enDescription: 'A lower-body path with unilateral strength, balance, footwork, calf capacity, and conditioning.' },
     baki: { de: 'Ganzkörper-Kampfkraft', en: 'Total-body combat strength', deDescription: 'Kontrollierte Ganzkörperkraft, Carries, Beweglichkeit und kurze Konditionsblöcke.', enDescription: 'Controlled full-body strength, carries, mobility, and short conditioning blocks.' },
@@ -258,7 +291,7 @@ function modeCopy(mode: PlanMode): { label: string; description: string } {
   };
   return {
     label: copy('Inspirationsprofile', 'Inspiration Profiles'),
-    description: copy('Übernimm einen Trainingsschwerpunkt aus einem rein textbasierten Profil.', 'Borrow a training emphasis from a text-only character profile.'),
+    description: copy('Aktiviere einen exklusiven Charakterpfad mit passendem Trainingsfokus.', 'Activate an exclusive character path with a matching training focus.'),
   };
 }
 
@@ -479,7 +512,7 @@ function persistLocalResult({ input, plan, profile }: OnboardingCompletePayload)
 export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }: OnboardScreenProps = {}) {
   const [step, setStep] = useState<OnboardingStep>(1);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [mode, setMode] = useState<PlanMode>('guided');
+  const [mode, setMode] = useState<PlanMode>('inspiration');
   const [inspirationProfile, setInspirationProfile] = useState<InspirationProfileId | undefined>();
   const [systemProfile, setSystemProfile] = useState<InspirationProfileId | null>(null);
   const [equippedCharacter, setEquippedCharacter] = useState<InspirationProfileId | null>(() => {
@@ -505,11 +538,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
   const [generationNote, setGenerationNote] = useState('');
   const [generationOrigin, setGenerationOrigin] = useState<PlanGenerationOrigin>('local-rules');
   const [plan, setPlan] = useState<InitialPlan | null>(null);
-  const [progressPhotos, setProgressPhotos] = useState<ProgressPhotoDraft>({});
-  const [photoCadenceWeeks, setPhotoCadenceWeeks] = useState<ProgressPhotoReminderWeeks>(DEFAULT_PROGRESS_PHOTO_REMINDER_WEEKS);
-  const [photoSaveError, setPhotoSaveError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const [photoProcessing, setPhotoProcessing] = useState(false);
 
   useEffect(() => { headingRef.current?.focus(); }, [step]);
 
@@ -543,7 +572,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     setErrors({});
     setGenerationNote('');
     if (next !== 'inspiration') setInspirationProfile(undefined);
-    if (next !== 'guided' && aiConsent) {
+    if (next === 'own' && aiConsent) {
       setAiConsent(false);
       onAiConsentChange?.(false);
     }
@@ -551,7 +580,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
 
   const nextFromMode = () => {
     if (mode === 'inspiration' && !inspirationProfile) {
-      setErrors({ inspirationProfile: copy('Wähle ein textbasiertes Inspirationsprofil.', 'Choose one text-only inspiration profile.') });
+      setErrors({ inspirationProfile: copy('Wähle einen Charakterpfad.', 'Choose a character path.') });
       return;
     }
     if (mode === 'inspiration' && inspirationProfile !== equippedCharacter) {
@@ -566,7 +595,6 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     const result = validatePlanInput(input);
     setErrors(localizedPlanErrors(result.errors));
     if (!result.valid) return;
-    if (input.age < 18) setProgressPhotos({});
     setStep(3);
   };
 
@@ -589,7 +617,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
 
     setIsGenerating(true);
     setGenerationNote('');
-    if (mode === 'guided' && onAiPlanRequest && aiConsent && input.age >= 18) {
+    if (mode !== 'own' && onAiPlanRequest && aiConsent && input.age >= 18) {
       const { displayName: _displayName, appearance: _appearance, ...context } = profile;
       try {
         const remotePlan = await onAiPlanRequest({
@@ -607,11 +635,11 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
       } catch {
         nextNote = copy('Der KI-Dienst war nicht verfügbar. Diese Vorschau wurde mit lokalen Regeln erstellt; kein lokales Ergebnis wird als KI ausgegeben.', 'The AI service was unavailable. This preview was built with local rules; no remote result is presented as AI.');
       }
-    } else if (mode === 'guided' && input.age < 18) {
+    } else if (mode !== 'own' && input.age < 18) {
       nextNote = copy('Die KI-Planung ist in dieser Version auf Erwachsene beschränkt. Diese Vorschau wurde lokal erstellt.', 'AI planning is limited to adults in this build. This preview was built locally.');
-    } else if (mode === 'guided' && !onAiPlanRequest) {
+    } else if (mode !== 'own' && !onAiPlanRequest) {
       nextNote = copy('In dieser Version ist kein KI-Dienst verbunden. Diese Vorschau wurde lokal erstellt.', 'No AI service is connected in this build. This preview was built locally.');
-    } else if (mode === 'guided' && !aiConsent) {
+    } else if (mode !== 'own' && !aiConsent) {
       nextNote = copy('Du hast keiner entfernten Anfrage zugestimmt. Diese Vorschau wurde lokal erstellt.', 'You did not consent to a remote request. This preview was built locally.');
     }
 
@@ -624,10 +652,10 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     setGenerationOrigin(nextOrigin);
     setGenerationNote(nextNote);
     setIsGenerating(false);
-    setStep(5);
+    setStep(4);
   };
 
-  const finish = async (withoutPhotos = false) => {
+  const finish = async () => {
     if (!plan) return;
     const profile = userProfileFromPlanInput(input, {
       gender,
@@ -635,22 +663,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
       lifestyle: lifestyleFromDraft(lifestyleDraft),
     });
     const payload: OnboardingCompletePayload = { input, plan, profile, generationOrigin };
-    const selectedPhotos = Object.values(progressPhotos).some((photo) => photo instanceof Blob);
     setIsSaving(true);
-    setPhotoSaveError('');
-    if (!withoutPhotos && selectedPhotos && input.age >= 18) {
-      try {
-        await saveProgressPhotoCheckIn({ photos: progressPhotos });
-        setProgressPhotoCadence(photoCadenceWeeks);
-      } catch {
-        setPhotoSaveError(copy(
-          'Dein Plan ist bereit, aber die Fotos konnten im privaten Browserspeicher nicht gesichert werden. Du kannst es erneut versuchen oder ohne Fotos fortfahren.',
-          'Your plan is ready, but the photos could not be saved in private browser storage. Try again or continue without photos.',
-        ));
-        setIsSaving(false);
-        return;
-      }
-    }
     if (onComplete) onComplete(payload);
     else {
       persistLocalResult(payload);
@@ -673,8 +686,12 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
 
   const firstError = Object.values(errors)[0] ?? Object.values(lifestyleErrors)[0];
   const aiEligible = input.age >= 18;
-  const photoEligible = input.age >= 18;
-  const hasProgressPhotos = Object.values(progressPhotos).some((photo) => photo instanceof Blob);
+  const bmi = bmiSnapshot(input.heightCm, input.weightKg);
+  const averageWorkoutMinutes = plan?.sessions.length
+    ? Math.round(plan.sessions.reduce((sum, session) => sum + session.durationMinutes, 0) / plan.sessions.length)
+    : 0;
+  const restSeconds = difficulty === 'light' ? 60 : difficulty === 'hard' ? 120 : 90;
+  const hydrationLiters = input.weightKg > 0 ? Math.round(input.weightKg * 0.033 * 10) / 10 : 0;
 
   return (
     <section className="screen active onboarding-screen" id="screen-onboard" aria-labelledby="onboarding-title">
@@ -699,13 +716,19 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
         {firstError && <p className="onboarding-error" role="alert">{copy('Prüfe das markierte Feld:', 'Check the highlighted field:')} {firstError}</p>}
 
         {step === 1 && <>
+          <section className="onboarding-system-intro">
+            <span><SystemIcon name="spark" />{copy('ERSTE AKTIVIERUNG', 'FIRST ACTIVATION')}</span>
+            <h2>{copy('Wie soll CORELINE dich aufbauen?', 'How should CORELINE build your plan?')}</h2>
+            <p>{copy('Du entscheidest zuerst den Trainingsweg. Ein Charakterpfad ersetzt Standardpläne vollständig und wird in der Einrichtung nur einmal als System-Vertrag bestätigt.', 'Choose your training route first. A character path completely replaces standard plans and appears once during setup as a System Contract.')}</p>
+          </section>
           <fieldset className="onboarding-fieldset">
-            <legend>{copy('Planungsmodus', 'Plan mode')}</legend>
+            <legend>{copy('Dein Systemmodus', 'Your system mode')}</legend>
             <div className="onboarding-choice-grid">
               {PLAN_MODE_OPTIONS.map((option) => {
                 const optionCopy = modeCopy(option.id);
                 return (
                   <button type="button" key={option.id} className={mode === option.id ? 'selected' : ''} aria-pressed={mode === option.id} onClick={() => chooseMode(option.id)}>
+                    <SystemIcon name={option.id === 'inspiration' ? 'spark' : option.id === 'guided' ? 'assistant' : 'target'} />
                     <strong>{optionCopy.label}</strong>
                     <span>{optionCopy.description}</span>
                   </button>
@@ -713,37 +736,33 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
               })}
             </div>
           </fieldset>
-          {mode === 'inspiration' && <fieldset className="onboarding-fieldset">
-            <legend>{copy('Rein textbasierte Inspiration', 'Text-only inspiration')}</legend>
-            <p className="onboarding-hint">{copy('Das sind Trainingsmotive – keine Charakterbilder, kanonischen Routinen oder versprochenen Ergebnisse.', 'These are training themes, not character artwork, canon routines, or promised outcomes.')}</p>
-            <div className="onboarding-profile-grid">
+          {mode === 'inspiration' && <fieldset className="onboarding-fieldset character-path-fieldset">
+            <legend>{copy('Exklusiven Charakterpfad wählen', 'Choose an exclusive character path')}</legend>
+            <p className="onboarding-hint">{copy('Originale CORELINE-Illustrationen visualisieren den jeweiligen Trainings-Archetyp. Die Pläne sind sichere Fitnessinterpretationen, keine offiziellen oder kanonischen Routinen.', 'Original CORELINE illustrations visualize each training archetype. Plans are safe fitness interpretations, not official or canon routines.')}</p>
+            <div className="onboarding-profile-grid character-path-grid">
               {INSPIRATION_PROFILES.map((profile) => {
                 const localized = inspirationCopy(profile.id);
                 return (
                   <button type="button" key={profile.id} className={inspirationProfile === profile.id ? 'selected' : ''} aria-pressed={inspirationProfile === profile.id} onClick={() => {
                     setInspirationProfile(profile.id);
-                    setSystemProfile(profile.id);
                     setErrors(current => ({ ...current, inspirationProfile: undefined }));
                   }}>
-                    <strong>{profile.name}</strong>
-                    <em>{localized.tagline}</em>
-                    <span>{localized.description}</span>
+                    <img src={characterArt(profile.id)} alt="" loading="lazy" />
+                    <span className="character-path-shade" aria-hidden="true" />
+                    <span className="character-path-copy">
+                      <small>{copy('CHARAKTERPFAD', 'CHARACTER PATH')}</small>
+                      <strong>{profile.name}</strong>
+                      <em>{localized.tagline}</em>
+                      <span>{localized.description}</span>
+                    </span>
+                    {inspirationProfile === profile.id && <span className="character-path-selected"><SystemIcon name="check" />{copy('GEWÄHLT', 'SELECTED')}</span>}
                   </button>
                 );
               })}
             </div>
             <FieldError id="inspiration-error" message={errors.inspirationProfile} />
           </fieldset>}
-          <fieldset className="onboarding-fieldset">
-            <legend>{copy('Startintensität', 'Starting intensity')}</legend>
-            <div className="onboarding-difficulty">
-              {DIFFICULTIES.map((item) => {
-                const localized = difficultyCopy(item.id);
-                return <button type="button" key={item.id} className={difficulty === item.id ? 'selected' : ''} aria-pressed={difficulty === item.id} onClick={() => setDifficulty(item.id)}><strong>{localized.label}</strong><span>{localized.detail}</span></button>;
-              })}
-            </div>
-          </fieldset>
-          <div className="onboarding-actions"><button className="local-primary" type="button" onClick={nextFromMode}>{copy('Weiter', 'Continue')}</button></div>
+          <div className="onboarding-actions"><button className="local-primary" type="button" onClick={nextFromMode}>{mode === 'inspiration' ? copy('System-Vertrag öffnen', 'Open System Contract') : copy('Weiter', 'Continue')}</button></div>
         </>}
 
         {step === 2 && <>
@@ -794,68 +813,24 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
             <div className="onboarding-check-grid">{EQUIPMENT_OPTIONS.map((item) => <label key={item.id}><input type="checkbox" checked={equipment.includes(item.id)} onChange={() => toggleEquipment(item.id)} />{equipmentLabel(item.id)}</label>)}</div>
             <FieldError id="equipment-error" message={errors.equipment} />
           </fieldset>
+          <fieldset className="onboarding-fieldset">
+            <legend>{copy('Startintensität', 'Starting intensity')}</legend>
+            <div className="onboarding-difficulty">
+              {DIFFICULTIES.map((item) => {
+                const localized = difficultyCopy(item.id);
+                return <button type="button" key={item.id} className={difficulty === item.id ? 'selected' : ''} aria-pressed={difficulty === item.id} onClick={() => setDifficulty(item.id)}><strong>{localized.label}</strong><span>{localized.detail}</span></button>;
+              })}
+            </div>
+          </fieldset>
           <div className="onboarding-actions"><button className="local-secondary" type="button" onClick={() => setStep(1)}>{copy('Zurück', 'Back')}</button><button className="local-primary" type="button" onClick={nextFromBasics}>{copy('Weiter', 'Continue')}</button></div>
         </>}
 
         {step === 3 && <>
-          <p className="onboarding-section-intro">{copy(
-            'Wenn du möchtest, legst du jetzt einen privaten visuellen Startpunkt an. Jedes der vier Fotos ist einzeln optional; es gibt keine Körperanalyse, Bewertung oder Übertragung.',
-            'If you want, create a private visual baseline now. Each of the four photos is individually optional; there is no body analysis, scoring, or transfer.',
-          )}</p>
-          {photoEligible ? (
-            <>
-              <ProgressPhotoCapture
-                value={progressPhotos}
-                onChange={setProgressPhotos}
-                cadenceWeeks={photoCadenceWeeks}
-                onCadenceChange={setPhotoCadenceWeeks}
-                onBusyChange={setPhotoProcessing}
-                showCadence
-                locale={lang === 'de' ? 'de' : 'en'}
-              />
-              <div className="onboarding-photo-privacy system-notice">
-                <SystemIcon name="shield" aria-hidden="true" />
-                <p>{copy(
-                  'Die komprimierten Fotos bleiben in diesem Browserprofil und sind nicht Teil des JSON-Backups, des KI-Kontexts oder einer Backend-Anfrage. Dieser lokale Speicher ist nicht zusätzlich durch CORELINE verschlüsselt; wer Zugriff auf dein entsperrtes Browserprofil hat, kann auf Website-Daten zugreifen. Das Löschen von Website-Daten kann die Fotos entfernen.',
-                  'Compressed photos stay in this browser profile and are not part of the JSON backup, AI context, or any backend request. This local storage is not additionally encrypted by CORELINE; anyone with access to your unlocked browser profile may be able to access site data. Clearing site data can remove the photos.',
-                )}</p>
-              </div>
-            </>
-          ) : (
-            <div className="system-notice">
-              <SystemIcon name="shield" aria-hidden="true" />
-              <p>{copy(
-                'Fortschrittsfotos sind in dieser ersten Version auf Erwachsene beschränkt. Du kannst die Einrichtung ohne Fotos vollständig abschließen.',
-                'Progress photos are limited to adults in this first release. You can complete setup fully without photos.',
-              )}</p>
-            </div>
-          )}
-          <div className="onboarding-actions">
-            <button className="local-secondary" type="button" disabled={photoProcessing} onClick={() => setStep(2)}>{copy('Zurück', 'Back')}</button>
-            {hasProgressPhotos && (
-              <button className="local-secondary" type="button" disabled={photoProcessing} onClick={() => { setProgressPhotos({}); setStep(4); }}>
-                {copy('Ohne Fotos weiter', 'Continue without photos')}
-              </button>
-            )}
-            <button className="local-primary" type="button" disabled={photoProcessing} onClick={() => setStep(4)}>
-              {photoProcessing ? copy('Foto wird verarbeitet …', 'Processing photo…') : hasProgressPhotos ? copy('Fotos vormerken & weiter', 'Keep photos & continue') : copy('Jetzt überspringen', 'Skip for now')}
-            </button>
-          </div>
-        </>}
-
-        {step === 4 && <>
           <p className="onboarding-section-intro">{copy('Teile nur Angaben, die du für die Planung verwenden möchtest. Freitext bleibt lokal, solange du der KI-Anfrage unten nicht ausdrücklich zustimmst.', 'Share only what you are comfortable using for planning. Free-text context stays local unless you explicitly approve the AI request below.')}</p>
 
           <fieldset className="onboarding-fieldset onboarding-dossier-group">
             <legend>{copy('Tagesablauf und Bewegung', 'Schedule and daily movement')}</legend>
             <div className="onboarding-form-grid">
-              <label>{copy('Arbeits- oder Lernrhythmus', 'Work or study pattern')}<input value={lifestyleDraft.workStudyPattern} maxLength={PROFILE_LIMITS.shortText} placeholder={copy('z. B. Büro, Schichtarbeit, Studium', 'e.g. desk job, rotating shifts, student')} onChange={(event) => updateLifestyle('workStudyPattern', event.target.value)} /></label>
-              <label>{copy('Bevorzugtes Trainingsfenster', 'Preferred training window')}<input value={lifestyleDraft.preferredTrainingWindow} maxLength={PROFILE_LIMITS.shortText} placeholder={copy('z. B. werktags nach 18:00', 'e.g. weekdays after 18:00')} onChange={(event) => updateLifestyle('preferredTrainingWindow', event.target.value)} /></label>
-              <label className="onboarding-span-2">
-                {copy('Ein typischer Tag', 'A typical day')}
-                <textarea value={lifestyleDraft.typicalDay} maxLength={PROFILE_LIMITS.typicalDay} rows={5} placeholder={copy('Beschreibe Arbeits- oder Lernzeiten, Wege, Verpflichtungen, Bewegung und wann du meist Energie hast.', 'Describe work or study hours, commute, responsibilities, movement and when you usually have energy.')} onChange={(event) => updateLifestyle('typicalDay', event.target.value)} aria-describedby="typical-day-help" />
-                <span className="onboarding-field-help" id="typical-day-help">{copy(`Bis zu ${PROFILE_LIMITS.typicalDay} Zeichen. Vermeide Namen, Adressen oder Arbeitgeberdetails.`, `Up to ${PROFILE_LIMITS.typicalDay} characters. Avoid names, addresses or employer details.`)}</span>
-              </label>
               <label className="onboarding-span-2">
                 {copy('Aktivitätsstufe', 'Activity level')}
                 <select value={lifestyleDraft.activityLevel} onChange={(event) => updateLifestyle('activityLevel', event.target.value as ActivityLevel)}>
@@ -863,10 +838,15 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
                 </select>
                 <span className="onboarding-field-help">{copy('Wähle Bewegung außerhalb des geplanten Trainings. Trainingstage werden zusätzlich berücksichtigt.', 'Choose movement outside planned training. Training days are factored in separately.')}</span>
               </label>
-              <label className="onboarding-span-2">
-                {copy('Aktivität außerhalb des Trainings', 'Activity outside training')}
-                <textarea value={lifestyleDraft.activityContext} maxLength={PROFILE_LIMITS.activityContext} rows={3} placeholder={copy('z. B. überwiegend sitzend, 8.000 Schritte, körperliche Arbeit, Fahrradweg', 'e.g. mostly seated, 8k steps, physical work, cycling commute')} onChange={(event) => updateLifestyle('activityContext', event.target.value)} />
-              </label>
+              <details className="onboarding-optional-context onboarding-span-2">
+                <summary><span><SystemIcon name="lifestyle" />{copy('Alltagsdetails hinzufügen', 'Add schedule details')}</span><SystemIcon name="chevron" /></summary>
+                <div className="onboarding-form-grid">
+                  <label>{copy('Arbeits- oder Lernrhythmus', 'Work or study pattern')}<input value={lifestyleDraft.workStudyPattern} maxLength={PROFILE_LIMITS.shortText} placeholder={copy('z. B. Büro, Schichtarbeit, Studium', 'e.g. desk job, rotating shifts, student')} onChange={(event) => updateLifestyle('workStudyPattern', event.target.value)} /></label>
+                  <label>{copy('Bevorzugtes Trainingsfenster', 'Preferred training window')}<input value={lifestyleDraft.preferredTrainingWindow} maxLength={PROFILE_LIMITS.shortText} placeholder={copy('z. B. werktags nach 18:00', 'e.g. weekdays after 18:00')} onChange={(event) => updateLifestyle('preferredTrainingWindow', event.target.value)} /></label>
+                  <label className="onboarding-span-2">{copy('Aktivität außerhalb des Trainings', 'Activity outside training')}<textarea value={lifestyleDraft.activityContext} maxLength={PROFILE_LIMITS.activityContext} rows={3} placeholder={copy('z. B. 8.000 Schritte, körperliche Arbeit, Fahrradweg', 'e.g. 8k steps, physical work, cycling commute')} onChange={(event) => updateLifestyle('activityContext', event.target.value)} /></label>
+                  <label className="onboarding-span-2">{copy('Ein typischer Tag', 'A typical day')}<textarea value={lifestyleDraft.typicalDay} maxLength={PROFILE_LIMITS.typicalDay} rows={4} placeholder={copy('Optional: Arbeitszeiten, Wege, Verpflichtungen und Energieverlauf.', 'Optional: work hours, commute, responsibilities, and energy patterns.')} onChange={(event) => updateLifestyle('typicalDay', event.target.value)} /></label>
+                </div>
+              </details>
             </div>
           </fieldset>
 
@@ -879,15 +859,13 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
                 <FieldError id="sleep-error" message={lifestyleErrors.sleepDurationHours} />
               </label>
               <label>{copy('Schlafqualität', 'Sleep quality')}<select value={lifestyleDraft.sleepQuality} onChange={(event) => updateLifestyle('sleepQuality', event.target.value as LifestyleDraft['sleepQuality'])}><option value="">{copy('Keine Angabe', 'Prefer not to say')}</option>{SLEEP_QUALITY_OPTIONS.map((item) => <option key={item.id} value={item.id}>{sleepQualityLabel(item.id)}</option>)}</select></label>
-              <label className="onboarding-span-2">
-                {copy('Stress- und Erholungskontext', 'Stress and recovery context')}
-                <textarea value={lifestyleDraft.stressRecovery} maxLength={PROFILE_LIMITS.healthContext} rows={3} placeholder={copy('z. B. aktuell hoher Arbeitsstress, ruhigere Wochenenden', 'e.g. high work stress this month, weekends are more restful')} onChange={(event) => updateLifestyle('stressRecovery', event.target.value)} />
-              </label>
-              <label className="onboarding-span-2">
-                {copy('Grenzen, Zugangsbedürfnisse oder Verletzungen, die berücksichtigt werden sollen', 'Limitations, access needs or injuries you want considered')}
-                <textarea value={lifestyleDraft.injuriesLimitations} maxLength={PROFILE_LIMITS.healthContext} rows={3} placeholder={copy('Nur dein eigener Kontext – dies diagnostiziert oder behandelt keine Verletzung.', 'User-provided context only — this does not diagnose or treat an injury.')} onChange={(event) => updateLifestyle('injuriesLimitations', event.target.value)} />
-                <span className="onboarding-field-help">{copy('Bei Schmerzen, Verletzungen oder medizinischen Fragen hole qualifizierte Beratung ein, bevor du das Training veränderst.', 'For pain, injury or medical concerns, use qualified professional guidance before changing training.')}</span>
-              </label>
+              <details className="onboarding-optional-context onboarding-span-2">
+                <summary><span><SystemIcon name="shield" />{copy('Erholung oder Einschränkungen ergänzen', 'Add recovery or limitations')}</span><SystemIcon name="chevron" /></summary>
+                <div className="onboarding-form-grid">
+                  <label className="onboarding-span-2">{copy('Stress- und Erholungskontext', 'Stress and recovery context')}<textarea value={lifestyleDraft.stressRecovery} maxLength={PROFILE_LIMITS.healthContext} rows={3} placeholder={copy('z. B. aktuell hoher Arbeitsstress, ruhigere Wochenenden', 'e.g. high work stress this month, weekends are more restful')} onChange={(event) => updateLifestyle('stressRecovery', event.target.value)} /></label>
+                  <label className="onboarding-span-2">{copy('Grenzen, Zugangsbedürfnisse oder Verletzungen', 'Limitations, access needs or injuries')}<textarea value={lifestyleDraft.injuriesLimitations} maxLength={PROFILE_LIMITS.healthContext} rows={3} placeholder={copy('Nur dein eigener Kontext – keine Diagnose oder Behandlung.', 'Your context only — no diagnosis or treatment.')} onChange={(event) => updateLifestyle('injuriesLimitations', event.target.value)} /><span className="onboarding-field-help">{copy('Bei Schmerzen oder Verletzungen hole qualifizierte Beratung ein.', 'For pain or injuries, seek qualified guidance.')}</span></label>
+                </div>
+              </details>
             </div>
           </fieldset>
 
@@ -896,16 +874,18 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
             <div className="onboarding-form-grid">
               <label>{copy('Ernährungsform', 'Diet preference')}<select value={diet} onChange={(event) => setDiet(event.target.value as DietPreference)}>{DIETS.map((item) => <option key={item.id} value={item.id}>{dietLabel(item.id)}</option>)}</select></label>
               <label>{copy('Kochmöglichkeiten', 'Cooking access')}<select value={lifestyleDraft.cookingAccess} onChange={(event) => updateLifestyle('cookingAccess', event.target.value as LifestyleDraft['cookingAccess'])}><option value="">{copy('Keine Angabe', 'Prefer not to say')}</option>{COOKING_OPTIONS.map((item) => <option key={item.id} value={item.id}>{cookingLabel(item.id)}</option>)}</select></label>
-              <label className="onboarding-span-2">
-                {copy('Mahlzeitenrhythmus', 'Meal rhythm')}
-                <textarea value={lifestyleDraft.mealRhythm} maxLength={PROFILE_LIMITS.mealRhythm} rows={3} placeholder={copy('z. B. schnelles Frühstück, Kantinenessen, Abendessen zu Hause; unregelmäßig in Nachtschichten', 'e.g. quick breakfast, canteen lunch, dinner at home; irregular on night shifts')} onChange={(event) => updateLifestyle('mealRhythm', event.target.value)} />
-              </label>
-              <label>{copy('Weitere Ernährungspräferenzen', 'Other dietary preferences')}<input value={lifestyleDraft.dietaryPreferences} maxLength={640} placeholder={copy('durch Kommas getrennt', 'comma-separated')} onChange={(event) => updateLifestyle('dietaryPreferences', event.target.value)} /></label>
-              <label>{copy('Allergien oder Ausschlüsse', 'Allergies or exclusions')}<input value={lifestyleDraft.allergiesExclusions} maxLength={640} placeholder={copy('durch Kommas getrennt', 'comma-separated')} onChange={(event) => updateLifestyle('allergiesExclusions', event.target.value)} /></label>
+              <details className="onboarding-optional-context onboarding-span-2">
+                <summary><span><SystemIcon name="food" />{copy('Essensdetails ergänzen', 'Add food details')}</span><SystemIcon name="chevron" /></summary>
+                <div className="onboarding-form-grid">
+                  <label className="onboarding-span-2">{copy('Mahlzeitenrhythmus', 'Meal rhythm')}<textarea value={lifestyleDraft.mealRhythm} maxLength={PROFILE_LIMITS.mealRhythm} rows={3} placeholder={copy('z. B. schnelles Frühstück, Kantinenessen, Abendessen zu Hause', 'e.g. quick breakfast, canteen lunch, dinner at home')} onChange={(event) => updateLifestyle('mealRhythm', event.target.value)} /></label>
+                  <label>{copy('Weitere Präferenzen', 'Other preferences')}<input value={lifestyleDraft.dietaryPreferences} maxLength={640} placeholder={copy('durch Kommas getrennt', 'comma-separated')} onChange={(event) => updateLifestyle('dietaryPreferences', event.target.value)} /></label>
+                  <label>{copy('Allergien oder Ausschlüsse', 'Allergies or exclusions')}<input value={lifestyleDraft.allergiesExclusions} maxLength={640} placeholder={copy('durch Kommas getrennt', 'comma-separated')} onChange={(event) => updateLifestyle('allergiesExclusions', event.target.value)} /></label>
+                </div>
+              </details>
             </div>
           </fieldset>
 
-          {mode === 'guided' && <section className="onboarding-ai-panel" aria-labelledby="ai-consent-title">
+          {mode !== 'own' && <section className="onboarding-ai-panel" aria-labelledby="ai-consent-title">
             <div className="onboarding-ai-heading">
               <div>
                 <span>{onAiPlanRequest ? copy('KI-Verbindung verfügbar', 'AI bridge available') : copy('Lokaler Fallback aktiv', 'Local fallback active')}</span>
@@ -926,37 +906,68 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
           </section>}
 
           <div className="onboarding-actions">
-            <button className="local-secondary" type="button" onClick={() => setStep(3)} disabled={isGenerating}>{copy('Zurück', 'Back')}</button>
-            <button className="local-primary" type="button" onClick={() => void preview()} disabled={isGenerating}>{isGenerating ? copy('Vorschau wird erstellt …', 'Building preview…') : mode === 'guided' && onAiPlanRequest && aiConsent && aiEligible ? copy('KI-Vorschau erzeugen', 'Generate AI preview') : copy('Lokale Vorschau erstellen', 'Build local preview')}</button>
+            <button className="local-secondary" type="button" onClick={() => setStep(2)} disabled={isGenerating}>{copy('Zurück', 'Back')}</button>
+            <button className="local-primary" type="button" onClick={() => void preview()} disabled={isGenerating}>{isGenerating ? copy('Vorschau wird erstellt …', 'Building preview…') : mode !== 'own' && onAiPlanRequest && aiConsent && aiEligible ? copy('KI-Vorschau erzeugen', 'Generate AI preview') : copy('Lokale Vorschau erstellen', 'Build local preview')}</button>
           </div>
           <p className="onboarding-generation-status" aria-live="polite">{isGenerating ? copy('Dein Plan wird erstellt. Lasse diese Seite geöffnet.', 'Generating your plan. Keep this page open.') : ''}</p>
         </>}
 
-        {step === 5 && plan && <>
-          <div className="onboarding-summary">
-            <span>{generationOrigin === 'remote-ai' ? copy('VERBUNDENE KI-ANTWORT', 'CONNECTED AI RESPONSE') : copy('VORSCHAU AUS LOKALEN REGELN', 'LOCAL RULES PREVIEW')}</span>
-            <strong>{plan.emphasis}</strong>
-            <p>{plan.daysPerWeek} {copy('Einheiten', 'sessions')} / {difficultyCopy(plan.difficulty).label} / {experienceLabel(plan.experience)}</p>
+        {step === 4 && plan && <>
+          <div className="onboarding-result-hero">
+            {mode === 'inspiration' && inspirationProfile && <img src={characterArt(inspirationProfile)} alt="" />}
+            <span aria-hidden="true" />
+            <div>
+              <small>{generationOrigin === 'remote-ai' ? copy('ECHTE KI · BERECHNET', 'REAL AI · CALCULATED') : copy('LOKALES SYSTEM · BERECHNET', 'LOCAL SYSTEM · CALCULATED')}</small>
+              <h2>{mode === 'inspiration' && inspirationProfile ? `${getCharacterPath(inspirationProfile)?.name} Path` : plan.emphasis}</h2>
+              <p>{plan.daysPerWeek} {copy('Einheiten pro Woche', 'sessions per week')} · {difficultyCopy(plan.difficulty).label} · {experienceLabel(plan.experience)}</p>
+            </div>
           </div>
           <p className="onboarding-generation-note" role="status">{generationNote}</p>
+
+          <section className="onboarding-result-stats" aria-label={copy('Körper- und Aktivitätswerte', 'Body and activity stats')}>
+            <article><small>{copy('KÖRPERDATEN', 'BODY DATA')}</small><strong>{input.weightKg.toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB')} kg</strong><span>{input.heightCm.toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB')} cm · {input.age} {copy('Jahre', 'years')}</span></article>
+            <article className={`bmi-${bmi?.level || 'healthy'}`}><small>BMI {copy('REFERENZ', 'REFERENCE')}</small><strong>{bmi?.value.toFixed(1) || '—'}</strong><span>{bmi?.label || copy('Nicht verfügbar', 'Unavailable')}</span></article>
+            <article><small>{copy('FITNESSSTUFE', 'FITNESS LEVEL')}</small><strong>{experienceLabel(experience)}</strong><span>{activityLabel(lifestyleDraft.activityLevel)}</span></article>
+            <article><small>{copy('HAUPTZIEL', 'PRIMARY GOAL')}</small><strong>{goalLabel(goal)}</strong><span>{gender === 'f' ? copy('Weibliches Muskelmodell', 'Female muscle model') : gender === 'm' ? copy('Männliches Muskelmodell', 'Male muscle model') : copy('Neutrales Muskelmodell', 'Neutral muscle model')}</span></article>
+          </section>
+          <p className="onboarding-bmi-note">{copy('BMI ist nur ein grober Screening-Referenzwert und unterscheidet nicht zwischen Muskel- und Fettmasse.', 'BMI is only a rough screening reference and does not distinguish muscle from fat mass.')}</p>
+
           <section className="onboarding-nutrition" aria-labelledby="nutrition-target-title">
-            <div><span>{copy('STARTWERT ERNÄHRUNG', 'STARTING NUTRITION TARGET')}</span><strong id="nutrition-target-title">{plan.nutritionTargets.calories} kcal</strong></div>
+            <div><span>{copy('TÄGLICHES ENERGIEZIEL', 'DAILY ENERGY TARGET')}</span><strong id="nutrition-target-title">{plan.nutritionTargets.calories} kcal</strong></div>
             <dl>
               <div><dt>Protein</dt><dd>{plan.nutritionTargets.protein}g</dd></div>
               <div><dt>{copy('Kohlenhydrate', 'Carbs')}</dt><dd>{plan.nutritionTargets.carbs}g</dd></div>
               <div><dt>{copy('Fett', 'Fat')}</dt><dd>{plan.nutritionTargets.fat}g</dd></div>
-              <div><dt>{copy('Zucker-Referenz', 'Sugar log')}</dt><dd>{plan.nutritionTargets.sugar}g ref.</dd></div>
+              <div><dt>{copy('Zielanpassung', 'Goal adjustment')}</dt><dd>{typeof plan.nutritionTargets.goalAdjustmentCalories === 'number' ? `${plan.nutritionTargets.goalAdjustmentCalories > 0 ? '+' : ''}${plan.nutritionTargets.goalAdjustmentCalories}` : '—'} kcal</dd></div>
             </dl>
             <p>{plan.nutritionTargets.note}</p>
           </section>
-          <div className="onboarding-plan-list">{plan.sessions.map((session) => <article key={session.day}><header><span>{copy('TAG', 'DAY')} {session.day}</span><strong>{session.focus}</strong><small>{copy('Etwa', 'About')} {session.durationMinutes} min</small></header><ul>{session.exercises.map((exercise) => <li key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.sets} {copy('Sätze', 'sets')} / {exercise.reps} / {exercise.effort}</span></li>)}</ul></article>)}</div>
-          <div className="onboarding-safety"><strong>{copy('Sicherheitsgrenze', 'Safety boundary')}</strong><ul>{plan.safetyNotes.map((note) => <li key={note}>{note}</li>)}</ul></div>
-          <p className="onboarding-hint">{copy('Es wird kein Supplement-Protokoll und keine Dosierung erstellt. Supplement-Tracking bleibt eine separate, bewusste Auswahl.', 'No supplement protocol or dose is created. Supplement tracking remains a separate, explicit choice.')}</p>
-          {photoSaveError && <p className="onboarding-error" role="alert">{photoSaveError}</p>}
+
+          <section className="onboarding-result-goals" aria-label={copy('Tägliche Empfehlungen', 'Daily recommendations')}>
+            <article><SystemIcon name="water" /><strong>{hydrationLiters} L</strong><span>{copy('Hydration-Startwert', 'hydration starting point')}</span></article>
+            <article><SystemIcon name="clock" /><strong>{averageWorkoutMinutes} min</strong><span>{copy('Ø Training', 'average workout')}</span></article>
+            <article><SystemIcon name="history" /><strong>{restSeconds} sec</strong><span>{copy('Satzpause-Startwert', 'starting rest time')}</span></article>
+            <article><SystemIcon name="calendar" /><strong>{plan.daysPerWeek}×</strong><span>{copy('pro Woche', 'per week')}</span></article>
+          </section>
+          <p className="onboarding-bmi-note">{copy('Hydration und Satzpausen sind anpassbare Startwerte. Wetter, Schweißrate, Übung und persönliche Bedürfnisse können sie verändern.', 'Hydration and rest times are adjustable starting points. Weather, sweat rate, exercise, and personal needs can change them.')}</p>
+
+          <section className="onboarding-system-advice">
+            <span><SystemIcon name="spark" />{copy('SYSTEM-RATSCHLAG', 'SYSTEM ADVICE')}</span>
+            <h3>{copy('Dein nächster sinnvoller Schritt', 'Your next sensible step')}</h3>
+            <p>{systemAdvice(goal)}</p>
+          </section>
+
+          <details className="onboarding-plan-disclosure">
+            <summary><span><SystemIcon name="plan" /><strong>{copy('Erste Trainingswoche ansehen', 'View first training week')}</strong></span><SystemIcon name="chevron" /></summary>
+            <div className="onboarding-plan-list">{plan.sessions.map((session) => <article key={session.day}><header><span>{copy('TAG', 'DAY')} {session.day}</span><strong>{session.focus}</strong><small>{copy('Etwa', 'About')} {session.durationMinutes} min</small></header><ul>{session.exercises.map((exercise) => <li key={exercise.id}><strong>{exercise.name}</strong><span>{exercise.sets} {copy('Sätze', 'sets')} / {exercise.reps} / {exercise.effort}</span></li>)}</ul></article>)}</div>
+          </details>
+          <details className="onboarding-plan-disclosure onboarding-safety-disclosure">
+            <summary><span><SystemIcon name="shield" /><strong>{copy('Sicherheit & Grenzen', 'Safety & boundaries')}</strong></span><SystemIcon name="chevron" /></summary>
+            <div className="onboarding-safety"><ul>{plan.safetyNotes.map((note) => <li key={note}>{note}</li>)}</ul><p>{copy('Es wird kein Supplement-Protokoll und keine Dosierung erstellt.', 'No supplement protocol or dose is created.')}</p></div>
+          </details>
           <div className="onboarding-actions">
-            <button className="local-secondary" type="button" onClick={() => setStep(4)} disabled={isSaving}>{copy('Angaben bearbeiten', 'Edit details')}</button>
-            {photoSaveError && <button className="local-secondary" type="button" onClick={() => void finish(true)} disabled={isSaving}>{copy('Ohne Fotos fortfahren', 'Continue without photos')}</button>}
-            <button className="local-primary" type="button" onClick={() => void finish()} disabled={isSaving}>{isSaving ? copy('Wird lokal gespeichert …', 'Saving locally…') : copy('Lokalen Plan speichern', 'Save local plan')}</button>
+            <button className="local-secondary" type="button" onClick={() => setStep(3)} disabled={isSaving}>{copy('Angaben bearbeiten', 'Edit details')}</button>
+            <button className="local-primary" type="button" onClick={() => void finish()} disabled={isSaving}>{isSaving ? copy('System wird aktiviert …', 'Activating system…') : copy('System aktivieren', 'Activate system')}</button>
           </div>
         </>}
       </div>
@@ -967,9 +978,15 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
           <div className="character-system-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSystemProfile(null); }}>
             <section className="character-system-window" role="dialog" aria-modal="true" aria-labelledby="character-system-title" onMouseDown={event => event.stopPropagation()}>
               <header>
-                <span><SystemIcon name="spark" />{copy('SYSTEM-NACHRICHT', 'SYSTEM MESSAGE')}</span>
+                <span><SystemIcon name="spark" />{copy('SYSTEM-VERTRAG', 'SYSTEM CONTRACT')}</span>
                 <button type="button" onClick={() => setSystemProfile(null)} aria-label={copy('Nachricht schließen', 'Close message')}><SystemIcon name="close" /></button>
               </header>
+              <div className="character-system-scroll">
+              <div className="character-system-hero">
+                <img src={characterArt(systemProfile)} alt="" />
+                <span aria-hidden="true" />
+                <small>{copy('EXKLUSIVER PFAD', 'EXCLUSIVE PATH')}</small>
+              </div>
               <div className="character-system-copy">
                 <small>{copy('INSPIRATION GEWÄHLT', 'INSPIRATION SELECTED')}</small>
                 <h2 id="character-system-title">{character.name} — {localizedCharacterCopy(character.title, lang)}</h2>
@@ -992,10 +1009,13 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
                 'Empfehlungen werden nur hervorgehoben. Es wird nichts gekauft und keine Dosierung erstellt.',
                 'Recommendations are highlighted only. Nothing is purchased and no dose is created.',
               )}</p>
+              </div>
               <button className="character-system-equip" type="button" onClick={() => {
                 S.set(CHARACTER_EQUIP_STORAGE_KEY, systemProfile);
                 setEquippedCharacter(systemProfile);
                 setSystemProfile(null);
+                setErrors({});
+                setStep(2);
               }}><SystemIcon name="check" />{copy('Akzeptieren & ausrüsten', 'Accept & equip')}</button>
             </section>
           </div>,

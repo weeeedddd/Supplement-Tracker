@@ -95,11 +95,11 @@ export function ShoppingScreen({
       return;
     }
     if (!providerAvailable) {
-      setStatus(copy('Der Kartenanbieter ist serverseitig noch nicht freigegeben.', 'The maps provider is not enabled server-side yet.'));
+      setStatus(copy('Die Standortsuche ist gerade nicht verfügbar.', 'Location search is currently unavailable.'));
       return;
     }
     if (location.kind === 'address' && !addressSearchAvailable) {
-      setStatus(copy('Die Adresssuche ist nicht freigegeben. Nutze den aktuellen Standort oder ergänze den Geocoding-Zugang im Backend.', 'Address search is not enabled. Use your current location or configure geocoding on the backend.'));
+      setStatus(copy('Die Adresssuche ist noch nicht verfügbar. Nutze stattdessen deinen aktuellen Standort.', 'Address search is not available yet. Use your current location instead.'));
       return;
     }
     if (!/^[A-Z]{2}$/.test(normalizedCountry) || !/^[A-Z]{3}$/.test(normalizedCurrency)) {
@@ -163,14 +163,14 @@ export function ShoppingScreen({
               ? copy('Kartenanbieter freigegeben', 'Maps provider enabled')
               : backendConfigured
                 ? copy('Kartenanbieter nicht freigegeben', 'Maps provider not enabled')
-                : copy('Backend noch nicht verbunden', 'Backend not connected yet')}</strong>
+                : copy('Standortsuche offline', 'Location search offline')}</strong>
             <span>{providerAvailable
               ? addressSearchAvailable
                 ? copy('Adresse und Standort sind verfügbar. Angaben werden nur für die einzelne Suche verarbeitet und nie im KI-Kontext gespeichert.', 'Address and current-location search are available. Details are processed only for the individual search and never enter AI context.')
-                : copy('Die Standortsuche ist verfügbar; für Adressen fehlt serverseitig noch Geocoding.', 'Current-location search is available; server-side geocoding is still missing for addresses.')
+                : copy('Die Suche über den aktuellen Standort ist verfügbar; die Adresseingabe folgt später.', 'Current-location search is available; address entry will follow later.')
               : backendConfigured
-                ? copy('Das Backend antwortet, hat Google Maps aber nicht serverseitig freigegeben. Die Suche bleibt deshalb gesperrt.', 'The backend responds but Google Maps is not enabled server-side, so search remains locked.')
-                : copy('GitHub Pages kann keinen geheimen Karten-Schlüssel hosten. Hinterlege in den Einstellungen die URL eines sicheren CORELINE-Backends.', 'GitHub Pages cannot host a secret maps key. Add the URL of a secure CORELINE backend in settings.')}</span>
+                ? copy('Die Standortsuche wurde noch nicht aktiviert.', 'Location search has not been activated yet.')
+                : copy('Der CORELINE-Standortdienst ist gerade nicht erreichbar. Training und Shop-Empfehlungen funktionieren weiter.', 'The CORELINE location service is temporarily unavailable. Training and shop recommendations keep working.')}</span>
           </div>
         </div>
 

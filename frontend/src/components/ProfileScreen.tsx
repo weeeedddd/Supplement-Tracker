@@ -165,7 +165,7 @@ function labelDifficulty(profile: UserProfileV3): string {
 function labelMode(profile: UserProfileV3): string {
   if (profile.mode === 'inspiration') {
     const profileName = getCharacterPath(profile.inspirationProfile)?.name ?? copy('Inspiration', 'Inspiration');
-    return `${profileName} · ${copy('textbasierte Inspiration', 'text-based inspiration')}`;
+    return `${profileName} · ${copy('exklusiver Charakterpfad', 'exclusive character path')}`;
   }
   if (profile.mode === 'guided') return copy('Geführter Plan', 'Guided plan');
   return 'Own Path';

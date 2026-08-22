@@ -5,7 +5,7 @@
 //  · Ausgerüsteter Titel bei jedem User (Chat + Sidebar)
 //  · Foto-Upload · Markdown (**fett** / *kursiv* / `code`)
 //  · Shadow-Bot-Moderation + Befehle (!profile / !loadout …)
-//  Ohne Backend (GitHub Pages pur): Offline-Panel mit Server-Eingabe.
+//  Ohne erreichbare Dienste: verständlicher Offline-Status ohne technische Konfiguration.
 // ═══════════════════════════════════════════════════════════════════
 import { useEffect, useRef, useState } from 'react';
 import { S } from '../lib/storage';
@@ -15,7 +15,7 @@ import { theme } from '../lib/themes';
 import { buildStatsSnapshot, equippedTitleName, getXPRankData } from '../lib/engine';
 import { renderMarkdown } from '../lib/markdown';
 import {
-  getBackendUrl, setBackendUrl, backendHealth, chatSocketUrl, uploadChatMedia,
+  backendHealth, chatSocketUrl, uploadChatMedia,
   syncProfileToBackend, type ChatMsg, type RosterUser, type SharedRecipe,
 } from '../lib/backend';
 
@@ -46,7 +46,6 @@ function locRec(r: SharedRecipe): SharedRecipe {
 export function ChatScreen() {
   useAppState();
   const [health, setHealth] = useState<'checking' | 'online' | 'offline'>('checking');
-  const [urlInput, setUrlInput] = useState(getBackendUrl());
   const [room, setRoom] = useState<string>('global');
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
@@ -126,11 +125,6 @@ export function ChatScreen() {
     if (url) send(url);
   };
 
-  const connectBackend = async () => {
-    setBackendUrl(urlInput);
-    await checkHealth();
-  };
-
   const rooms = [
     { id: 'global', label: t('chat_room_global') },
     { id: lang, label: LANG_ROOM_LABEL[lang] || lang.toUpperCase() },
@@ -148,7 +142,7 @@ export function ChatScreen() {
             <div className="ki-chat-hd-title">{t('chat_title')}</div>
             <div className="ki-chat-hd-sub">
               {health === 'online'
-                ? `// ${t('chat_connected')} ${getBackendUrl().replace(/^https?:\/\//, '')} ${connected ? `· 👥 ${online} ◈` : '· …'}`
+                ? `// ${t('chat_connected')} ${connected ? `· 👥 ${online} ◈` : '· …'}`
                 : `// ${t('chat_offline')}`}
             </div>
           </div>
@@ -169,13 +163,11 @@ export function ChatScreen() {
           <div className="chat-offline">
             <div className="verify-icon-wrap">{IconWifiOff}</div>
             <div className="verify-title">{t('chat_offline')}</div>
-            <p className="chat-offline-hint">{t('chat_offline_hint')}</p>
-            <span className="gender-label">{t('chat_backend_label')}</span>
-            <input className="cart-addr" type="url" value={urlInput} placeholder={t('chat_backend_ph')}
-              onChange={e => setUrlInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && connectBackend()} />
-            <button className="action-btn" style={{ marginTop: '.8rem' }} onClick={connectBackend}>
-              {health === 'checking' ? '…' : t('chat_connect_btn')}
+            <p className="chat-offline-hint">{lang === 'de'
+              ? 'CORELINE-Dienste sind gerade nicht erreichbar. Training und lokale Daten funktionieren weiter.'
+              : 'CORELINE services are temporarily unavailable. Training and local data keep working.'}</p>
+            <button className="action-btn" style={{ marginTop: '.8rem' }} onClick={() => void checkHealth()}>
+              {health === 'checking' ? '…' : lang === 'de' ? 'Erneut versuchen' : 'Try again'}
             </button>
           </div>
         ) : (

@@ -267,7 +267,7 @@ export function Assistant({ context, title = 'Plan Assistant', className = '', o
       setMessages((current) => [...current, { id: nextId + 1, role: 'assistant', mode: 'local', text: localReply.text }]);
       setModeStatus(remoteAvailable
         ? copy('Lokale Antwort. Aktiviere die Einwilligung, wenn du die sichere KI mit Profilkontext nutzen möchtest.', 'Local answer. Enable consent if you want to use secure AI with profile context.')
-        : copy('Lokale Antwort. Für echte KI muss in den Einstellungen ein sicheres Backend verbunden werden.', 'Local answer. Connect a secure backend in settings to use real AI.'));
+        : copy('Lokale Antwort. Die echte KI ist gerade nicht verfügbar; CORELINE nutzt weiterhin den transparenten lokalen Modus.', 'Local answer. Real AI is currently unavailable; CORELINE continues with the transparent local mode.'));
       return;
     }
 
@@ -354,8 +354,8 @@ export function Assistant({ context, title = 'Plan Assistant', className = '', o
           <small>{!context
             ? copy('Kein Profilkontext vorhanden.', 'No profile context available.')
             : !remoteAvailable
-              ? copy('Verbinde zuerst ein Backend in den Einstellungen. Ein API-Schlüssel gehört niemals in den Browser.', 'Connect a backend in settings first. An API key never belongs in the browser.')
-              : copy('Einwilligung für diese Sitzung: Alter, Ziel, Aktivität, Schlaf, Ernährung, Tagesablauf und aktuelle Plan-Zielwerte werden an das konfigurierte Backend gesendet. Standort und Adresse niemals.', 'Consent for this session: age, goal, activity, sleep, diet, daily routine, and current plan targets are sent to the configured backend. Location and address are never included.')}</small>
+              ? copy('Die echte KI ist gerade nicht verfügbar. API-Schlüssel bleiben immer geschützt auf dem CORELINE-Server.', 'Real AI is currently unavailable. API keys always stay protected on the CORELINE server.')
+              : copy('Einwilligung für diese Sitzung: Alter, Ziel, Aktivität, Schlaf, Ernährung, Tagesablauf und aktuelle Plan-Zielwerte werden an den geschützten CORELINE-KI-Dienst gesendet. Standort und Adresse niemals.', 'Consent for this session: age, goal, activity, sleep, diet, daily routine, and current plan targets are sent to the protected CORELINE AI service. Location and address are never included.')}</small>
         </span>
       </label>
 

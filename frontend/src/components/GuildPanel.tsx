@@ -53,6 +53,17 @@ function relativeTime(value: number): string {
   return copy(`vor ${days} T.`, `${days}d ago`);
 }
 
+function friendlyError(error: unknown): string {
+  const raw = String((error as Error)?.message || error || '');
+  if (/failed to fetch|networkerror|load failed|backend|connection/i.test(raw)) {
+    return copy(
+      'CORELINE ist gerade nicht erreichbar. Deine lokalen Daten bleiben sicher; versuche es gleich noch einmal.',
+      'CORELINE is temporarily unavailable. Your local data stays safe; try again in a moment.',
+    );
+  }
+  return raw || copy('Aktion konnte nicht abgeschlossen werden.', 'The action could not be completed.');
+}
+
 export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [guild, setGuild] = useState<GuildView | null>(null);
   const [raid, setRaid] = useState<RaidView | null>(null);
@@ -64,6 +75,8 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
   const [account, setAccountState] = useState(getAccount);
   const [friends, setFriends] = useState<FriendsView>(EMPTY_FRIENDS);
   const [inspected, setInspected] = useState<SocialProfileView | null>(null);
+  const [view, setView] = useState<'friends' | 'guild'>('friends');
+  const [accountTray, setAccountTray] = useState(false);
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -81,7 +94,7 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
       setGuild(current);
       setFriends(friendState);
       if (current) setRaid((await fetchRaid()).raid);
-    } catch (error) { say(String((error as Error).message), true); }
+    } catch (error) { say(friendlyError(error), true); }
     setLoaded(true);
   }, [backend]);
 
@@ -116,7 +129,7 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true); setMessage(null);
-    try { await action(); } catch (error) { say(String((error as Error).message), true); }
+    try { await action(); } catch (error) { say(friendlyError(error), true); }
     setBusy(false);
   };
 
@@ -129,8 +142,8 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
       <section className="guild-panel" role="dialog" aria-modal="true" aria-labelledby="guild-panel-title">
         <header className="guild-header">
           <div>
-            <span><SystemIcon name="shield" />{copy('GILDE', 'GUILD')}</span>
-            <h2 id="guild-panel-title">{guild ? guild.name : copy('Gilde', 'Guild')}</h2>
+            <span><SystemIcon name="shield" />{copy('SOZIAL-SYSTEM', 'SOCIAL SYSTEM')}</span>
+            <h2 id="guild-panel-title">{copy('Freunde & Gilde', 'Friends & Guild')}</h2>
           </div>
           <button type="button" className="system-icon-button" onClick={onClose}
             aria-label={copy('Schliessen', 'Close')}>
@@ -140,59 +153,56 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
 
         <div className="guild-body">
           {!backend ? (
-            <p className="guild-empty">
-              {copy('Gilden brauchen einen verbundenen Server. Hinterlege die Backend-URL in den Einstellungen.',
-                    'Guilds need a connected server. Set the backend URL in settings.')}
-            </p>
+            <section className="guild-service-state" role="status">
+              <SystemIcon name="shield" />
+              <strong>{copy('CORELINE-Dienste nicht erreichbar', 'CORELINE services unavailable')}</strong>
+              <p>{copy('Freunde und Gilden sind vorübergehend offline. Dein Training funktioniert weiter und bleibt auf diesem Gerät gespeichert.', 'Friends and Guilds are temporarily offline. Training still works and stays stored on this device.')}</p>
+              <button type="button" className="guild-ghost-button" onClick={() => void load()}>{copy('Erneut versuchen', 'Try again')}</button>
+            </section>
           ) : !account ? (
             <AccountForm onDone={next => { setAccountState(next); void load(); }} />
           ) : (
             <>
-              <div className="guild-account-row">
-                <span><strong>{account.username}</strong> <em>{account.uid}</em></span>
-                <button type="button" className="guild-ghost-button" onClick={() => {
-                  logoutAccount(); setAccountState(null); setGuild(null); setRaid(null);
-                }}>{copy('Abmelden', 'Sign out')}</button>
+              <div className="guild-system-strip">
+                <button type="button" className="guild-account-chip" aria-expanded={accountTray} onClick={() => setAccountTray(value => !value)}>
+                  <span className="guild-presence online" aria-hidden="true" />
+                  <span><strong>{account.username}</strong><small>{account.uid}</small></span>
+                  <SystemIcon name="chevron" />
+                </button>
+                <span className="guild-auto-sync"><SystemIcon name="sync" />{copy('Auto-Sync aktiv', 'Auto-sync active')}</span>
               </div>
 
-              <div className="guild-sync-row">
-                <span>
-                  <SystemIcon name="sync" />
-                  {copy('Synchronisiert', 'Synced')}: {getSyncLast()
-                    ? new Date(getSyncLast()).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB')
-                    : copy('nie', 'never')}
-                </span>
-                <button type="button" className="guild-ghost-button" disabled={busy} onClick={() => run(async () => {
-                  const result = await syncNow();
-                  if (result.status === 'conflict') setConflict({ remote: result.remote, rev: result.rev });
-                  else if (result.status === 'pulled') say(copy(`${result.applied} Einträge vom Server übernommen`, `Pulled ${result.applied} entries from server`));
-                  else if (result.status === 'unchanged') say(copy('Bereits aktuell', 'Already up to date'));
-                  else say(copy('Daten hochgeladen', 'Data uploaded'));
-                })}>{copy('Jetzt synchronisieren', 'Sync now')}</button>
-              </div>
-
-              {conflict && (
-                <div className="guild-conflict" role="alert">
-                  <p>{copy('Konflikt: ein anderes Gerät war zuerst da.', 'Conflict: another device got there first.')}</p>
-                  <div className="guild-actions">
-                    <button type="button" className="guild-ghost-button" onClick={() => run(async () => {
-                      const applied = resolveWithRemote(conflict.remote, conflict.rev);
-                      setConflict(null);
-                      say(copy(`${applied} Einträge übernommen`, `Applied ${applied} entries`));
-                    })}>{copy('Server übernehmen', 'Take server version')}</button>
-                    <button type="button" className="guild-primary-button" onClick={() => run(async () => {
-                      await syncNow(true); setConflict(null);
-                      say(copy('Dieses Gerät hochgeladen', 'This device uploaded'));
-                    })}>{copy('Dieses Gerät', 'This device')}</button>
-                  </div>
+              {accountTray && <section className="guild-account-tray">
+                <div><small>{copy('Letzter sicherer Abgleich', 'Last secure sync')}</small><strong>{getSyncLast()
+                  ? new Date(getSyncLast()).toLocaleString(lang === 'de' ? 'de-DE' : 'en-GB')
+                  : copy('Wird beim nächsten Abgleich erstellt', 'Will be created on the next sync')}</strong></div>
+                <div className="guild-actions">
+                  <button type="button" className="guild-ghost-button" disabled={busy} onClick={() => run(async () => {
+                    const result = await syncNow();
+                    if (result.status === 'conflict') setConflict({ remote: result.remote, rev: result.rev });
+                    else if (result.status === 'pulled') say(copy(`${result.applied} Einträge übernommen`, `Applied ${result.applied} entries`));
+                    else say(copy('Alles ist aktuell.', 'Everything is up to date.'));
+                  })}>{copy('Jetzt abgleichen', 'Sync now')}</button>
+                  <button type="button" className="guild-ghost-button danger" onClick={() => {
+                    logoutAccount(); setAccountState(null); setGuild(null); setRaid(null); setAccountTray(false);
+                  }}>{copy('Abmelden', 'Sign out')}</button>
                 </div>
-              )}
+              </section>}
+
+              <nav className="guild-view-tabs" aria-label={copy('Sozialbereich', 'Social area')}>
+                <button type="button" className={view === 'friends' ? 'active' : ''} aria-current={view === 'friends' ? 'page' : undefined} onClick={() => setView('friends')}>
+                  <SystemIcon name="profile" />{copy('Freunde', 'Friends')}<small>{friends.friends.length}</small>
+                </button>
+                <button type="button" className={view === 'guild' ? 'active' : ''} aria-current={view === 'guild' ? 'page' : undefined} onClick={() => setView('guild')}>
+                  <SystemIcon name="shield" />{copy('Gilde', 'Guild')}<small>{guild?.memberCount || 0}</small>
+                </button>
+              </nav>
 
               {message && (
                 <p className={message.bad ? 'guild-message bad' : 'guild-message'} role="status">{message.text}</p>
               )}
 
-              <FriendsCard
+              {view === 'friends' ? <FriendsCard
                 state={friends}
                 busy={busy}
                 onInspect={setInspected}
@@ -205,38 +215,59 @@ export function GuildPanel({ open, onClose }: { open: boolean; onClose: () => vo
                   await respondToFriend(id, action);
                   setFriends(await fetchFriends());
                 })}
-              />
-
-              {!loaded ? <p className="guild-empty">…</p>
-                : !guild ? (
-                  <NoGuild busy={busy}
-                    onCreate={(name, tag, motto) => run(async () => { setGuild(await createGuild(name, tag, motto)); })}
-                    onJoin={code => run(async () => {
-                      setGuild(await joinGuild(code));
-                      setRaid((await fetchRaid()).raid);
-                    })} />
-                ) : (
-                  <>
-                    <GuildCard guild={guild} invite={invite}
-                      onInvite={() => run(async () => { setInvite((await createInvite()).code); })}
-                      onLeave={() => run(async () => {
-                        const result = await leaveGuild();
-                        setGuild(null); setRaid(null); setInvite(null);
-                        say(result.disbanded
-                          ? copy('Gilde aufgelöst.', 'Guild disbanded.')
-                          : copy('Gilde verlassen.', 'Left the guild.'));
+              /> : <>
+                {!loaded ? <p className="guild-empty">…</p>
+                  : !guild ? (
+                    <NoGuild busy={busy}
+                      onCreate={(name, tag, motto) => run(async () => { setGuild(await createGuild(name, tag, motto)); })}
+                      onJoin={code => run(async () => {
+                        setGuild(await joinGuild(code));
+                        setRaid((await fetchRaid()).raid);
                       })} />
-                    <RaidCard raid={raid} busy={busy}
-                      onStart={kind => run(async () => { setRaid((await startRaid(kind)).raid); })}
-                      onContribute={() => run(async () => {
-                        if (!raid) return;
-                        setRaid((await contributeRaid(weekContribution(raid.kind))).raid);
-                      })} />
-                  </>
-                )}
+                  ) : (
+                    <>
+                      <GuildCard guild={guild} invite={invite}
+                        onInvite={() => run(async () => { setInvite((await createInvite()).code); })}
+                        onLeave={() => run(async () => {
+                          const result = await leaveGuild();
+                          setGuild(null); setRaid(null); setInvite(null);
+                          say(result.disbanded
+                            ? copy('Gilde aufgelöst.', 'Guild disbanded.')
+                            : copy('Gilde verlassen.', 'Left the guild.'));
+                        })} />
+                      <RaidCard raid={raid} busy={busy}
+                        onStart={kind => run(async () => { setRaid((await startRaid(kind)).raid); })}
+                        onContribute={() => run(async () => {
+                          if (!raid) return;
+                          setRaid((await contributeRaid(weekContribution(raid.kind))).raid);
+                        })} />
+                    </>
+                  )}
+              </>}
             </>
           )}
         </div>
+        {conflict && (
+          <div className="guild-recovery-backdrop">
+            <section className="guild-recovery" role="alertdialog" aria-modal="true" aria-labelledby="guild-recovery-title">
+              <SystemIcon name="sync" />
+              <small>{copy('SICHERER ABGLEICH', 'SAFE SYNC')}</small>
+              <h3 id="guild-recovery-title">{copy('Zwei Geräte haben neue Daten', 'Two devices have new data')}</h3>
+              <p>{copy('Wähle, welcher Trainingsstand auf allen Geräten verwendet werden soll.', 'Choose which training state should be used across your devices.')}</p>
+              <div className="guild-actions">
+                <button type="button" className="guild-ghost-button" onClick={() => run(async () => {
+                  const applied = resolveWithRemote(conflict.remote, conflict.rev);
+                  setConflict(null);
+                  say(copy(`${applied} Einträge vom Konto übernommen`, `Applied ${applied} entries from your account`));
+                })}>{copy('Stand vom Konto', 'Account version')}</button>
+                <button type="button" className="guild-primary-button" onClick={() => run(async () => {
+                  await syncNow(true); setConflict(null);
+                  say(copy('Stand dieses Geräts übernommen', 'This device version was applied'));
+                })}>{copy('Stand dieses Geräts', 'This device')}</button>
+              </div>
+            </section>
+          </div>
+        )}
         {inspected && <FriendInspect friend={inspected} busy={busy} onClose={() => setInspected(null)}
           onBuff={kind => run(async () => {
             await sendFriendBuff(inspected.uid, kind);
@@ -267,6 +298,7 @@ function FriendsCard({
   onRespond: (id: number, action: 'accept' | 'decline') => void;
 }) {
   const [identifier, setIdentifier] = useState('');
+  const [addingFriend, setAddingFriend] = useState(false);
   const ranking = [...state.friends].sort((a, b) => (
     (b.weekly?.activeDays || 0) - (a.weekly?.activeDays || 0)
     || (b.weekly?.volumeKg || 0) - (a.weekly?.volumeKg || 0)
@@ -275,7 +307,10 @@ function FriendsCard({
     <section className="guild-card guild-friends" aria-labelledby="friend-roster-title">
       <div className="guild-card-head">
         <div><strong id="friend-roster-title">{copy('Freundesliste', 'Friend list')}</strong></div>
-        <span className="guild-presence-count">{state.friends.filter(friend => friend.online).length}/{state.friends.length} {copy('online', 'online')}</span>
+        <div className="friend-card-actions">
+          <span className="guild-presence-count">{state.friends.filter(friend => friend.online).length}/{state.friends.length} {copy('online', 'online')}</span>
+          <button type="button" className="guild-ghost-button friend-add-trigger" aria-expanded={addingFriend} onClick={() => setAddingFriend(value => !value)}><SystemIcon name="plus" />{copy('Freund', 'Friend')}</button>
+        </div>
       </div>
 
       {state.buffs.length > 0 && <div className="friend-buff-feed" role="status">
@@ -284,15 +319,16 @@ function FriendsCard({
         </span>)}
       </div>}
 
-      <form className="friend-invite-row" onSubmit={event => {
+      {addingFriend && <form className="friend-invite-row friend-invite-reveal" onSubmit={event => {
         event.preventDefault();
         if (!identifier.trim()) return;
         onInvite(identifier);
         setIdentifier('');
+        setAddingFriend(false);
       }}>
         <label className="guild-field"><span>{copy('Name oder UID', 'Name or UID')}</span><input value={identifier} maxLength={80} placeholder="#004" onChange={event => setIdentifier(event.target.value)} /></label>
         <button type="submit" className="guild-primary-button" disabled={busy || identifier.trim().length < 2}><SystemIcon name="plus" />{copy('Hinzufügen', 'Add')}</button>
-      </form>
+      </form>}
 
       {state.incoming.length > 0 && <div className="friend-request-list">
         <p className="guild-section-title">{copy('Offene Anfragen', 'Incoming requests')}</p>
@@ -317,15 +353,17 @@ function FriendsCard({
         {!state.friends.length && <p className="guild-empty">{copy('Noch keine bestätigten Freunde. Nutze den exakten Namen oder die UID eines echten CORELINE-Kontos.', 'No confirmed friends yet. Use the exact name or UID of a real CORELINE account.')}</p>}
       </div>
 
-      {ranking.length > 0 && <div className="friend-leaderboard">
-        <p className="guild-section-title">{copy('Wöchentliches Sparring', 'Weekly sparring')}</p>
-        {ranking.slice(0, 6).map((friend, index) => <div key={friend.uid}>
-          <b>{index + 1}</b><strong>{friend.username}</strong>
-          <span>{friend.weekly?.activeDays || 0}/7 {copy('Tage', 'days')}</span>
-          <span>{friend.weekly?.workouts || 0} {copy('Einheiten', 'sessions')}</span>
-          <span>{Math.round(friend.weekly?.volumeKg || 0).toLocaleString()} kg</span>
-        </div>)}
-      </div>}
+      {ranking.length > 0 && <details className="friend-leaderboard-disclosure">
+        <summary><span><SystemIcon name="spark" /><strong>{copy('Wöchentliches Sparring', 'Weekly sparring')}</strong></span><SystemIcon name="chevron" /></summary>
+        <div className="friend-leaderboard">
+          {ranking.slice(0, 6).map((friend, index) => <div key={friend.uid}>
+            <b>{index + 1}</b><strong>{friend.username}</strong>
+            <span>{friend.weekly?.activeDays || 0}/7 {copy('Tage', 'days')}</span>
+            <span>{friend.weekly?.workouts || 0} {copy('Einheiten', 'sessions')}</span>
+            <span>{Math.round(friend.weekly?.volumeKg || 0).toLocaleString()} kg</span>
+          </div>)}
+        </div>
+      </details>}
     </section>
   );
 }
@@ -447,39 +485,53 @@ function NoGuild({ busy, onCreate, onJoin }: {
   const [tag, setTag] = useState('');
   const [motto, setMotto] = useState('');
   const [code, setCode] = useState('');
+  const [choice, setChoice] = useState<'create' | 'join' | null>(null);
 
   return (
-    <div className="guild-card">
-      <p className="guild-empty">{copy('Du bist in keiner Gilde.', 'You are not in a guild.')}</p>
-
-      <p className="guild-section-title">{copy('Gilde gründen', 'Found a guild')}</p>
-      <label className="guild-field">
-        <span>{copy('Gildenname', 'Guild name')}</span>
-        <input value={name} maxLength={64} onChange={event => setName(event.target.value)} />
-      </label>
-      <div className="guild-field-row">
-        <label className="guild-field">
-          <span>{copy('Kürzel', 'Tag')}</span>
-          <input value={tag} maxLength={8} onChange={event => setTag(event.target.value)} />
-        </label>
-        <label className="guild-field">
-          <span>{copy('Motto', 'Motto')}</span>
-          <input value={motto} maxLength={160} onChange={event => setMotto(event.target.value)} />
-        </label>
+    <div className="guild-card guild-onboarding-card">
+      <div className="guild-empty-state">
+        <SystemIcon name="shield" />
+        <strong>{copy('Dein Gildenplatz ist frei', 'Your Guild slot is open')}</strong>
+        <p>{copy('Tritt mit einem Einladungscode bei oder gründe eine eigene Gruppe für Raids und gemeinsame Ziele.', 'Join with an invite code or found your own group for raids and shared goals.')}</p>
       </div>
-      <button type="button" className="guild-primary-button" disabled={busy || name.trim().length < 3}
-        onClick={() => onCreate(name, tag, motto)}>{copy('Gilde gründen', 'Found guild')}</button>
 
-      <p className="guild-section-title guild-divider">{copy('Beitreten', 'Join')}</p>
-      <div className="guild-field-row">
+      {!choice && <div className="guild-choice-grid">
+        <button type="button" onClick={() => setChoice('join')}><SystemIcon name="plus" /><span><strong>{copy('Gilde beitreten', 'Join a Guild')}</strong><small>{copy('Einladungscode verwenden', 'Use an invite code')}</small></span><SystemIcon name="chevron" /></button>
+        <button type="button" onClick={() => setChoice('create')}><SystemIcon name="shield" /><span><strong>{copy('Gilde gründen', 'Found a Guild')}</strong><small>{copy('Name, Kürzel und Motto wählen', 'Choose name, tag, and motto')}</small></span><SystemIcon name="chevron" /></button>
+      </div>}
+
+      {choice === 'create' && <div className="guild-choice-form">
+        <button type="button" className="guild-back-choice" onClick={() => setChoice(null)}>{copy('← Auswahl', '← Choices')}</button>
+        <p className="guild-section-title">{copy('Neue Gilde', 'New Guild')}</p>
+        <label className="guild-field">
+          <span>{copy('Gildenname', 'Guild name')}</span>
+          <input value={name} maxLength={64} onChange={event => setName(event.target.value)} />
+        </label>
+        <div className="guild-field-row">
+          <label className="guild-field">
+            <span>{copy('Kürzel', 'Tag')}</span>
+            <input value={tag} maxLength={8} onChange={event => setTag(event.target.value)} />
+          </label>
+          <label className="guild-field">
+            <span>{copy('Motto', 'Motto')}</span>
+            <input value={motto} maxLength={160} onChange={event => setMotto(event.target.value)} />
+          </label>
+        </div>
+        <button type="button" className="guild-primary-button" disabled={busy || name.trim().length < 3}
+          onClick={() => onCreate(name, tag, motto)}>{copy('Gilde gründen', 'Found Guild')}</button>
+      </div>}
+
+      {choice === 'join' && <div className="guild-choice-form">
+        <button type="button" className="guild-back-choice" onClick={() => setChoice(null)}>{copy('← Auswahl', '← Choices')}</button>
+        <p className="guild-section-title">{copy('Einladung einlösen', 'Redeem invite')}</p>
         <label className="guild-field">
           <span>{copy('Einladungscode', 'Invite code')}</span>
-          <input value={code} maxLength={16}
+          <input value={code} maxLength={16} autoCapitalize="characters" placeholder="CORE-7X9K"
             onChange={event => setCode(event.target.value.toUpperCase())} />
         </label>
         <button type="button" className="guild-primary-button" disabled={busy || code.trim().length < 4}
-          onClick={() => onJoin(code.trim())}>{copy('Beitreten', 'Join')}</button>
-      </div>
+          onClick={() => onJoin(code.trim())}>{copy('Gilde beitreten', 'Join Guild')}</button>
+      </div>}
     </div>
   );
 }

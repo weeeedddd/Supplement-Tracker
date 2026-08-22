@@ -690,7 +690,7 @@ function ScanAccuracy({ result, imageData, onRescale }: {
     } catch (error) {
       const code = String((error as Error).message);
       setVerificationError(code === 'no_backend'
-        ? copy('Verbinde zuerst dein optionales Backend in den Einstellungen.', 'Connect your optional backend in Settings first.')
+        ? copy('Die CORELINE-Prüfung ist gerade nicht erreichbar. Versuche es später erneut.', 'The CORELINE verification service is temporarily unavailable. Try again later.')
         : copy('Das Etikett konnte nicht verifiziert werden. Nutze einen geraden, gut beleuchteten Ausschnitt.', 'The label could not be verified. Use a straight, well-lit crop.'));
     } finally {
       setVerifying(false);
@@ -734,7 +734,7 @@ function ScanAccuracy({ result, imageData, onRescale }: {
           {imageData && <div className="scan-label-verification">
             <div>
               <strong>{copy('Herstelleretikett prüfen', 'Verify manufacturer label')}</strong>
-              <small>{copy('Nur nach diesem Tipp wird das aktuelle Foto einmalig zur OCR an dein Backend gesendet.', 'Only after this tap is the current photo sent once to your backend for OCR.')}</small>
+              <small>{copy('Nur nach diesem Tipp wird das aktuelle Foto einmalig an den geschützten CORELINE-Prüfdienst gesendet.', 'Only after this tap is the current photo sent once to the protected CORELINE verification service.')}</small>
             </div>
             <button type="button" className="guild-ghost-button" disabled={verifying} onClick={() => void verifyLabel()}>{verifying ? copy('Lese Etikett…', 'Reading label…') : copy('Etikett verifizieren', 'Verify label')}</button>
           </div>}

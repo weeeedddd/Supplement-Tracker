@@ -2,8 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 
 import {
   checkBackendCapabilities,
-  getBackendUrl,
-  setBackendUrl,
   type BackendCapabilities,
 } from '../lib/backend';
 import { LANG_NAMES, lang, setLang } from '../lib/i18n';
@@ -29,14 +27,7 @@ import {
 } from '../lib/push';
 import { deleteAllProgressPhotos } from '../lib/progressPhotos';
 import { S } from '../lib/storage';
-import { applyTheme, getCurrentTheme } from '../lib/themes';
 import { SystemIcon } from './SystemIcon';
-
-const THEME_CHOICES = [
-  { id: 'shadow', de: 'Nacht', en: 'Night' },
-  { id: 'system', de: 'Mondlicht', en: 'Moonlight' },
-  { id: 'ghoul', de: 'Glut', en: 'Ember' },
-] as const;
 
 const RELEASE_LANGS = ['de', 'en'] as const;
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
@@ -44,9 +35,9 @@ const copy = (de: string, en: string) => lang === 'de' ? de : en;
 function pushLabel(state: ClosedAppPushState): string {
   const labels: Record<ClosedAppPushState, [string, string]> = {
     unsupported: ['Geschlossener-App-Push wird hier nicht unterstützt', 'Closed-app push is unsupported here'],
-    'needs-backend': ['Backend-URL für geschlossenen Push erforderlich', 'Backend URL required for closed-app push'],
+    'needs-backend': ['CORELINE-Dienste sind gerade nicht erreichbar', 'CORELINE services are temporarily unavailable'],
     'needs-account': ['Im Gildenbereich anmelden, um Push zu verbinden', 'Sign in under Guild to connect push'],
-    'not-configured': ['Server braucht noch VAPID-Schlüssel', 'Server still needs VAPID keys'],
+    'not-configured': ['Hintergrundhinweise werden noch eingerichtet', 'Background notifications are still being prepared'],
     'permission-denied': ['Browser-Berechtigung blockiert', 'Browser permission blocked'],
     ready: ['Bereit zum Verbinden', 'Ready to connect'],
     subscribed: ['Geschlossener-App-Push verbunden', 'Closed-app push connected'],
@@ -61,20 +52,9 @@ interface SettingsPanelProps {
   onBackendStatusChange?: (capabilities: BackendCapabilities) => void;
 }
 
-function validSecureBackendUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    const localDev = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-    return url.protocol === 'https:' || (localDev && url.protocol === 'http:');
-  } catch {
-    return false;
-  }
-}
-
 export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChange }: SettingsPanelProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [resetArmed, setResetArmed] = useState(false);
-  const [backendDraft, setBackendDraft] = useState('');
   const [backendStatus, setBackendStatus] = useState('');
   const [checkingBackend, setCheckingBackend] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -95,7 +75,6 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
       setResetStatus('');
       return;
     }
-    setBackendDraft(getBackendUrl());
     setBackendStatus('');
     setNotificationPreferences(loadNotificationPreferences());
     setNotificationPermission(getSystemNotificationPermission());
@@ -142,49 +121,33 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     onLocalReset();
   };
 
-  const saveAndCheckBackend = async () => {
-    const normalized = backendDraft.trim().replace(/\/+$/, '');
-    if (normalized && !validSecureBackendUrl(normalized)) {
-      setBackendStatus(copy(
-        'Nutze HTTPS. Unsicheres HTTP ist nur für localhost in der Entwicklung erlaubt.',
-        'Use HTTPS. Insecure HTTP is allowed only for localhost during development.',
-      ));
-      return;
-    }
-    setBackendUrl(normalized);
-    if (!normalized) {
-      setBackendStatus(copy(
-        'Backend-Verbindung entfernt. Alle lokalen Funktionen bleiben verfügbar.',
-        'Backend connection removed. All local features remain available.',
-      ));
-      return;
-    }
+  const checkCorelineServices = async () => {
     setCheckingBackend(true);
-    setBackendStatus(copy('Verbindung wird geprüft …', 'Checking connection …'));
+    setBackendStatus(copy('CORELINE-Dienste werden geprüft …', 'Checking CORELINE services …'));
     const capabilities = await checkBackendCapabilities();
     onBackendStatusChange?.(capabilities);
     setCheckingBackend(false);
     if (!capabilities.reachable) {
       setBackendStatus(copy(
-        'Backend nicht erreichbar. URL wurde gespeichert; die App fällt weiterhin sicher auf lokale Funktionen zurück.',
-        'Backend unavailable. The URL was saved; the app continues to fall back safely to local features.',
+        'Die Online-Dienste sind gerade nicht erreichbar. Training, Ernährung und lokale Daten funktionieren weiter.',
+        'Online services are temporarily unavailable. Training, nutrition, and local data keep working.',
       ));
       return;
     }
     if (capabilities.ai && capabilities.nearbyStores) {
       setBackendStatus(copy(
-        'Backend erreichbar. OpenAI und Google Maps sind serverseitig freigegeben; jede echte Anfrage wird weiterhin separat geprüft.',
-        'Backend reachable. OpenAI and Google Maps are enabled server-side; every real request is still checked separately.',
+        'Alle CORELINE-Dienste sind bereit: Kontosync, KI-Planung und Standortsuche.',
+        'All CORELINE services are ready: account sync, AI planning, and location search.',
       ));
       return;
     }
-    const missing = [
-      !capabilities.ai ? copy('OpenAI', 'OpenAI') : '',
-      !capabilities.nearbyStores ? copy('Google Maps', 'Google Maps') : '',
-    ].filter(Boolean).join(' + ');
+    const active = [
+      capabilities.ai ? copy('KI-Planung', 'AI planning') : '',
+      capabilities.nearbyStores ? copy('Standortsuche', 'location search') : '',
+    ].filter(Boolean).join(' · ');
     setBackendStatus(copy(
-      `Backend erreichbar. ${missing} ist serverseitig nicht freigegeben; lokale Funktionen bleiben aktiv.`,
-      `Backend reachable. ${missing} is not enabled server-side; local features remain active.`,
+      active ? `Kontosync ist bereit. Zusätzlich aktiv: ${active}.` : 'Kontosync ist bereit. Optionale KI- und Standortfunktionen sind noch nicht aktiviert.',
+      active ? `Account sync is ready. Also active: ${active}.` : 'Account sync is ready. Optional AI and location features are not active yet.',
     ));
   };
 
@@ -263,8 +226,8 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
             <div className="notification-settings-status">
               <SystemIcon name="bell" />
               <span><strong>{notificationPermission === 'granted' ? copy('Android-Systemhinweise verfügbar', 'Android system notices available') : copy('In-App-Systemlog verfügbar', 'In-app system log available')}</strong><small>{copy(
-                'Lokale Hinweise arbeiten beim Öffnen der App. Mit Konto, Backend und VAPID kann CORELINE auch bei geschlossener App erinnern.',
-                'Local notices work when the app opens. With an account, backend, and VAPID, CORELINE can also remind you while fully closed.',
+                'Lokale Hinweise arbeiten beim Öffnen der App. Mit einem CORELINE-Konto können Erinnerungen auch bei geschlossener App ankommen.',
+                'Local notices work when the app opens. With a CORELINE account, reminders can also arrive while the app is closed.',
               )}</small></span>
             </div>
 
@@ -332,62 +295,37 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
         <details className="settings-section settings-integration">
           <summary>
             <span>
-              <strong>{copy('Integrationen & erweitertes Backend', 'Integrations & advanced backend')}</strong>
-              <small>{copy('Optional für echte KI und die Standortsuche', 'Optional for real AI and location search')}</small>
+              <strong>{copy('CORELINE-Dienste', 'CORELINE services')}</strong>
+              <small>{copy('Kontosync, echte KI und Standortsuche', 'Account sync, real AI, and location search')}</small>
             </span>
             <SystemIcon name="chevron" />
           </summary>
           <div className="settings-integration-body">
-            <p>{copy(
-              'Nur die Server-URL gehört hier hinein. OpenAI- und Karten-API-Schlüssel bleiben ausschließlich als Server-Umgebungsvariablen im Backend.',
-              'Only the server URL belongs here. OpenAI and maps API keys remain server-side environment variables in the backend.',
-            )}</p>
-            <label className="system-field settings-backend-field">
-              Backend-URL
-              <input
-                type="url"
-                inputMode="url"
-                autoComplete="url"
-                placeholder="https://api.example.com"
-                value={backendDraft}
-                onChange={(event) => setBackendDraft(event.target.value)}
-              />
-            </label>
+            <div className="notification-settings-status">
+              <SystemIcon name="shield" />
+              <span><strong>{copy('Automatisch verwaltet', 'Managed automatically')}</strong><small>{copy('Keine technische Einrichtung in der App nötig. Zugangsdaten und KI-Schlüssel bleiben geschützt auf dem CORELINE-Server.', 'No technical setup is needed in the app. Credentials and AI keys stay protected on the CORELINE server.')}</small></span>
+            </div>
             <div className="settings-backend-actions">
-              <button className="secondary-button" type="button" onClick={() => void saveAndCheckBackend()} disabled={checkingBackend}>
-                {checkingBackend ? copy('Prüfe …', 'Checking …') : copy('Speichern & prüfen', 'Save & check')}
+              <button className="secondary-button" type="button" onClick={() => void checkCorelineServices()} disabled={checkingBackend}>
+                {checkingBackend ? copy('Prüfe …', 'Checking …') : copy('Systemstatus prüfen', 'Check system status')}
               </button>
             </div>
             {backendStatus && <p role="status">{backendStatus}</p>}
           </div>
         </details>
 
-        <div className="settings-grid">
-          <fieldset className="settings-section">
-            <legend>{copy('Sprache', 'Language')}</legend>
-            <div className="choice-row">
-              {RELEASE_LANGS.map((code) => (
-                <button key={code} className={lang === code ? 'choice active' : 'choice'}
-                  type="button" onClick={() => setLang(code)} aria-pressed={lang === code}>
-                  {LANG_NAMES[code] || code.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            <p>{copy('Die Kernoberfläche ist auf Deutsch und Englisch verfügbar; gespeicherte Inhalte und Anbieter-Ergebnisse können ihre Ausgangssprache behalten.', 'The core interface is available in German and English; saved content and provider results may retain their source language.')}</p>
-          </fieldset>
-
-          <fieldset className="settings-section">
-            <legend>{copy('Darstellung', 'Appearance')}</legend>
-            <div className="choice-row">
-              {THEME_CHOICES.map((choice) => (
-                <button key={choice.id} className={getCurrentTheme() === choice.id ? 'choice active' : 'choice'}
-                  type="button" onClick={() => applyTheme(choice.id)} aria-pressed={getCurrentTheme() === choice.id}>
-                  {lang === 'de' ? choice.de : choice.en}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-        </div>
+        <fieldset className="settings-section">
+          <legend>{copy('Sprache', 'Language')}</legend>
+          <div className="choice-row">
+            {RELEASE_LANGS.map((code) => (
+              <button key={code} className={lang === code ? 'choice active' : 'choice'}
+                type="button" onClick={() => setLang(code)} aria-pressed={lang === code}>
+                {LANG_NAMES[code] || code.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          <p>{copy('Die Kernoberfläche ist auf Deutsch und Englisch verfügbar; gespeicherte Inhalte und Anbieter-Ergebnisse können ihre Ausgangssprache behalten.', 'The core interface is available in German and English; saved content and provider results may retain their source language.')}</p>
+        </fieldset>
 
         <div className="settings-section data-actions">
           <div>

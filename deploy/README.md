@@ -30,15 +30,29 @@ sudo bash deploy/setup-ip.sh DEINE_OEFFENTLICHE_IPV4
 
 Der Installer erzeugt Datenbankpasswort, Cron-Secret und VAPID-Schlüssel lokal
 in `deploy/.env` mit Dateirechten `0600`. Er gibt sie nicht aus. Kostenpflichtige
-OpenAI- und Google-Integrationen bleiben bewusst deaktiviert.
+OpenAI- und Google-Integrationen bleiben bewusst deaktiviert. Die veröffentlichte
+App kennt die CORELINE-Adresse bereits; normale Nutzer tragen keine Server-IP ein.
 
 Danach in CORELINE:
 
-1. **Einstellungen → Integrationen & erweitertes Backend** öffnen.
-2. `https://DEINE_OEFFENTLICHE_IPV4` eintragen.
-3. **Speichern & prüfen** tippen.
-4. Im Guild-Bereich ein Konto registrieren.
-5. Unter Benachrichtigungen den geschlossenen-App-Push aktivieren.
+1. Im Guild-Bereich ein Konto registrieren.
+2. Unter Benachrichtigungen den geschlossenen-App-Push aktivieren.
+
+## Echte KI sicher aktivieren
+
+Erstelle einen eigenen OpenAI-API-Schlüssel und gib ihn ausschließlich in der
+Server-Konsole ein — niemals in Chat, Screenshots, GitHub oder der Browser-App:
+
+```bash
+cd /opt/coreline
+sudo deploy/configure-ai.sh
+```
+
+Die Eingabe bleibt unsichtbar. Das Skript speichert den Schlüssel nur in der
+lokalen Datei `deploy/.env` mit Rechten `0600`, aktiviert `gpt-5.6-luna` und
+startet ausschließlich die API neu. Kosten entstehen über das verwendete
+OpenAI-API-Projekt; CORELINE zeigt lokale Ergebnisse weiterhin ehrlich als lokal
+an, wenn die entfernte KI nicht verfügbar ist oder keine Einwilligung vorliegt.
 
 ## Status prüfen
 
