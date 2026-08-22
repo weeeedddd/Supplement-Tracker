@@ -26,6 +26,11 @@ auch `http://localhost:8000` erlaubt. Alternativ kann der Frontend-Build
 `VITE_BACKEND_URL` erhalten; dort gehört nur die Server-URL hinein, nie ein
 Provider-Schlüssel.
 
+Für einen Ubuntu-24.04-VPS ohne Domain enthält
+[`../deploy/README.md`](../deploy/README.md) den geprüften Produktions-Stack
+mit PostgreSQL, Nginx, öffentlich vertrauenswürdigem IP-HTTPS, automatischer
+Zertifikatserneuerung, Push-Worker und täglichen Backups.
+
 Der minimale Server kennt diese Betriebsrouten:
 
 | Route | Zweck |

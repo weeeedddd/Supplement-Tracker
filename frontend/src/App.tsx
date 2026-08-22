@@ -37,7 +37,7 @@ import { calculateNutritionTargetsForProfile, loadUserProfile } from './lib/prof
 import { requestAiInitialPlan } from './lib/remotePlan';
 import { S } from './lib/storage';
 import { getScreen, refresh, showScreen, type Screen, useAppState } from './lib/store';
-import { applyTheme, getCurrentTheme } from './lib/themes';
+import { applyTheme } from './lib/themes';
 import type { ProfileTab } from './components/ProfileScreen';
 
 interface NavigationItem {
@@ -216,7 +216,7 @@ export default function App() {
   }, [onApp]);
 
   useEffect(() => {
-    applyTheme(getCurrentTheme());
+    applyTheme('shadow');
     removeLegacyPseudoAuth();
     document.documentElement.style.setProperty(
       '--coreline-texture',
