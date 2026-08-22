@@ -91,11 +91,11 @@ function activityLevel(profile: ReturnType<typeof loadUserProfile>): 'low' | 'mo
 
 function backendLabel(capabilities: BackendCapabilities): string {
   if (!capabilities.configured) return localCopy('Nur lokal', 'Local only');
-  if (!capabilities.reachable) return localCopy('Backend nicht erreichbar', 'Backend unavailable');
+  if (!capabilities.reachable) return localCopy('System offline', 'System offline');
   if (capabilities.ai && capabilities.nearbyStores) return localCopy('KI + Einkauf freigegeben', 'AI + shopping enabled');
   if (capabilities.ai) return localCopy('KI freigegeben', 'AI enabled');
   if (capabilities.nearbyStores) return localCopy('Einkauf freigegeben', 'Shopping enabled');
-  return localCopy('Backend erreichbar', 'Backend reachable');
+  return localCopy('System online', 'System online');
 }
 
 function ScreenLoading() {
