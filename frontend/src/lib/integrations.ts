@@ -90,11 +90,11 @@ export interface StoreLocation {
   distance_meters: number;
   maps_uri: string;
   primary_type: string;
-  provider: 'google_maps';
+  provider: 'google_maps' | 'openstreetmap';
 }
 
 export interface NearbyStoresEnvelope {
-  provider: 'google_maps';
+  provider: 'google_maps' | 'openstreetmap';
   fetched_at: string;
   location_source: 'address' | 'coordinates';
   results: StoreLocation[];

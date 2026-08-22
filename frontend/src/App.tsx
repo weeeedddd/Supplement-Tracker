@@ -24,6 +24,7 @@ import { lang } from './lib/i18n';
 import { GUILD_UPDATED_EVENT, getAccount, syncNow } from './lib/guild';
 import { removeLegacyPseudoAuth, resolveInitialScreen } from './lib/localMode';
 import { useModalIsolation } from './lib/modal';
+import { freeLocationSearchAvailable } from './lib/openStreetMap';
 import {
   NOTIFICATION_UPDATED_EVENT,
   getUnreadNotificationCount,
@@ -92,9 +93,10 @@ function activityLevel(profile: ReturnType<typeof loadUserProfile>): 'low' | 'mo
 function backendLabel(capabilities: BackendCapabilities): string {
   if (!capabilities.configured) return localCopy('Nur lokal', 'Local only');
   if (!capabilities.reachable) return localCopy('System offline', 'System offline');
-  if (capabilities.ai && capabilities.nearbyStores) return localCopy('KI + Einkauf freigegeben', 'AI + shopping enabled');
+  const shoppingAvailable = capabilities.nearbyStores || freeLocationSearchAvailable();
+  if (capabilities.ai && shoppingAvailable) return localCopy('KI + Einkauf freigegeben', 'AI + shopping enabled');
   if (capabilities.ai) return localCopy('KI freigegeben', 'AI enabled');
-  if (capabilities.nearbyStores) return localCopy('Einkauf freigegeben', 'Shopping enabled');
+  if (shoppingAvailable) return localCopy('Einkauf freigegeben', 'Shopping enabled');
   return localCopy('System online', 'System online');
 }
 

@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { requestNearbyStores, type NearbyStoresEnvelope } from '../lib/integrations';
 import { getBackendUrl } from '../lib/backend';
 import { lang } from '../lib/i18n';
+import { freeLocationSearchAvailable, requestOpenStreetMapStores } from '../lib/openStreetMap';
 import { SystemIcon } from './SystemIcon';
 
 type LocationChoice =
@@ -17,6 +18,20 @@ const COUNTRY_LABELS: Record<string, { de: string; en: string }> = {
   NL: { de: 'Niederlande', en: 'Netherlands' },
   BE: { de: 'Belgien', en: 'Belgium' },
   FR: { de: 'Frankreich', en: 'France' },
+  MK: { de: 'Nordmazedonien', en: 'North Macedonia' },
+  AL: { de: 'Albanien', en: 'Albania' },
+  BG: { de: 'Bulgarien', en: 'Bulgaria' },
+  GR: { de: 'Griechenland', en: 'Greece' },
+  HR: { de: 'Kroatien', en: 'Croatia' },
+  RS: { de: 'Serbien', en: 'Serbia' },
+  SI: { de: 'Slowenien', en: 'Slovenia' },
+  IT: { de: 'Italien', en: 'Italy' },
+  ES: { de: 'Spanien', en: 'Spain' },
+  GB: { de: 'Vereinigtes Königreich', en: 'United Kingdom' },
+  US: { de: 'Vereinigte Staaten', en: 'United States' },
+};
+const COUNTRY_CURRENCIES: Record<string, string> = {
+  AL: 'ALL', BG: 'BGN', CH: 'CHF', GB: 'GBP', MK: 'MKD', RS: 'RSD', US: 'USD',
 };
 
 function formatDistance(meters: number): string {
@@ -53,10 +68,14 @@ export function ShoppingScreen({
   const [pending, setPending] = useState(false);
   const [locating, setLocating] = useState(false);
   const backendConfigured = Boolean(getBackendUrl());
-  const currentLocationCanSearch = providerAvailable;
+  const freeLocationAvailable = freeLocationSearchAvailable();
+  const effectiveProviderAvailable = providerAvailable || freeLocationAvailable;
+  const currentLocationCanSearch = effectiveProviderAvailable;
   const selectedLocationCanSearch = location.kind === 'coordinates'
     ? currentLocationCanSearch
-    : providerAvailable && addressSearchAvailable;
+    : (providerAvailable && addressSearchAvailable) || freeLocationAvailable;
+  const usingFreeProvider = freeLocationAvailable
+    && (!providerAvailable || (location.kind === 'address' && !addressSearchAvailable));
 
   const useCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -94,11 +113,11 @@ export function ShoppingScreen({
       setStatus(copy('Bitte bestätige zuerst die einmalige Standortfreigabe für diese Suche.', 'Confirm the one-time location consent for this search first.'));
       return;
     }
-    if (!providerAvailable) {
+    if (!effectiveProviderAvailable) {
       setStatus(copy('Die Standortsuche ist gerade nicht verfügbar.', 'Location search is currently unavailable.'));
       return;
     }
-    if (location.kind === 'address' && !addressSearchAvailable) {
+    if (location.kind === 'address' && !addressSearchAvailable && !freeLocationAvailable) {
       setStatus(copy('Die Adresssuche ist noch nicht verfügbar. Nutze stattdessen deinen aktuellen Standort.', 'Address search is not available yet. Use your current location instead.'));
       return;
     }
@@ -122,7 +141,7 @@ export function ShoppingScreen({
     setPending(true);
     setStatus(copy('Supermärkte werden über den konfigurierten Kartenanbieter gesucht …', 'Searching supermarkets through the configured maps provider …'));
     try {
-      const response = await requestNearbyStores({
+      const request = {
         location_consent: true,
         country: normalizedCountry,
         budget: parsedBudget,
@@ -133,7 +152,10 @@ export function ShoppingScreen({
         ...(location.kind === 'coordinates'
           ? { coordinates: { latitude: location.latitude, longitude: location.longitude } }
           : { address: address.trim() }),
-      });
+      } as const;
+      const response = usingFreeProvider
+        ? await requestOpenStreetMapStores(request)
+        : await requestNearbyStores(request);
       setResult(response);
       setStatus(response.results.length
         ? copy(`${response.results.length} Standorte gefunden.`, `${response.results.length} locations found.`)
@@ -152,21 +174,27 @@ export function ShoppingScreen({
           <span className="system-heading-mark"><SystemIcon name="store" /></span>
           <div>
             <h1 id="shopping-title">{copy('Einkaufsradar', 'Shopping radar')}</h1>
-            <p>{copy('Finde echte Supermärkte in deiner Nähe. Budget und Standort gehen ausschließlich an den separaten Karten-Endpunkt – niemals an die KI.', 'Find real supermarkets nearby. Budget and location go only to the separate maps endpoint — never to AI.')}</p>
+            <p>{usingFreeProvider
+              ? copy('Finde echte Geschäfte in deiner Nähe. Dein Standort geht nur an OpenStreetMap; dein Budget bleibt auf diesem Gerät und nichts wird an eine KI gesendet.', 'Find real stores nearby. Your location goes only to OpenStreetMap; your budget stays on this device and nothing is sent to AI.')
+              : copy('Finde echte Supermärkte in deiner Nähe. Budget und Standort gehen ausschließlich an den separaten Karten-Endpunkt – niemals an die KI.', 'Find real supermarkets nearby. Budget and location go only to the separate maps endpoint — never to AI.')}</p>
           </div>
         </header>
 
         <div className="system-notice" role="note">
-          <SystemIcon name={providerAvailable ? 'shield' : 'warning'} />
+          <SystemIcon name={effectiveProviderAvailable ? 'shield' : 'warning'} />
           <div>
-            <strong>{providerAvailable
-              ? copy('Kartenanbieter freigegeben', 'Maps provider enabled')
+            <strong>{effectiveProviderAvailable
+              ? usingFreeProvider
+                ? copy('Kostenlose Standortsuche aktiv', 'Free location search enabled')
+                : copy('Kartenanbieter freigegeben', 'Maps provider enabled')
               : backendConfigured
                 ? copy('Kartenanbieter nicht freigegeben', 'Maps provider not enabled')
                 : copy('Standortsuche offline', 'Location search offline')}</strong>
-            <span>{providerAvailable
-              ? addressSearchAvailable
-                ? copy('Adresse und Standort sind verfügbar. Angaben werden nur für die einzelne Suche verarbeitet und nie im KI-Kontext gespeichert.', 'Address and current-location search are available. Details are processed only for the individual search and never enter AI context.')
+            <span>{effectiveProviderAvailable
+              ? addressSearchAvailable || freeLocationAvailable
+                ? usingFreeProvider
+                  ? copy('Adresse und aktueller Standort funktionieren kostenlos über OpenStreetMap. Angaben werden nicht im Profil gespeichert und niemals an die KI gesendet.', 'Address and current-location searches work free through OpenStreetMap. Details are not saved to your profile and never sent to AI.')
+                  : copy('Adresse und Standort sind verfügbar. Angaben werden nur für die einzelne Suche verarbeitet und nie im KI-Kontext gespeichert.', 'Address and current-location search are available. Details are processed only for the individual search and never enter AI context.')
                 : copy('Die Suche über den aktuellen Standort ist verfügbar; die Adresseingabe folgt später.', 'Current-location search is available; address entry will follow later.')
               : backendConfigured
                 ? copy('Die Standortsuche wurde noch nicht aktiviert.', 'Location search has not been activated yet.')
@@ -179,7 +207,14 @@ export function ShoppingScreen({
             <div className="shopping-field-grid">
               <label className="system-field">
                 {copy('Land', 'Country')}
-                <select value={country} onChange={(event) => setCountry(event.target.value)}>
+                <select
+                  value={country}
+                  onChange={(event) => {
+                    const nextCountry = event.target.value;
+                    setCountry(nextCountry);
+                    setCurrency(COUNTRY_CURRENCIES[nextCountry] ?? 'EUR');
+                  }}
+                >
                   {Object.entries(COUNTRY_LABELS).map(([code, label]) => <option value={code} key={code}>{lang === 'de' ? label.de : label.en} ({code})</option>)}
                 </select>
               </label>
@@ -227,8 +262,16 @@ export function ShoppingScreen({
 
             <label className="shopping-consent">
               <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />
-              <span>{copy('Ich stimme zu, dass Standort oder Adresse einmalig an den konfigurierten Kartenanbieter gesendet werden, um Supermärkte zu finden. Die Angabe wird nicht im Profil gespeichert.', 'I consent to sending the location or address once to the configured maps provider to find supermarkets. It is not stored in the profile.')}</span>
+              <span>{usingFreeProvider
+                ? copy('Ich stimme zu, dass Standort oder Adresse für diese Suche direkt an die kostenlosen OpenStreetMap-Dienste gesendet werden. Die Angabe wird nicht im Profil gespeichert.', 'I consent to sending my location or address directly to free OpenStreetMap services for this search. It is not saved to my profile.')
+                : copy('Ich stimme zu, dass Standort oder Adresse einmalig an den konfigurierten Kartenanbieter gesendet werden, um Supermärkte zu finden. Die Angabe wird nicht im Profil gespeichert.', 'I consent to sending the location or address once to the configured maps provider to find supermarkets. It is not stored in the profile.')}</span>
             </label>
+
+            {usingFreeProvider && (
+              <p className="shopping-budget-note">
+                © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>
+              </p>
+            )}
 
             <button className="system-primary-action" type="submit" disabled={pending || !selectedLocationCanSearch}>
               <SystemIcon name="search" /> {pending ? copy('Suche läuft', 'Searching') : copy('Supermärkte finden', 'Find supermarkets')}
