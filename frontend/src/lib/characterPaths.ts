@@ -1,5 +1,5 @@
 import type { Workout } from './fitness';
-import type { InspirationProfileId } from './plans';
+import type { InspirationProfileId, TrainingGoal } from './plans';
 
 export interface LocalizedCharacterCopy {
   de: string;
@@ -12,6 +12,21 @@ export interface CharacterSupplementMatch {
   reason: LocalizedCharacterCopy;
 }
 
+/** Energy direction a path leans toward when a day plan is drafted. */
+export type CharacterEnergyBias = 'lean' | 'balanced' | 'surplus';
+
+/**
+ * Food emphasis for a path. It only steers which reviewed recipes are ranked
+ * first; the calorie and protein targets always come from the profile.
+ */
+export interface CharacterFoodFocus {
+  headline: LocalizedCharacterCopy;
+  principles: LocalizedCharacterCopy[];
+  preferredGoals: TrainingGoal[];
+  proteinBias: number;
+  energyBias: CharacterEnergyBias;
+}
+
 export interface CharacterPathDefinition {
   id: InspirationProfileId;
   name: string;
@@ -19,6 +34,7 @@ export interface CharacterPathDefinition {
   focus: LocalizedCharacterCopy;
   systemMessage: LocalizedCharacterCopy;
   tags: LocalizedCharacterCopy[];
+  foodFocus: CharacterFoodFocus;
   recommendations: CharacterSupplementMatch[];
 }
 
@@ -42,6 +58,20 @@ export const CHARACTER_PATHS: Record<InspirationProfileId, CharacterPathDefiniti
       { de: 'Agilität', en: 'Agility' },
       { de: 'Schlanker Aufbau', en: 'Lean build' },
     ],
+    foodFocus: {
+      headline: {
+        de: 'Schlanke Energie mit hoher Proteindichte',
+        en: 'Lean energy with high protein density',
+      },
+      principles: [
+        { de: 'Protein zu jeder Hauptmahlzeit, damit die geplante Tagesmenge ohne Pulver erreichbar bleibt.', en: 'Protein at every main meal so the planned daily amount stays reachable without powder.' },
+        { de: 'Kohlenhydrate eher um die Einheit herum, damit kurze intensive Belastungen genug Energie haben.', en: 'Carbohydrates mostly around the session so short intense efforts have enough energy.' },
+        { de: 'Sättigende, wenig verarbeitete Basis — der Vorschlag ersetzt keine ärztliche oder diätologische Beratung.', en: 'A filling, lightly processed base — this suggestion does not replace medical or dietetic advice.' },
+      ],
+      preferredGoals: ['fat_loss', 'get_stronger', 'general_fitness'],
+      proteinBias: 1.15,
+      energyBias: 'lean',
+    },
     recommendations: [
       {
         id: 'protein',
@@ -102,6 +132,20 @@ export const CHARACTER_PATHS: Record<InspirationProfileId, CharacterPathDefiniti
       { de: 'Ausdauer', en: 'Stamina' },
       { de: 'Hypertrophie', en: 'Hypertrophy' },
     ],
+    foodFocus: {
+      headline: {
+        de: 'Kalorien für hohe Trainingskapazität',
+        en: 'Calories for high training capacity',
+      },
+      principles: [
+        { de: 'Energiedichte Mahlzeiten, damit ein geplanter Überschuss nicht nur aus Zwischensnacks besteht.', en: 'Energy-dense meals so a planned surplus does not come only from snacks.' },
+        { de: 'Kohlenhydrate über den Tag verteilt, damit Volumen und Kondition wiederholbar bleiben.', en: 'Carbohydrates spread across the day so volume and conditioning stay repeatable.' },
+        { de: 'Ein Überschuss baut nicht automatisch Muskeln auf; Training, Schlaf und Gesamtmenge entscheiden.', en: 'A surplus does not build muscle by itself; training, sleep, and total intake decide.' },
+      ],
+      preferredGoals: ['build_muscle', 'get_stronger', 'general_fitness'],
+      proteinBias: 1.05,
+      energyBias: 'surplus',
+    },
     recommendations: [
       {
         id: 'mass-gainer',
@@ -154,6 +198,20 @@ export const CHARACTER_PATHS: Record<InspirationProfileId, CharacterPathDefiniti
       { de: 'Rumpfstabilität', en: 'Core stability' },
       { de: 'Ausdauer', en: 'Endurance' },
     ],
+    foodFocus: {
+      headline: {
+        de: 'Gleichmäßige Energie über den Tag',
+        en: 'Steady energy across the day',
+      },
+      principles: [
+        { de: 'Regelmäßige Mahlzeiten statt großer Lücken, damit ruhige Kondition planbar bleibt.', en: 'Regular meals instead of long gaps so easy conditioning stays plannable.' },
+        { de: 'Gemüse, Vollkorn und eine Proteinquelle als Grundmuster jeder Hauptmahlzeit.', en: 'Vegetables, whole grains, and a protein source as the base pattern of every main meal.' },
+        { de: 'Der Plan ist ein Startpunkt: tausche jede Mahlzeit, die nicht zu Alltag oder Verträglichkeit passt.', en: 'The plan is a starting point: swap any meal that does not fit your day or tolerance.' },
+      ],
+      preferredGoals: ['general_fitness', 'fat_loss', 'get_stronger'],
+      proteinBias: 1.0,
+      energyBias: 'balanced',
+    },
     recommendations: [
       {
         id: 'protein',
@@ -198,6 +256,20 @@ export const CHARACTER_PATHS: Record<InspirationProfileId, CharacterPathDefiniti
       { de: 'Rumpfkontrolle', en: 'Trunk control' },
       { de: 'Anpassung', en: 'Adaptation' },
     ],
+    foodFocus: {
+      headline: {
+        de: 'Anpassbare Mahlzeiten mit stabiler Proteinbasis',
+        en: 'Adaptable meals on a stable protein base',
+      },
+      principles: [
+        { de: 'Eine feste Proteinbasis pro Mahlzeit, der Rest bleibt flexibel austauschbar.', en: 'A fixed protein base per meal, with the rest freely interchangeable.' },
+        { de: 'Kohlenhydrate an Trainingstagen etwas höher, an ruhigen Tagen niedriger — ohne strenge Regeln.', en: 'Slightly more carbohydrates on training days, less on quiet days — without strict rules.' },
+        { de: 'Vorbereitbare Gerichte reduzieren Ausfälle an vollen Tagen.', en: 'Preparable dishes reduce missed meals on busy days.' },
+      ],
+      preferredGoals: ['build_muscle', 'general_fitness', 'get_stronger'],
+      proteinBias: 1.1,
+      energyBias: 'balanced',
+    },
     recommendations: [
       {
         id: 'protein',
@@ -242,6 +314,20 @@ export const CHARACTER_PATHS: Record<InspirationProfileId, CharacterPathDefiniti
       { de: 'Balance', en: 'Balance' },
       { de: 'Fußarbeit', en: 'Footwork' },
     ],
+    foodFocus: {
+      headline: {
+        de: 'Selbst gekochte Mahlzeiten mit klarer Struktur',
+        en: 'Home-cooked meals with a clear structure',
+      },
+      principles: [
+        { de: 'Frisch gekochte Hauptmahlzeiten, weil dieser Pfad ohnehin auf Kontrolle und Präzision setzt.', en: 'Freshly cooked main meals, because this path already builds on control and precision.' },
+        { de: 'Kohlenhydrate rund um Bein- und Sprungarbeit, damit Landungen kontrolliert bleiben.', en: 'Carbohydrates around leg and jump work so landings stay controlled.' },
+        { de: 'Genug Gesamtenergie: unterversorgte Beine erholen sich langsamer, nicht schneller.', en: 'Enough total energy: underfuelled legs recover slower, not faster.' },
+      ],
+      preferredGoals: ['get_stronger', 'general_fitness', 'build_muscle'],
+      proteinBias: 1.05,
+      energyBias: 'balanced',
+    },
     recommendations: [
       {
         id: 'protein',
@@ -286,6 +372,20 @@ export const CHARACTER_PATHS: Record<InspirationProfileId, CharacterPathDefiniti
       { de: 'Rumpfspannung', en: 'Bracing' },
       { de: 'Mobilität', en: 'Mobility' },
     ],
+    foodFocus: {
+      headline: {
+        de: 'Kräftige Mahlzeiten für schwere Arbeitsblöcke',
+        en: 'Substantial meals for heavy work blocks',
+      },
+      principles: [
+        { de: 'Größere Hauptmahlzeiten, damit kurze intensive Blöcke nicht auf leeren Speichern laufen.', en: 'Larger main meals so short intense blocks do not run on empty stores.' },
+        { de: 'Protein gleichmäßig verteilt statt in einer einzigen Mahlzeit gebündelt.', en: 'Protein spread evenly instead of bundled into a single meal.' },
+        { de: 'Kein Extremansatz: Menge und Verträglichkeit gehen vor jedem Plan auf dem Papier.', en: 'No extreme approach: amount and tolerance come before any plan on paper.' },
+      ],
+      preferredGoals: ['get_stronger', 'build_muscle', 'general_fitness'],
+      proteinBias: 1.1,
+      energyBias: 'surplus',
+    },
     recommendations: [
       {
         id: 'protein',
@@ -330,6 +430,20 @@ export const CHARACTER_PATHS: Record<InspirationProfileId, CharacterPathDefiniti
       { de: 'Zugkraft', en: 'Pull strength' },
       { de: 'Rumpfstabilität', en: 'Core stability' },
     ],
+    foodFocus: {
+      headline: {
+        de: 'Wiederholbare Mahlzeiten mit hoher Nährstoffdichte',
+        en: 'Repeatable meals with high nutrient density',
+      },
+      principles: [
+        { de: 'Mahlzeiten, die sich vorbereiten und mehrfach wiederholen lassen, ohne langweilig zu werden.', en: 'Meals you can prepare ahead and repeat without them becoming dull.' },
+        { de: 'Protein und Gemüse zuerst, Kohlenhydrate nach Umfang der geplanten Intervalle.', en: 'Protein and vegetables first, carbohydrates according to the planned interval volume.' },
+        { de: 'Ausdauerarbeit rechtfertigt keine dauerhafte Unterversorgung.', en: 'Endurance work does not justify sustained underfuelling.' },
+      ],
+      preferredGoals: ['fat_loss', 'general_fitness', 'get_stronger'],
+      proteinBias: 1.1,
+      energyBias: 'lean',
+    },
     recommendations: [
       {
         id: 'protein',

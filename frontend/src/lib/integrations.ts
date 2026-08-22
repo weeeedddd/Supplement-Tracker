@@ -69,9 +69,13 @@ export interface RemotePlanEnvelope {
   safety_disclaimer: string;
 }
 
+export type NearbyStoreKind = 'grocery' | 'supplement';
+
 export interface NearbyStoresRequest {
   location_consent: true;
   country: string;
+  /** Groceries by default; 'supplement' searches pharmacies and sports shops. */
+  store_kind?: NearbyStoreKind;
   budget: number;
   currency: string;
   address?: string;

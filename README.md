@@ -27,14 +27,20 @@ in the browser and can be exported as JSON.
   equipment and recovery context are bounded before plan generation.
 - Profile dashboard with local plan, nutrition, training, supplement and
   activity summaries.
-- Daily supplement routine plus a bilingual knowledge library.
+- Daily supplement routine plus a bilingual knowledge library, with a
+  "have it / need it" answer per product and, when it is missing, map searches
+  for shop categories that stock it plus neutral online search links.
+- A one-day food plan offered when a character path is equipped: accept it
+  while the offer is open, decline it because you follow your own, or let it
+  lapse. Accepted plans appear on the Food screen with a log action per meal.
 - Calories, protein, carbohydrates, fat and sugar targets/logging; curated
   recipe architecture that can accept a larger imported catalog later.
 - Manual daily workouts, local plan generation, resumable set tracking and
   completion guards.
 - Contextual guide with a safe local fallback and an explicit consent boundary
   for a real server-side AI provider.
-- Nearby-store UI for country, budget, radius and address/current location;
+- Nearby-store UI for country, shop type (groceries or supplement shops),
+  budget, radius and address/current location;
   search unlocks only when the server enables the maps integration, and the UI
   shows results only after a successful live provider response.
 - Installable PWA shell, local assets, safe-area support and offline reload.
@@ -44,6 +50,9 @@ in the browser and can be exported as JSON.
   reducing real sets/reps and increasing rest when the 48-hour heatmap is high.
 - Optional Web Push while the PWA is closed, including quiet hours, snooze,
   streak rescue, unfinished sets, hydration/meal checks, recovery and routines.
+- Backend-free background reminders: the app publishes a schedule the service
+  worker evaluates on periodic background sync, so training, routine, hydration
+  and meal checks can also fire while the app is closed and no account exists.
 - Explicit nutrition-label OCR verification with a visible confidence and
   database-versus-label mismatch state. The image is uploaded only after a tap.
 

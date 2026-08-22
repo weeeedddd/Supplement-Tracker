@@ -20,6 +20,13 @@ import {
   type CorelineNotificationPreferences,
 } from '../lib/notifications';
 import {
+  disableBackgroundReminders,
+  enableBackgroundReminders,
+  getBackgroundReminderStatus,
+  publishBackgroundSchedule,
+  type BackgroundReminderState,
+} from '../lib/backgroundReminders';
+import {
   disableClosedAppPush,
   enableClosedAppPush,
   getClosedAppPushStatus,
@@ -40,6 +47,19 @@ const THEME_CHOICES = [
 
 const RELEASE_LANGS = ['de', 'en'] as const;
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
+
+function backgroundReminderLabel(state: BackgroundReminderState): string {
+  const labels: Record<BackgroundReminderState, [string, string]> = {
+    unsupported: ['Dieser Browser weckt die App nicht im Hintergrund', 'This browser cannot wake the app in the background'],
+    'needs-notifications': ['Systemhinweise zuerst freigeben', 'Allow system notices first'],
+    blocked: ['Der Browser blockiert Hinweise für diese App', 'The browser blocks notices for this app'],
+    'needs-permission': ['Als App installieren, damit der Browser das Wecken erlaubt', 'Install as an app so the browser allows background wake-ups'],
+    available: ['Bereit — kann ohne Backend eingeschaltet werden', 'Ready — can be switched on without a backend'],
+    active: ['Aktiv: Erinnerungen laufen auch bei geschlossener App', 'Active: reminders also run while the app is closed'],
+  };
+  const [de, en] = labels[state];
+  return copy(de, en);
+}
 
 function pushLabel(state: ClosedAppPushState): string {
   const labels: Record<ClosedAppPushState, [string, string]> = {
@@ -83,6 +103,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
   const [notificationPermission, setNotificationPermission] = useState<CorelineNotificationPermission>(() => getSystemNotificationPermission());
   const [notificationStatus, setNotificationStatus] = useState('');
   const [closedPushState, setClosedPushState] = useState<ClosedAppPushState>('unsupported');
+  const [backgroundState, setBackgroundState] = useState<BackgroundReminderState>('unsupported');
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -103,6 +124,9 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     void getClosedAppPushStatus()
       .then(status => setClosedPushState(status.state))
       .catch(() => setClosedPushState('not-configured'));
+    void getBackgroundReminderStatus()
+      .then(status => setBackgroundState(status.state))
+      .catch(() => setBackgroundState('unsupported'));
     closeRef.current?.focus();
   }, [open, onClose]);
 
@@ -194,6 +218,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     if (closedPushState === 'subscribed') void syncClosedAppPushPreferences(next).catch(() => {
       setNotificationStatus(copy('Lokale Einstellung gespeichert; Server-Sync ist gerade nicht erreichbar.', 'Local setting saved; server sync is currently unavailable.'));
     });
+    void publishBackgroundSchedule();
     void processDueNotifications();
   };
 
@@ -208,10 +233,26 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
       });
     }
     createActivationNotice();
+    await publishBackgroundSchedule();
+    await getBackgroundReminderStatus().then(status => setBackgroundState(status.state)).catch(() => undefined);
     await processDueNotifications();
     setNotificationStatus(permission === 'granted'
       ? copy('Systemhinweise sind aktiv. CORELINE erinnert dich auf diesem Gerät zu deinen gewählten Zeiten.', 'System notices are active. CORELINE will remind you on this device at your selected times.')
       : copy('In-App-Erinnerungen sind aktiv. Der Browser hat Systemhinweise nicht freigegeben; du kannst die Browser-Berechtigung später ändern.', 'In-app reminders are active. The browser did not allow system notices; you can change the browser permission later.'));
+  };
+
+  const toggleBackgroundReminders = async (enable: boolean) => {
+    if (enable) {
+      const status = await enableBackgroundReminders();
+      setBackgroundState(status.state);
+      setNotificationStatus(status.state === 'active'
+        ? copy('Der Browser weckt CORELINE jetzt regelmäßig für fällige Erinnerungen.', 'The browser will now wake CORELINE regularly for due reminders.')
+        : copy('Der Browser hat das Wecken im Hintergrund nicht freigegeben. Installiere CORELINE als App oder nutze Hintergrund-Push mit Konto.', 'The browser did not allow background wake-ups. Install CORELINE as an app, or use background push with an account.'));
+      return;
+    }
+    await disableBackgroundReminders();
+    const status = await getBackgroundReminderStatus();
+    setBackgroundState(status.state);
   };
 
   const connectClosedPush = async () => {
@@ -273,6 +314,21 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
               {closedPushState === 'subscribed'
                 ? <button type="button" className="secondary-button" onClick={() => void disableClosedAppPush().then(() => setClosedPushState('ready'))}>{copy('Trennen', 'Disconnect')}</button>
                 : <button type="button" className="secondary-button" disabled={!['ready'].includes(closedPushState)} onClick={() => void connectClosedPush()}>{copy('Verbinden', 'Connect')}</button>}
+            </div>
+
+            <div className={`notification-push-state ${backgroundState === 'active' ? 'active' : ''}`}>
+              <span>
+                <strong>{copy('Erinnerungen bei geschlossener App', 'Reminders while the app is closed')}</strong>
+                <small>{backgroundReminderLabel(backgroundState)}</small>
+              </span>
+              {backgroundState === 'active'
+                ? <button type="button" className="secondary-button" onClick={() => void toggleBackgroundReminders(false)}>{copy('Ausschalten', 'Switch off')}</button>
+                : <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={!['available', 'needs-permission'].includes(backgroundState)}
+                  onClick={() => void toggleBackgroundReminders(true)}
+                >{copy('Einschalten', 'Switch on')}</button>}
             </div>
 
             <div className="notification-toggle-grid">

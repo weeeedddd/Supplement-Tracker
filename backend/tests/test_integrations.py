@@ -5,6 +5,7 @@ import json
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app import integrations
 from app.api_v1 import reset_rate_limiters
@@ -453,6 +454,67 @@ def test_store_endpoint_returns_503_when_provider_is_unconfigured():
     assert response.json() == {
         "detail": "Nearby store search is not configured on this server."
     }
+
+
+def test_supplement_store_kind_searches_pharmacies_with_its_own_notice(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("GOOGLE_GEOCODING_API_KEY", "geo-test-key")
+    monkeypatch.setenv("GOOGLE_PLACES_API_KEY", "places-test-key")
+    calls: list[dict] = []
+
+    async def fake_request(method, url, **kwargs):
+        calls.append({"method": method, "url": url, **kwargs})
+        if url == integrations.GOOGLE_GEOCODING_URL:
+            return {
+                "status": "OK",
+                "results": [
+                    {
+                        "address_components": [
+                            {"short_name": "DE", "types": ["country"]}
+                        ],
+                        "geometry": {"location": {"lat": 52.5219, "lng": 13.4132}},
+                    }
+                ],
+            }
+        return {
+            "places": [
+                {
+                    "id": "pharmacy-place-id",
+                    "displayName": {"text": "Example Apotheke", "languageCode": "de"},
+                    "formattedAddress": "Example Street 4, 10178 Berlin",
+                    "location": {"latitude": 52.5225, "longitude": 13.4145},
+                    "googleMapsUri": "https://www.google.com/maps/place/?q=place_id:pharmacy-place-id",
+                    "primaryType": "pharmacy",
+                }
+            ]
+        }
+
+    monkeypatch.setattr(integrations, "_request_json", fake_request)
+    payload = store_request_payload() | {"store_kind": "supplement"}
+    request = NearbyStoresRequest.model_validate(payload)
+    result = asyncio.run(integrations.find_nearby_stores(request))
+
+    places_call = calls[-1]
+    assert places_call["json_body"]["includedTypes"] == [
+        "pharmacy",
+        "drugstore",
+        "sporting_goods_store",
+        "supermarket",
+    ]
+    assert result["results"][0]["primary_type"] == "pharmacy"
+    assert "not verified" in result["notice"]
+    assert "not advice to buy" in result["notice"]
+
+
+def test_store_kind_defaults_to_groceries_and_rejects_unknown_values():
+    assert NearbyStoresRequest.model_validate(store_request_payload()).store_kind == (
+        "grocery"
+    )
+    with pytest.raises(ValidationError):
+        NearbyStoresRequest.model_validate(
+            store_request_payload() | {"store_kind": "pharmacy_only"}
+        )
 
 
 def test_google_store_search_uses_real_provider_fields_without_price_claims(

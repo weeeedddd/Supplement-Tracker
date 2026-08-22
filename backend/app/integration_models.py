@@ -241,9 +241,13 @@ class Coordinates(StrictModel):
     longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
 
 
+StoreKind = Literal["grocery", "supplement"]
+
+
 class NearbyStoresRequest(StrictModel):
     location_consent: Literal[True]
     country: Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
+    store_kind: StoreKind = "grocery"
     budget: float = Field(gt=0, le=100_000, allow_inf_nan=False)
     currency: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
     address: (

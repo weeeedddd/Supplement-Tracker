@@ -1602,3 +1602,64 @@ textarea.hub-input { min-height: 96px; }
   .character-match-list { margin-inline: 10px; }
   .character-supplement-match > button { width: calc(100% - 20px); margin-inline: 10px; }
 }
+
+/* ── Charakter-Ernährungsvorschlag: Dialog + Panel ─────────────────── */
+.food-plan-window { display: flex; align-items: flex-start; gap: 8px; margin: 0 20px 14px; padding: 9px 11px; color: var(--cl-cyan-soft, #bfffea); background: rgba(99,227,201,.045); border: 1px solid var(--cl-line-focus); font-size: .58rem; line-height: 1.5; }
+.food-plan-window svg { width: 16px; flex: 0 0 auto; color: var(--cl-cyan); }
+.food-plan-meals { margin: 0 20px; border: 1px solid var(--cl-line); }
+.food-plan-meals article { min-height: 60px; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--cl-line); }
+.food-plan-meals article:last-child { border-bottom: 0; }
+.food-plan-meal-icon { font-size: 1.15rem; line-height: 1; text-align: center; }
+.food-plan-meal-copy { display: grid; gap: 2px; min-width: 0; }
+.food-plan-meal-copy small { color: var(--cl-cyan); font-size: .5rem; font-weight: 750; letter-spacing: .11em; text-transform: uppercase; }
+.food-plan-meal-copy strong { font-size: .72rem; overflow-wrap: anywhere; }
+.food-plan-meal-copy em { color: var(--cl-muted); font-size: .58rem; font-style: normal; }
+.food-plan-meal-macros { display: grid; gap: 2px; justify-items: end; text-align: right; }
+.food-plan-meal-macros b { font-size: .68rem; }
+.food-plan-meal-macros small { color: var(--cl-muted); font-size: .55rem; }
+.food-plan-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 20px 0; }
+.food-plan-totals div { padding: 8px 10px; background: rgba(0,0,0,.16); border: 1px solid var(--cl-line); }
+.food-plan-totals dt { color: var(--cl-muted); font-size: .5rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.food-plan-totals dd { margin: 4px 0 0; font-size: .62rem; }
+.food-plan-principles { display: grid; gap: 7px; margin: 14px 20px 0; padding: 0; list-style: none; }
+.food-plan-principles li { display: grid; grid-template-columns: 17px minmax(0, 1fr); gap: 8px; align-items: start; color: var(--cl-muted); font-size: .6rem; line-height: 1.5; }
+.food-plan-principles svg { width: 15px; margin-top: 2px; color: var(--cl-cyan); }
+.food-plan-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin: 0 20px 20px; }
+.food-plan-offer .food-plan-actions .character-system-equip { width: 100%; margin: 0; }
+.food-plan-actions .system-button { min-height: 52px; justify-content: center; }
+.food-plan-panel { margin-bottom: 14px; }
+.food-plan-panel > p { margin: 0; padding: 10px 14px 0; color: var(--cl-muted); font-size: .64rem; line-height: 1.55; }
+.food-plan-panel-focus { color: var(--cl-cyan-soft, #bfffea) !important; }
+.food-plan-panel-meals { display: grid; margin: 10px 14px 0; border: 1px solid var(--cl-line); }
+.food-plan-panel-meals article { min-height: 62px; display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--cl-line); }
+.food-plan-panel-meals article:last-child { border-bottom: 0; }
+.food-plan-panel > .system-button { margin: 12px 14px 14px; }
+.food-plan-panel-offer .food-plan-actions { margin: 12px 14px 14px; }
+
+@media (max-width: 520px) {
+  .food-plan-window, .food-plan-meals, .food-plan-totals, .food-plan-principles, .food-plan-actions { margin-inline: 14px; }
+  .food-plan-totals { grid-template-columns: 1fr; }
+  .food-plan-actions { grid-template-columns: 1fr; }
+  .food-plan-meals article, .food-plan-panel-meals article { grid-template-columns: 24px minmax(0, 1fr); }
+  .food-plan-meal-macros { justify-items: start; text-align: left; grid-column: 1 / -1; }
+  .food-plan-panel-meals article > button { grid-column: 1 / -1; justify-content: center; }
+}
+
+/* ── Supplement-Bezug: Bestand, Filialsuche, Online-Suche ──────────── */
+.supplement-sourcing { display: grid; gap: 10px; margin-top: 8px; }
+.supplement-sourcing.compact { gap: 7px; margin-top: 6px; }
+.supplement-stock-toggle { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.supplement-stock-toggle > span { color: var(--cl-muted); font-size: .55rem; letter-spacing: .05em; text-transform: uppercase; }
+.supplement-stock-toggle .system-button { min-height: 36px; padding-inline: 9px; font-size: .55rem; }
+.supplement-stock-toggle .system-button svg { width: 14px; }
+.supplement-sourcing-group { display: grid; gap: 6px; }
+.supplement-sourcing-group h4 { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--cl-cyan); font-size: .52rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.supplement-sourcing-group h4 svg { width: 14px; }
+.supplement-sourcing-group .system-button { min-height: 38px; justify-content: center; font-size: .55rem; }
+.supplement-sourcing-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.supplement-sourcing-links a { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 5px 9px; color: var(--cl-bone); background: rgba(99,227,201,.045); border: 1px solid var(--cl-line-focus); font-size: .56rem; text-decoration: none; }
+.supplement-sourcing-links a:hover, .supplement-sourcing-links a:focus-visible { background: rgba(99,227,201,.12); }
+.supplement-sourcing-links a svg { width: 13px; color: var(--cl-cyan); }
+.supplement-sourcing-note { display: flex; align-items: flex-start; gap: 7px; margin: 0; color: var(--cl-muted); font-size: .55rem; line-height: 1.5; }
+.supplement-sourcing-note svg { width: 14px; flex: 0 0 auto; color: var(--cl-cyan); }
+.supplement-detail-sourcing { grid-column: 1 / -1; }

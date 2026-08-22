@@ -15,6 +15,7 @@ import {
 } from '../lib/supplements';
 import type { ProtocolItem } from '../lib/engine';
 import { PerformanceHero } from './PerformanceHero';
+import { SupplementSourcingBlock } from './SupplementSourcing';
 import { SystemIcon, type SystemIconName } from './SystemIcon';
 
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
@@ -114,7 +115,11 @@ export function KiScreen() {
           <div className="character-match-list">
             {character.recommendations.map(item => <article key={item.id}>
               <SystemIcon name={supplementIcons[item.id] || 'supplements'} />
-              <span><strong>{localizedCharacterCopy(item.label, lang)}</strong><small>{localizedCharacterCopy(item.reason, lang)}</small></span>
+              <span>
+                <strong>{localizedCharacterCopy(item.label, lang)}</strong>
+                <small>{localizedCharacterCopy(item.reason, lang)}</small>
+                <SupplementSourcingBlock id={item.id} compact />
+              </span>
               <b>{copy('MATCH', 'MATCH')}</b>
             </article>)}
           </div>
@@ -189,6 +194,10 @@ export function KiScreen() {
               <section><h3>{copy('Grenzen', 'Limits')}</h3><p>{details.evidenceLimits}</p></section>
               <section><h3>{copy('Lebensmittelquellen', 'Food sources')}</h3><ul>{details.foodSources.map(source => <li key={source}>{source}</li>)}</ul></section>
               <section><h3>{copy('Vorher prüfen', 'Check first')}</h3><p>{details.interactionPrompt}</p><ul>{details.cautions.map(caution => <li key={caution}>{caution}</li>)}</ul></section>
+              <section className="supplement-detail-sourcing">
+                <h3>{copy('Woher bekommen', 'Where to get it')}</h3>
+                <SupplementSourcingBlock id={details.id} />
+              </section>
             </div>
             <footer>
               <span>{copy('Geprüft', 'Reviewed')}: {details.reviewedAt}</span>

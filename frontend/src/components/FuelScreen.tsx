@@ -22,6 +22,7 @@ import type { NutritionTargets, TrainingGoal } from '../lib/plans';
 import { loadUserProfile } from '../lib/profile';
 import { S } from '../lib/storage';
 import { refresh } from '../lib/store';
+import { CharacterFoodPlanPanel } from './CharacterFoodPlanPanel';
 import { PerformanceHero } from './PerformanceHero';
 import { SystemIcon } from './SystemIcon';
 import '../fuel.css';
@@ -187,6 +188,8 @@ export function FuelScreen() {
               <p className="ledger-footnote nutrition-sugar-note">* {copy('Der Zielwert bezieht sich auf freien Zucker; Produktdatenbanken zeigen häufig Gesamtzucker.', 'The target refers to free sugar; product databases often report total sugar.')}</p>
             </section>
           )}
+
+          <CharacterFoodPlanPanel onMessage={flash} />
 
           <div className="food-toolbar" aria-label={copy('Rezeptfilter und Aktionen', 'Recipe filters and actions')}>
             <div className="hub-filters">

@@ -7,6 +7,7 @@ import {
   getCharacterPath,
   localizedCharacterCopy,
 } from '../lib/characterPaths';
+import { createFoodPlanOffer } from '../lib/foodPlan';
 import { useModalIsolation } from '../lib/modal';
 import {
   calculateNutritionTargetsForProfile,
@@ -474,6 +475,14 @@ function persistLocalResult({ input, plan, profile }: OnboardingCompletePayload)
   replaceStarterWorkouts(plan, canonicalProfile.inspirationProfile, lang === 'de' ? 'de' : 'en');
   S.set('local_workspace', { schemaVersion: 1, profileSchemaVersion: canonicalProfile.schemaVersion, kind: 'offline-local', savedAt });
   if (S.get('protocol') === null) S.set('protocol', []);
+  if (canonicalProfile.mode === 'inspiration' && canonicalProfile.inspirationProfile) {
+    // Offer, never impose: the drafted day plan waits for an explicit answer.
+    void createFoodPlanOffer({
+      pathId: canonicalProfile.inspirationProfile,
+      targets: plan.nutritionTargets,
+      diet: canonicalProfile.diet,
+    }).catch(() => { /* a missing suggestion must never block onboarding */ });
+  }
 }
 
 export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }: OnboardScreenProps = {}) {

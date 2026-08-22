@@ -5,7 +5,6 @@ import { OnboardScreen } from './components/AuthScreens';
 import { CompleteOverlay } from './components/Overlays';
 import { Dashboard } from './components/Dashboard';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { KiScreen } from './components/KiScreen';
 import { GuildPanel } from './components/GuildPanel';
 import { WeeklyReportPanel } from './components/WeeklyReportPanel';
 import { NotificationCenter } from './components/NotificationCenter';
@@ -20,6 +19,7 @@ import {
   LOCAL_BACKEND_CAPABILITIES,
   type BackendCapabilities,
 } from './lib/backend';
+import { publishBackgroundSchedule } from './lib/backgroundReminders';
 import { lang } from './lib/i18n';
 import { GUILD_UPDATED_EVENT, getAccount, syncNow } from './lib/guild';
 import { removeLegacyPseudoAuth, resolveInitialScreen } from './lib/localMode';
@@ -30,6 +30,11 @@ import {
   processDueNotifications,
   snoozeLocalNotifications,
 } from './lib/notifications';
+import {
+  FOOD_PLAN_UPDATED_EVENT,
+  pendingFoodPlanOffer,
+  type CharacterFoodPlanOffer,
+} from './lib/foodPlan';
 import { snoozeClosedAppPush } from './lib/push';
 import { publishSocialPresence } from './lib/social';
 import type { InitialPlan } from './lib/plans';
@@ -54,6 +59,9 @@ const NAVIGATION: NavigationItem[] = [
   { screen: 'profile', label: { de: 'Profil', en: 'Profile' }, icon: 'profile' },
 ];
 
+const KiScreen = lazy(() => import('./components/KiScreen').then((module) => ({ default: module.KiScreen })));
+const CharacterFoodPlanOfferDialog = lazy(() => import('./components/CharacterFoodPlanOffer')
+  .then((module) => ({ default: module.CharacterFoodPlanOfferDialog })));
 const FuelScreen = lazy(() => import('./components/FuelScreen').then((module) => ({ default: module.FuelScreen })));
 const TrainingScreen = lazy(() => import('./components/TrainingScreen').then((module) => ({ default: module.TrainingScreen })));
 const ProfileScreen = lazy(() => import('./components/ProfileScreen').then((module) => ({ default: module.ProfileScreen })));
@@ -126,6 +134,8 @@ export default function App() {
   const [profileEditorOpen, setProfileEditorOpen] = useState(false);
   const [profileInitialTab, setProfileInitialTab] = useState<ProfileTab>('overview');
   const [completeStreak, setCompleteStreak] = useState<number | null>(null);
+  const [foodPlanOffer, setFoodPlanOffer] = useState<CharacterFoodPlanOffer | null>(() => pendingFoodPlanOffer());
+  const [foodPlanOfferDismissed, setFoodPlanOfferDismissed] = useState(false);
   const backendCheckGeneration = useRef(0);
   const [backendCapabilities, setBackendCapabilities] = useState<BackendCapabilities>(() => (
     getBackendUrl()
@@ -175,7 +185,13 @@ export default function App() {
   useEffect(() => {
     if (!onApp) return;
     const updateCount = () => setUnreadNotifications(getUnreadNotificationCount());
-    const process = () => { void processDueNotifications().finally(updateCount); };
+    const process = () => {
+      void processDueNotifications().finally(() => {
+        updateCount();
+        // Refresh the plan the service worker uses while the app is closed.
+        void publishBackgroundSchedule();
+      });
+    };
     const onVisibility = () => { if (document.visibilityState === 'visible') process(); };
     process();
     const interval = window.setInterval(process, 60_000);
@@ -186,6 +202,18 @@ export default function App() {
       window.removeEventListener(NOTIFICATION_UPDATED_EVENT, updateCount);
       document.removeEventListener('visibilitychange', onVisibility);
     };
+  }, [onApp]);
+
+  useEffect(() => {
+    if (!onApp) return;
+    const syncOffer = () => {
+      const offer = pendingFoodPlanOffer();
+      setFoodPlanOffer(offer);
+      if (offer) setFoodPlanOfferDismissed(false);
+    };
+    syncOffer();
+    window.addEventListener(FOOD_PLAN_UPDATED_EVENT, syncOffer);
+    return () => window.removeEventListener(FOOD_PLAN_UPDATED_EVENT, syncOffer);
   }, [onApp]);
 
   useEffect(() => {
@@ -365,7 +393,7 @@ export default function App() {
           {screen === 'dashboard' && <Dashboard onComplete={setCompleteStreak} onOpenProgressPhotos={openProgressPhotos} />}
           {screen === 'fuel' && <Suspense fallback={<ScreenLoading />}><FuelScreen /></Suspense>}
           {screen === 'training' && <Suspense fallback={<ScreenLoading />}><TrainingScreen /></Suspense>}
-          {screen === 'ki' && <KiScreen />}
+          {screen === 'ki' && <Suspense fallback={<ScreenLoading />}><KiScreen /></Suspense>}
           {screen === 'shopping' && (
             <ShoppingScreen
               providerAvailable={backendCapabilities.nearbyStores}
@@ -449,6 +477,19 @@ export default function App() {
       <NotificationCenter open={notificationsOpen && onApp} onClose={() => setNotificationsOpen(false)} />
       <GuildPanel open={guildOpen && onApp} onClose={() => setGuildOpen(false)} />
       <WeeklyReportPanel open={reportOpen && onApp} onClose={() => setReportOpen(false)} />
+      {onApp && foodPlanOffer && !foodPlanOfferDismissed && (
+        <Suspense fallback={null}>
+          <CharacterFoodPlanOfferDialog
+            offer={foodPlanOffer}
+            onAccept={() => {
+              setFoodPlanOffer(null);
+              showScreen('fuel');
+            }}
+            onDecline={() => setFoodPlanOffer(null)}
+            onDismiss={() => setFoodPlanOfferDismissed(true)}
+          />
+        </Suspense>
+      )}
       <CompleteOverlay streak={completeStreak} onDismiss={() => setCompleteStreak(null)} />
     </div>
   );

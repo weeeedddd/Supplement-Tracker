@@ -6,6 +6,7 @@ import {
   localizedCharacterCopy,
 } from '../lib/characterPaths';
 import { replaceStarterWorkouts } from '../lib/characterWorkouts';
+import { clearActiveFoodPlan, createFoodPlanOffer } from '../lib/foodPlan';
 import {
   calculateNutritionTargetsForProfile,
   loadUserProfile,
@@ -245,8 +246,18 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
       const datedPlan: InitialPlan = { ...regenerated, createdAt: new Date().toISOString() };
       S.set('initial_plan', datedPlan);
       replaceStarterWorkouts(datedPlan, saved.inspirationProfile, language);
-      if (saved.mode === 'inspiration' && saved.inspirationProfile) S.set(CHARACTER_EQUIP_STORAGE_KEY, saved.inspirationProfile);
-      else S.del(CHARACTER_EQUIP_STORAGE_KEY);
+      if (saved.mode === 'inspiration' && saved.inspirationProfile) {
+        S.set(CHARACTER_EQUIP_STORAGE_KEY, saved.inspirationProfile);
+        // A new path draws a new food suggestion; the previous one is dropped.
+        void createFoodPlanOffer({
+          pathId: saved.inspirationProfile,
+          targets: nutritionTargets,
+          diet: saved.diet,
+        }).catch(() => { /* the profile save must not depend on a suggestion */ });
+      } else {
+        S.del(CHARACTER_EQUIP_STORAGE_KEY);
+        clearActiveFoodPlan();
+      }
       setStatus(copy('Neuer Pfad ausgerüstet. Starter-Workouts und Muskelprofile wurden ersetzt; Logs und eigene Pläne bleiben erhalten.', 'New path equipped. Starter workouts and muscle profiles were replaced; logs and personal plans remain intact.'));
     } else {
       const initialPlan = S.get<InitialPlan>('initial_plan');

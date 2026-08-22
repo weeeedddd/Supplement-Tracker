@@ -563,6 +563,38 @@ def _store_from_google(
         return None
 
 
+# Place categories per requested store kind. Supplements are sold through a
+# different set of shops than groceries, so the caller selects the category
+# instead of the app guessing from the product.
+STORE_KIND_PLACE_TYPES: dict[str, list[str]] = {
+    "grocery": [
+        "supermarket",
+        "grocery_store",
+        "discount_supermarket",
+        "hypermarket",
+        "food_store",
+    ],
+    "supplement": [
+        "pharmacy",
+        "drugstore",
+        "sporting_goods_store",
+        "supermarket",
+    ],
+}
+
+STORE_KIND_NOTICES: dict[str, str] = {
+    "grocery": (
+        "Results are nearby store locations only. Current prices, stock, opening status, "
+        "and fit within the selected budget are not verified."
+    ),
+    "supplement": (
+        "Results are nearby shop locations that commonly stock supplements. Whether a "
+        "specific product is in stock, its price, and opening status are not verified, "
+        "and listing a shop is not advice to buy or take a supplement."
+    ),
+}
+
+
 async def find_nearby_stores(body: NearbyStoresRequest) -> dict:
     geocoding_key, places_key = _google_keys()
     if not places_key:
@@ -590,13 +622,7 @@ async def find_nearby_stores(body: NearbyStoresRequest) -> dict:
             "Accept": "application/json",
         },
         json_body={
-            "includedTypes": [
-                "supermarket",
-                "grocery_store",
-                "discount_supermarket",
-                "hypermarket",
-                "food_store",
-            ],
+            "includedTypes": STORE_KIND_PLACE_TYPES[body.store_kind],
             "maxResultCount": body.max_results,
             "rankPreference": "DISTANCE",
             "languageCode": body.language_code,
@@ -629,8 +655,5 @@ async def find_nearby_stores(body: NearbyStoresRequest) -> dict:
             "currency": body.currency,
             "price_comparison_available": False,
         },
-        "notice": (
-            "Results are nearby store locations only. Current prices, stock, opening status, "
-            "and fit within the selected budget are not verified."
-        ),
+        "notice": STORE_KIND_NOTICES[body.store_kind],
     }

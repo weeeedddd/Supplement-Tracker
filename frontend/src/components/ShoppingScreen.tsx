@@ -1,7 +1,12 @@
 import { useState, type FormEvent } from 'react';
 
-import { requestNearbyStores, type NearbyStoresEnvelope } from '../lib/integrations';
+import {
+  requestNearbyStores,
+  type NearbyStoreKind,
+  type NearbyStoresEnvelope,
+} from '../lib/integrations';
 import { getBackendUrl } from '../lib/backend';
+import { S } from '../lib/storage';
 import { lang } from '../lib/i18n';
 import { SystemIcon } from './SystemIcon';
 
@@ -42,6 +47,9 @@ export function ShoppingScreen({
   addressSearchAvailable = false,
 }: ShoppingScreenProps) {
   const [country, setCountry] = useState('DE');
+  const [storeKind, setStoreKind] = useState<NearbyStoreKind>(
+    () => S.get<string>('shopping_store_kind') === 'supplement' ? 'supplement' : 'grocery',
+  );
   const [budget, setBudget] = useState('40');
   const [currency, setCurrency] = useState('EUR');
   const [address, setAddress] = useState('');
@@ -120,11 +128,14 @@ export function ShoppingScreen({
     }
 
     setPending(true);
-    setStatus(copy('Supermärkte werden über den konfigurierten Kartenanbieter gesucht …', 'Searching supermarkets through the configured maps provider …'));
+    setStatus(storeKind === 'supplement'
+      ? copy('Apotheken, Drogerien und Sportgeschäfte werden über den konfigurierten Kartenanbieter gesucht …', 'Searching pharmacies, drugstores, and sports shops through the configured maps provider …')
+      : copy('Supermärkte werden über den konfigurierten Kartenanbieter gesucht …', 'Searching supermarkets through the configured maps provider …'));
     try {
       const response = await requestNearbyStores({
         location_consent: true,
         country: normalizedCountry,
+        store_kind: storeKind,
         budget: parsedBudget,
         currency: normalizedCurrency,
         radius_meters: parsedRadius,
@@ -181,6 +192,13 @@ export function ShoppingScreen({
                 {copy('Land', 'Country')}
                 <select value={country} onChange={(event) => setCountry(event.target.value)}>
                   {Object.entries(COUNTRY_LABELS).map(([code, label]) => <option value={code} key={code}>{lang === 'de' ? label.de : label.en} ({code})</option>)}
+                </select>
+              </label>
+              <label className="system-field">
+                {copy('Geschäftsart', 'Shop type')}
+                <select value={storeKind} onChange={(event) => setStoreKind(event.target.value as NearbyStoreKind)}>
+                  <option value="grocery">{copy('Lebensmittel & Supermärkte', 'Groceries & supermarkets')}</option>
+                  <option value="supplement">{copy('Supplements: Apotheke, Drogerie, Sport', 'Supplements: pharmacy, drugstore, sports')}</option>
                 </select>
               </label>
               <label className="system-field">
