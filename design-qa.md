@@ -53,6 +53,12 @@ States: initial activation and selected Toji path; one System Contract; female b
    - Impact: Users could unintentionally replace the requested unified dark appearance and increase settings complexity.
    - Fix: Apply the approved `shadow` appearance at startup and remove the complete appearance-switching fieldset from normal settings.
    - Revised evidence: `coreline-settings-managed-final.jpg`; browser DOM verified `data-theme="shadow"`, no appearance selector, and no visible server URL or IP entry.
+3. **Iteration three — resolved [P2]: the live header exposed unnecessary backend terminology.**
+   - Location: `App.tsx`, `backendLabel`.
+   - Evidence: The first published release displayed `Backend reachable` after its managed service connected successfully.
+   - Impact: Technical infrastructure vocabulary contradicted the request for a clean, self-explanatory user-facing system.
+   - Fix: Replace user-visible backend availability labels with the existing product's plain-language `System online` / `System offline` states.
+   - Revised evidence: final published-app browser accessibility snapshot and verified managed-service connection state.
 
 Open P0, P1, or P2 findings: **none**.
 
