@@ -1,4 +1,4 @@
-const CACHE_NAME = 'coreline-shell-v7';
+const CACHE_NAME = 'coreline-shell-v8';
 const STATIC_ASSETS = [
   './',
   './index.html',

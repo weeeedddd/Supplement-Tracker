@@ -6,6 +6,7 @@ import { useModalIsolation } from '../lib/modal';
 import { showScreen } from '../lib/store';
 import { loadUserProfile } from '../lib/profile';
 import { getCharacterPath, localizedCharacterCopy } from '../lib/characterPaths';
+import { setSupplementShoppingIntent } from '../lib/shoppingIntent';
 import {
   SAFE_SUPPLEMENT_CATALOG,
   localizeSupplement,
@@ -72,6 +73,12 @@ export function KiScreen() {
   const save = () => {
     S.set('protocol', toProtocol(selected));
     showScreen('dashboard');
+  };
+
+  const openShopping = (item: SafeSupplementCatalogItem) => {
+    setSupplementShoppingIntent(item.id, item.label);
+    setDetails(null);
+    showScreen('shopping');
   };
 
   const skip = () => {
@@ -151,6 +158,9 @@ export function KiScreen() {
                   <small>{item.evidenceLimits}</small>
                 </div>
                 <div className="supplement-entry-actions">
+                  <button type="button" className="system-button quiet" onClick={() => openShopping(item)}>
+                    <SystemIcon name="store" />{copy('Finden', 'Find')}
+                  </button>
                   <button type="button" className="system-button quiet" onClick={() => setDetails(item)}>
                     <SystemIcon name="info" />{copy('Details', 'Details')}
                   </button>
@@ -189,6 +199,10 @@ export function KiScreen() {
               <section><h3>{copy('Grenzen', 'Limits')}</h3><p>{details.evidenceLimits}</p></section>
               <section><h3>{copy('Lebensmittelquellen', 'Food sources')}</h3><ul>{details.foodSources.map(source => <li key={source}>{source}</li>)}</ul></section>
               <section><h3>{copy('Vorher prüfen', 'Check first')}</h3><p>{details.interactionPrompt}</p><ul>{details.cautions.map(caution => <li key={caution}>{caution}</li>)}</ul></section>
+            </div>
+            <div className="supplement-shopping-actions">
+              <button className="system-primary-action" type="button" onClick={() => openShopping(details)}><SystemIcon name="location" />{copy('Nahe Shops & Online-Suche', 'Nearby shops & online search')}</button>
+              <p><SystemIcon name="shield" />{copy('CORELINE bestätigt keine Lagerbestände und nutzt keine Affiliate-Links.', 'CORELINE does not confirm stock and uses no affiliate links.')}</p>
             </div>
             <footer>
               <span>{copy('Geprüft', 'Reviewed')}: {details.reviewedAt}</span>

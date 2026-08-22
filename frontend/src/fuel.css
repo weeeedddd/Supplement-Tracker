@@ -31,6 +31,174 @@
   line-height: 1.45;
 }
 
+.character-food-plan-ledger {
+  position: relative;
+  display: grid;
+  gap: .8rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--cl-line-focus, var(--border2));
+  background: linear-gradient(145deg, rgba(var(--cl-cyan-rgb, 99, 227, 201), .055), rgba(0, 0, 0, .22));
+}
+
+.character-food-plan-ledger::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, var(--cl-cyan, var(--accent3)), transparent 72%);
+}
+
+.character-food-plan-ledger > header,
+.character-food-plan-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .8rem;
+}
+
+.character-food-plan-ledger > header span {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: var(--cl-cyan, var(--accent3));
+  font-size: .53rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.character-food-plan-ledger > header svg {
+  width: 15px;
+}
+
+.character-food-plan-ledger > header small {
+  color: var(--cl-dim, var(--text3));
+  font-size: .56rem;
+  letter-spacing: .07em;
+}
+
+.character-food-plan-heading > div {
+  display: grid;
+  gap: .28rem;
+  min-width: 0;
+}
+
+.character-food-plan-heading h2 {
+  font-size: 1.08rem;
+  text-transform: uppercase;
+}
+
+.character-food-plan-heading p {
+  max-width: 65ch;
+  color: var(--cl-muted, var(--text2));
+  font-size: .68rem;
+  line-height: 1.55;
+}
+
+.character-food-plan-heading > span {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: .15rem;
+  padding: .55rem .65rem;
+  border: 1px solid var(--cl-line, var(--border));
+  text-align: right;
+}
+
+.character-food-plan-heading > span small {
+  grid-column: 1 / -1;
+  color: var(--cl-dim, var(--text3));
+  font-size: .47rem;
+  letter-spacing: .1em;
+}
+
+.character-food-plan-heading > span strong {
+  color: var(--cl-cyan, var(--accent3));
+  font-size: 1rem;
+}
+
+.character-food-plan-heading > span em {
+  color: var(--cl-dim, var(--text3));
+  font-size: .52rem;
+  font-style: normal;
+}
+
+.character-food-plan-meals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid var(--cl-line, var(--border));
+}
+
+.character-food-plan-meals button {
+  position: relative;
+  min-height: 92px;
+  display: grid;
+  align-content: start;
+  gap: .28rem;
+  padding: .7rem 2rem .7rem .7rem;
+  text-align: left;
+  color: var(--cl-bone, var(--text));
+  background: rgba(255, 255, 255, .012);
+  border: 0;
+  border-right: 1px solid var(--cl-line, var(--border));
+  border-bottom: 1px solid var(--cl-line, var(--border));
+  cursor: pointer;
+}
+
+.character-food-plan-meals button:nth-child(2n) {
+  border-right: 0;
+}
+
+.character-food-plan-meals button:nth-last-child(-n+2) {
+  border-bottom: 0;
+}
+
+.character-food-plan-meals button:hover,
+.character-food-plan-meals button:focus-visible {
+  background: rgba(var(--cl-cyan-rgb, 99, 227, 201), .07);
+}
+
+.character-food-plan-meals button:focus-visible {
+  outline: 2px solid var(--cl-cyan, var(--accent3));
+  outline-offset: -2px;
+}
+
+.character-food-plan-meals button > span {
+  color: var(--cl-cyan, var(--accent3));
+  font-size: .5rem;
+  font-weight: 800;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.character-food-plan-meals button > strong {
+  font-size: .7rem;
+  line-height: 1.35;
+}
+
+.character-food-plan-meals button > small {
+  margin-top: auto;
+  color: var(--cl-dim, var(--text3));
+  font-size: .56rem;
+}
+
+.character-food-plan-meals button > b {
+  position: absolute;
+  top: 50%;
+  right: .6rem;
+  width: 17px;
+  transform: translateY(-50%);
+  color: var(--cl-dim, var(--text3));
+}
+
+.character-food-plan-meals button > b svg {
+  width: 17px;
+}
+
 @media (max-width: 430px) {
   .detail-macros {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -38,5 +206,30 @@
 
   .hub-macro-grid-five {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .character-food-plan-heading {
+    display: grid;
+  }
+
+  .character-food-plan-heading > span {
+    justify-self: stretch;
+  }
+
+  .character-food-plan-meals {
+    grid-template-columns: 1fr;
+  }
+
+  .character-food-plan-meals button {
+    border-right: 0;
+    border-bottom: 1px solid var(--cl-line, var(--border));
+  }
+
+  .character-food-plan-meals button:nth-last-child(-n+2) {
+    border-bottom: 1px solid var(--cl-line, var(--border));
+  }
+
+  .character-food-plan-meals button:last-child {
+    border-bottom: 0;
   }
 }
