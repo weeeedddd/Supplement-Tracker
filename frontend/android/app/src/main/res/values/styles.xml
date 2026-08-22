@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- Base application theme. -->
+    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/coreline_background</item>
+        <item name="colorPrimaryDark">@color/coreline_background</item>
+        <item name="colorAccent">@color/coreline_accent</item>
+        <item name="android:windowBackground">@color/coreline_background</item>
+        <item name="android:statusBarColor">@color/coreline_background</item>
+        <item name="android:navigationBarColor">@color/coreline_background</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/coreline_background</item>
+        <item name="android:statusBarColor">@color/coreline_background</item>
+        <item name="android:navigationBarColor">@color/coreline_background</item>
+    </style>
+
+
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/coreline_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+    </style>
+</resources>

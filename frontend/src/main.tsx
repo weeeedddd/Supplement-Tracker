@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { applyDocumentLanguage, lang } from './lib/i18n';
+import { isNativeAndroidApp } from './lib/nativePlatform';
 import './fonts.css';
 import './legacy.css';
 import './app.css';
@@ -50,7 +51,7 @@ function paintFatalIfBlank(event: ErrorEvent | PromiseRejectionEvent) {
   document.body.replaceChildren(panel);
 }
 
-if ('serviceWorker' in navigator) {
+if (!isNativeAndroidApp() && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
       .then(registration => {

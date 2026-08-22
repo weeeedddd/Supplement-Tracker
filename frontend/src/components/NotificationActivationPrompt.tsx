@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { lang } from '../lib/i18n';
 import { useModalIsolation } from '../lib/modal';
+import { isNativeAndroidApp, syncNativeDeviceReminders } from '../lib/nativePlatform';
 import {
   createActivationNotice,
   processDueNotifications,
@@ -19,7 +20,15 @@ interface NotificationActivationPromptProps {
   onClose: () => void;
 }
 
-function resultMessage(state: ClosedAppPushState | null, permission: NotificationPermission | 'unsupported'): string {
+function resultMessage(
+  state: ClosedAppPushState | null,
+  permission: NotificationPermission | 'unsupported',
+  nativeAndroid: boolean,
+): string {
+  if (nativeAndroid && permission === 'granted') return copy(
+    'Aktiv. Android erinnert dich auch bei geschlossener App – ohne Gildenkonto oder zusätzliche Dienste.',
+    'Active. Android reminds you even while the app is closed — no Guild account or additional service needed.',
+  );
   if (state === 'subscribed') return copy(
     'Aktiv. Erinnerungen können jetzt auch ankommen, wenn CORELINE geschlossen ist.',
     'Active. Reminders can now arrive even while CORELINE is closed.',
@@ -29,8 +38,12 @@ function resultMessage(state: ClosedAppPushState | null, permission: Notificatio
     'Device notices are active. Sign in once under Guild later; CORELINE will then connect background push automatically.',
   );
   if (permission === 'denied') return copy(
-    'Der Browser blockiert Systemhinweise. Der In-App-Posteingang bleibt aktiv; die Berechtigung kannst du in Chrome ändern.',
-    'The browser blocks system notices. The in-app inbox remains active; you can change the permission in Chrome.',
+    nativeAndroid
+      ? 'Android blockiert Systemhinweise. Die Berechtigung kannst du in den App-Einstellungen ändern.'
+      : 'Der Browser blockiert Systemhinweise. Der In-App-Posteingang bleibt aktiv; die Berechtigung kannst du in Chrome ändern.',
+    nativeAndroid
+      ? 'Android blocks system notices. You can change the permission in the app settings.'
+      : 'The browser blocks system notices. The in-app inbox remains active; you can change the permission in Chrome.',
   );
   return copy(
     'In-App-Erinnerungen sind aktiv. Hintergrund-Push wird verbunden, sobald Browser, Konto und CORELINE-Dienst bereit sind.',
@@ -41,6 +54,7 @@ function resultMessage(state: ClosedAppPushState | null, permission: Notificatio
 export function NotificationActivationPrompt({ open, onClose }: NotificationActivationPromptProps) {
   const [activating, setActivating] = useState(false);
   const [result, setResult] = useState('');
+  const nativeAndroid = isNativeAndroidApp();
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -67,14 +81,15 @@ export function NotificationActivationPrompt({ open, onClose }: NotificationActi
     let pushState: ClosedAppPushState | null = null;
     if (permission === 'granted') {
       try {
-        pushState = (await enableClosedAppPush(preferences)).state;
+        if (nativeAndroid) await syncNativeDeviceReminders();
+        else pushState = (await enableClosedAppPush(preferences)).state;
       } catch {
         pushState = 'not-configured';
       }
     }
     createActivationNotice();
     await processDueNotifications();
-    setResult(resultMessage(pushState, permission));
+    setResult(resultMessage(pushState, permission, nativeAndroid));
     setActivating(false);
   };
 
@@ -90,10 +105,15 @@ export function NotificationActivationPrompt({ open, onClose }: NotificationActi
         <div className="notification-activation-body">
           <small>{copy('LETZTER AKTIVIERUNGSSCHRITT', 'FINAL ACTIVATION STEP')}</small>
           <h2 id="notification-activation-title">{copy('Soll CORELINE dich erinnern?', 'Should CORELINE remind you?')}</h2>
-          <p>{copy(
-            'Einmal aktivieren, danach arbeitet der System-Posteingang automatisch. Mit verbundenem Gildenkonto kommen Hinweise auch bei geschlossener App.',
-            'Enable once, then the system inbox works automatically. With a connected Guild account, notices also arrive while the app is closed.',
-          )}</p>
+          <p>{nativeAndroid
+            ? copy(
+              'Einmal aktivieren: Android erinnert dich direkt auf diesem Gerät, auch wenn CORELINE geschlossen ist. Dafür wird kein Konto benötigt.',
+              'Enable once: Android reminds you directly on this device even while CORELINE is closed. No account is required.',
+            )
+            : copy(
+              'Einmal aktivieren, danach arbeitet der System-Posteingang automatisch. Mit verbundenem Gildenkonto kommen Hinweise auch bei geschlossener App.',
+              'Enable once, then the system inbox works automatically. With a connected Guild account, notices also arrive while the app is closed.',
+            )}</p>
           <div className="notification-activation-list">
             <span><SystemIcon name="training" /><strong>{copy('Training & offene Sätze', 'Training & unfinished sets')}</strong></span>
             <span><SystemIcon name="food" /><strong>{copy('Mahlzeiten-Check', 'Meal check')}</strong></span>
