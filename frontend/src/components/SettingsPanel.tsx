@@ -83,7 +83,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
       .then(status => setClosedPushState(status.state))
       .catch(() => setClosedPushState('not-configured'));
     closeRef.current?.focus();
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

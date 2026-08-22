@@ -132,7 +132,7 @@ export function ProfileEditor({ open, onClose, onSaved }: ProfileEditorProps) {
     }
     setStatus('');
     closeRef.current?.focus();
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
