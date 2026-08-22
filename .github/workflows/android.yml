@@ -1,0 +1,83 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/android.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Use Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configure Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
+      - name: Configure Gradle and verify its wrapper
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Install locked dependencies
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      - name: Test CORELINE
+        working-directory: frontend
+        run: npm test
+
+      - name: Build bundled Android web assets
+        working-directory: frontend
+        env:
+          VITE_BACKEND_URL: https://77.90.30.225
+        run: npm run build
+
+      - name: Synchronize native plugins and bundled app
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Build installable debug APK
+        working-directory: frontend/android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Name phone-installable APK
+        working-directory: frontend/android
+        run: cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/CORELINE-android.apk
+
+      - name: Upload CORELINE Android app
+        uses: actions/upload-artifact@v7
+        with:
+          name: CORELINE-Android-APK
+          path: frontend/android/app/build/outputs/apk/debug/CORELINE-android.apk
+          if-no-files-found: error
+          retention-days: 14

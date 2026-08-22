@@ -7,6 +7,7 @@ import {
 import { LANG_NAMES, lang, setLang } from '../lib/i18n';
 import { collectExportableLocalData, LOCAL_SYNC_STATE } from '../lib/localMode';
 import { useModalIsolation } from '../lib/modal';
+import { isNativeAndroidApp, syncNativeDeviceReminders } from '../lib/nativePlatform';
 import { freeLocationSearchAvailable } from '../lib/openStreetMap';
 import {
   createActivationNotice,
@@ -64,6 +65,7 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
   const [notificationPermission, setNotificationPermission] = useState<CorelineNotificationPermission>(() => getSystemNotificationPermission());
   const [notificationStatus, setNotificationStatus] = useState('');
   const [closedPushState, setClosedPushState] = useState<ClosedAppPushState>('unsupported');
+  const nativeAndroid = isNativeAndroidApp();
 
   useModalIsolation(open, {
     backgroundSelectors: ['.system-topbar', '#coreline-main', '.system-bottom-nav'],
@@ -80,11 +82,13 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     setNotificationPreferences(loadNotificationPreferences());
     setNotificationPermission(getSystemNotificationPermission());
     setNotificationStatus('');
-    void getClosedAppPushStatus()
-      .then(status => setClosedPushState(status.state))
-      .catch(() => setClosedPushState('not-configured'));
+    if (!nativeAndroid) {
+      void getClosedAppPushStatus()
+        .then(status => setClosedPushState(status.state))
+        .catch(() => setClosedPushState('not-configured'));
+    }
     closeRef.current?.focus();
-  }, [open]);
+  }, [nativeAndroid, open]);
 
   if (!open) return null;
 
@@ -167,7 +171,11 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
     setNotificationPermission(permission);
     const next = saveNotificationPreferences({ enabled: true });
     setNotificationPreferences(next);
-    if (closedPushState === 'subscribed') {
+    if (nativeAndroid && permission === 'granted') {
+      await syncNativeDeviceReminders().catch(() => {
+        setNotificationStatus(copy('Android-Erinnerungen konnten gerade nicht aktualisiert werden.', 'Android reminders could not be updated right now.'));
+      });
+    } else if (closedPushState === 'subscribed') {
       await syncClosedAppPushPreferences(next).catch(() => {
         setNotificationStatus(copy('Lokale Hinweise sind aktiv; der Push-Server ist gerade nicht erreichbar.', 'Local notices are active; the push server is currently unavailable.'));
       });
@@ -209,8 +217,12 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
           <div>
             <h3 id="local-storage-status-title">{copy('Auf diesem Gerät gespeichert', 'Stored on this device')}</h3>
             <p>{copy(
-              'Profil, Plan, Mahlzeiten und Einheiten funktionieren ohne Konto. Ein optionales CORELINE-Konto schaltet echte Freunde, Gilden, revisionssicheren Geräte-Sync und Hintergrund-Push frei; private lokale Notizen und Fotos werden nicht geteilt.',
-              'Profile, plan, meals, and sessions work without an account. An optional CORELINE account unlocks real friends, Guilds, revision-safe device sync, and background push; private local notes and photos are not shared.',
+              nativeAndroid
+                ? 'Profil, Plan, Mahlzeiten, Einheiten und Android-Erinnerungen funktionieren ohne Konto. Ein optionales CORELINE-Konto schaltet echte Freunde, Gilden und revisionssicheren Geräte-Sync frei; private lokale Notizen und Fotos werden nicht geteilt.'
+                : 'Profil, Plan, Mahlzeiten und Einheiten funktionieren ohne Konto. Ein optionales CORELINE-Konto schaltet echte Freunde, Gilden, revisionssicheren Geräte-Sync und Hintergrund-Push frei; private lokale Notizen und Fotos werden nicht geteilt.',
+              nativeAndroid
+                ? 'Profile, plan, meals, sessions, and Android reminders work without an account. An optional CORELINE account unlocks real friends, Guilds, and revision-safe device sync; private local notes and photos are not shared.'
+                : 'Profile, plan, meals, and sessions work without an account. An optional CORELINE account unlocks real friends, Guilds, revision-safe device sync, and background push; private local notes and photos are not shared.',
             )}</p>
             <code>{LOCAL_SYNC_STATE.mode} · Schema {LOCAL_SYNC_STATE.schemaVersion}</code>
           </div>
@@ -228,16 +240,26 @@ export function SettingsPanel({ open, onClose, onLocalReset, onBackendStatusChan
             <div className="notification-settings-status">
               <SystemIcon name="bell" />
               <span><strong>{notificationPermission === 'granted' ? copy('Android-Systemhinweise verfügbar', 'Android system notices available') : copy('In-App-Systemlog verfügbar', 'In-app system log available')}</strong><small>{copy(
-                'Lokale Hinweise arbeiten beim Öffnen der App. Mit einem CORELINE-Konto können Erinnerungen auch bei geschlossener App ankommen.',
-                'Local notices work when the app opens. With a CORELINE account, reminders can also arrive while the app is closed.',
+                nativeAndroid
+                  ? 'Android-Erinnerungen laufen direkt auf diesem Gerät, auch bei geschlossener App. Ein Konto oder externer Push-Dienst ist nicht nötig.'
+                  : 'Lokale Hinweise arbeiten beim Öffnen der App. Mit einem CORELINE-Konto können Erinnerungen auch bei geschlossener App ankommen.',
+                nativeAndroid
+                  ? 'Android reminders run directly on this device, even while the app is closed. No account or external push service is required.'
+                  : 'Local notices work when the app opens. With a CORELINE account, reminders can also arrive while the app is closed.',
               )}</small></span>
             </div>
 
-            <div className={`notification-push-state ${closedPushState === 'subscribed' ? 'active' : ''}`}>
-              <span><strong>{copy('Hintergrund-Push', 'Background push')}</strong><small>{pushLabel(closedPushState)}</small></span>
-              {closedPushState === 'subscribed'
-                ? <button type="button" className="secondary-button" onClick={() => void disableClosedAppPush().then(() => setClosedPushState('ready'))}>{copy('Trennen', 'Disconnect')}</button>
-                : <button type="button" className="secondary-button" disabled={!['ready'].includes(closedPushState)} onClick={() => void connectClosedPush()}>{copy('Verbinden', 'Connect')}</button>}
+            <div className={`notification-push-state ${(nativeAndroid && notificationPermission === 'granted') || closedPushState === 'subscribed' ? 'active' : ''}`}>
+              <span><strong>{nativeAndroid ? copy('Android-Geräteerinnerungen', 'Android device reminders') : copy('Hintergrund-Push', 'Background push')}</strong><small>{nativeAndroid
+                ? notificationPermission === 'granted'
+                  ? copy('Auch bei geschlossener App aktiv', 'Active even while the app is closed')
+                  : copy('Android-Berechtigung noch nicht freigegeben', 'Android permission has not been granted yet')
+                : pushLabel(closedPushState)}</small></span>
+              {nativeAndroid
+                ? notificationPermission !== 'granted' && <button type="button" className="secondary-button" onClick={() => void activateNotifications()}>{copy('Aktivieren', 'Enable')}</button>
+                : closedPushState === 'subscribed'
+                  ? <button type="button" className="secondary-button" onClick={() => void disableClosedAppPush().then(() => setClosedPushState('ready'))}>{copy('Trennen', 'Disconnect')}</button>
+                  : <button type="button" className="secondary-button" disabled={!['ready'].includes(closedPushState)} onClick={() => void connectClosedPush()}>{copy('Verbinden', 'Connect')}</button>}
             </div>
 
             <div className="notification-toggle-grid">

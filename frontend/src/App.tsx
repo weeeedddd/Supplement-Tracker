@@ -25,6 +25,7 @@ import { lang } from './lib/i18n';
 import { GUILD_UPDATED_EVENT, getAccount, syncNow } from './lib/guild';
 import { removeLegacyPseudoAuth, resolveInitialScreen } from './lib/localMode';
 import { useModalIsolation } from './lib/modal';
+import { isNativeAndroidApp, syncNativeDeviceReminders } from './lib/nativePlatform';
 import { freeLocationSearchAvailable } from './lib/openStreetMap';
 import {
   NOTIFICATION_UPDATED_EVENT,
@@ -206,7 +207,7 @@ export default function App() {
   }, [onApp]);
 
   useEffect(() => {
-    if (!onApp) return;
+    if (!onApp || isNativeAndroidApp()) return;
     let stopped = false;
     const connectBackgroundPush = async () => {
       const preferences = loadNotificationPreferences();
@@ -226,6 +227,25 @@ export default function App() {
       stopped = true;
       window.removeEventListener(GUILD_UPDATED_EVENT, reconnect);
       window.removeEventListener(BACKEND_CONFIGURATION_EVENT, reconnect);
+    };
+  }, [onApp]);
+
+  useEffect(() => {
+    if (!onApp || !isNativeAndroidApp()) return;
+    let active = true;
+    let timer = 0;
+    const sync = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (active) void syncNativeDeviceReminders().catch(() => undefined);
+      }, 250);
+    };
+    sync();
+    window.addEventListener(NOTIFICATION_UPDATED_EVENT, sync);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      window.removeEventListener(NOTIFICATION_UPDATED_EVENT, sync);
     };
   }, [onApp]);
 

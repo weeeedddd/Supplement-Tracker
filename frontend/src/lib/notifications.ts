@@ -1,4 +1,10 @@
 import { lang } from './i18n';
+import {
+  isNativeAndroidApp,
+  nativeNotificationPermissionSnapshot,
+  requestNativeNotificationPermission,
+  showNativeDeviceNotice,
+} from './nativePlatform';
 import { S, dateKey } from './storage';
 
 export type CorelineNotificationKind = 'training' | 'recovery' | 'supplements' | 'hydration' | 'meals' | 'system';
@@ -239,10 +245,18 @@ export function getUnreadNotificationCount(now = Date.now()): number {
 }
 
 export function getSystemNotificationPermission(): CorelineNotificationPermission {
+  if (isNativeAndroidApp()) return nativeNotificationPermissionSnapshot();
   return typeof Notification === 'undefined' ? 'unsupported' : Notification.permission;
 }
 
 export async function requestSystemNotificationPermission(): Promise<CorelineNotificationPermission> {
+  if (isNativeAndroidApp()) {
+    try {
+      return await requestNativeNotificationPermission();
+    } catch {
+      return nativeNotificationPermissionSnapshot();
+    }
+  }
   if (typeof Notification === 'undefined') return 'unsupported';
   if (Notification.permission !== 'default') return Notification.permission;
   try {
@@ -254,6 +268,7 @@ export async function requestSystemNotificationPermission(): Promise<CorelineNot
 
 async function showSystemNotification(item: CorelineNotificationItem): Promise<boolean> {
   if (getSystemNotificationPermission() !== 'granted') return false;
+  if (isNativeAndroidApp()) return showNativeDeviceNotice(item.title, item.body);
   const options: NotificationOptions = {
     body: item.body,
     tag: item.id,

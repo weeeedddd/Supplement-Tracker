@@ -3,6 +3,7 @@ import { useState, type FormEvent } from 'react';
 import { requestNearbyStores, type NearbyStoresEnvelope } from '../lib/integrations';
 import { getBackendUrl } from '../lib/backend';
 import { lang } from '../lib/i18n';
+import { readCurrentDevicePosition } from '../lib/nativePlatform';
 import { freeLocationSearchAvailable, requestOpenStreetMapStores } from '../lib/openStreetMap';
 import { loadSupplementShoppingIntent, onlineSupplementSearchUrl } from '../lib/shoppingIntent';
 import { SystemIcon } from './SystemIcon';
@@ -79,27 +80,20 @@ export function ShoppingScreen({
   const usingFreeProvider = freeLocationAvailable
     && (!providerAvailable || (location.kind === 'address' && !addressSearchAvailable));
 
-  const useCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setStatus(copy('Dein Browser unterstützt die Standortfreigabe nicht. Nutze stattdessen eine Adresse.', 'Your browser does not support location sharing. Use an address instead.'));
-      return;
-    }
+  const useCurrentLocation = async () => {
     setLocating(true);
     setStatus('');
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setLocation({ kind: 'coordinates', latitude: coords.latitude, longitude: coords.longitude });
-        setAddress('');
-        setLocating(false);
-        setStatus(copy('Standort für diese Suche übernommen. Er wird nicht lokal gespeichert.', 'Location accepted for this search. It is not stored locally.'));
-      },
-      () => {
-        setLocation({ kind: 'address' });
-        setLocating(false);
-        setStatus(copy('Standort wurde nicht freigegeben. Du kannst eine Adresse eingeben.', 'Location was not shared. You can enter an address.'));
-      },
-      { enableHighAccuracy: false, maximumAge: 60_000, timeout: 10_000 },
-    );
+    try {
+      const coordinates = await readCurrentDevicePosition();
+      setLocation({ kind: 'coordinates', ...coordinates });
+      setAddress('');
+      setStatus(copy('Standort für diese Suche übernommen. Er wird nicht lokal gespeichert.', 'Location accepted for this search. It is not stored locally.'));
+    } catch {
+      setLocation({ kind: 'address' });
+      setStatus(copy('Standort wurde nicht freigegeben. Du kannst eine Adresse eingeben.', 'Location was not shared. You can enter an address.'));
+    } finally {
+      setLocating(false);
+    }
   };
 
   const submit = async (event: FormEvent) => {
@@ -274,7 +268,7 @@ export function ShoppingScreen({
             </div>
 
             <div className="shopping-location-actions">
-              <button className="system-button quiet" type="button" onClick={useCurrentLocation} disabled={locating || !currentLocationCanSearch}>
+              <button className="system-button quiet" type="button" onClick={() => void useCurrentLocation()} disabled={locating || !currentLocationCanSearch}>
                 <SystemIcon name="location" /> {locating ? copy('Standort wird gelesen …', 'Reading location …') : copy('Aktuellen Standort nutzen', 'Use current location')}
               </button>
               {location.kind === 'coordinates' && (

@@ -35,9 +35,11 @@ in the browser and can be exported as JSON.
 - Contextual guide with a safe local fallback and an explicit consent boundary
   for a real server-side AI provider.
 - Nearby-store UI for country, budget, radius and address/current location;
-  search unlocks only when the server enables the maps integration, and the UI
-  shows results only after a successful live provider response.
+  free OpenStreetMap search works without a paid maps API, while the UI shows
+  results only after a successful live provider response.
 - Installable PWA shell, local assets, safe-area support and offline reload.
+- Native Android app packaging with the same approved CORELINE design and logo,
+  approximate-location permissions, and free on-device background reminders.
 - Account-backed friends, live presence, RPG stat inspection, Aura/Focus,
   revision-aware cross-device sync, Guild rosters, weekly leaderboards and raids.
 - Adaptive character quests that preserve the equipped character path while
@@ -51,18 +53,20 @@ in the browser and can be exported as JSON.
 
 ```text
 frontend/                    React 18 + TypeScript + Vite PWA
+frontend/android/            Native Capacitor Android project and approved icon
 backend/app/integration_app.py
                              Public account/Guild/push/verification + provider API
 backend/app/main.py           Historical compatibility server
 backend/tests/                System, provider, safety and boundary tests
 .github/workflows/pages.yml   Validation and GitHub Pages deployment
+.github/workflows/android.yml Android debug APK validation and download artifact
 DESIGN.md                     Current product visual language
 legacy/                       Historical reference only
 ```
 
 ## Frontend development
 
-Node.js 24 is used in CI (minimum supported runtime: Node.js 20.19).
+Node.js 24 is used in CI (minimum supported runtime: Node.js 22).
 
 ```bash
 cd frontend
@@ -76,9 +80,40 @@ The production build is written to `frontend/dist`. Pushes to `main` run the
 locked dependency audit, tests and production build before GitHub Pages is
 deployed. Do not commit `dist` or place API keys in `VITE_*` variables.
 
-An optional backend URL can be entered under **Settings → Integrations** or set
-at build time as `VITE_BACKEND_URL`. The UI verifies provider capabilities; a
-saved URL alone does not enable remote AI or maps.
+The managed backend URL is supplied at build time as `VITE_BACKEND_URL`. Users
+never have to enter an IP address or technical server setting. The UI verifies
+provider capabilities; configuring an address alone does not enable paid AI or
+maps integrations.
+
+## Android APK
+
+The Android app is the existing CORELINE experience packaged with Capacitor;
+there is no second Replit/Floot project, copied dashboard, paid maps API, or
+Firebase requirement. Its application ID is `app.coreline.tracker`.
+
+Each frontend pull request and push to `main` runs the **Build Android APK**
+workflow. Open its completed run in GitHub Actions and download the
+`CORELINE-Android-APK` artifact to obtain `CORELINE-android.apk` for Android.
+Android may ask whether the browser is allowed to install this downloaded app.
+
+The APK keeps the approved CORELINE emblem, dark launch screen, bundled offline
+web assets, current managed backend, and the live character-path onboarding.
+Location requests ask only for approximate access when the user chooses the
+nearby-store feature. Native reminders are scheduled directly on the phone,
+respect the selected quiet hours and categories, survive app closure, and do
+not require an account, Firebase, or a paid provider.
+
+Developers with Android Studio and Android SDK 36 can build locally:
+
+```bash
+cd frontend
+npm ci
+VITE_BACKEND_URL=https://77.90.30.225 npm run android:apk
+```
+
+The generated debug APK is suitable for direct testing. A Google Play release
+requires the owner's own signing key and Play Console account; no keystore,
+password, signing secret, or Firebase credential is committed to this project.
 
 ## Optional CORELINE System backend
 
