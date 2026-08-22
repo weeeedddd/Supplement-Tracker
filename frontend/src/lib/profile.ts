@@ -606,6 +606,22 @@ export function userProfileFromPlanInput(
   return profile;
 }
 
+/**
+ * Render-safe variant: an incomplete form is an expected state during
+ * onboarding, not an error, so this returns `null` instead of throwing.
+ */
+export function tryUserProfileFromPlanInput(
+  input: PlanInput,
+  options: Parameters<typeof userProfileFromPlanInput>[1] = {},
+): UserProfileV3 | null {
+  if (!validatePlanInput(input).valid) return null;
+  try {
+    return userProfileFromPlanInput(input, options);
+  } catch {
+    return null;
+  }
+}
+
 /** Backward-compatible input for the deterministic local plan generator. */
 export function userProfileToPlanInput(profile: UserProfileV3): PlanInput {
   const normalized = normalizeUserProfile(profile);
