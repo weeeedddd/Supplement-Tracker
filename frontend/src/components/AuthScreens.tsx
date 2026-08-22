@@ -7,6 +7,12 @@ import {
   getCharacterPath,
   localizedCharacterCopy,
 } from '../lib/characterPaths';
+import {
+  buildCharacterFoodPlan,
+  saveCharacterFoodPlanChoice,
+  type CharacterFoodPlanChoice,
+  type CharacterMealSlot,
+} from '../lib/characterFoodPlans';
 import { useModalIsolation } from '../lib/modal';
 import {
   calculateNutritionTargetsForProfile,
@@ -259,6 +265,20 @@ function systemAdvice(goal: TrainingGoal): string {
     fat_loss: ['Das System nutzt ein moderates Defizit und hält Protein hoch, damit Gewohnheiten, Leistung und Muskelerhalt zusammenpassen.', 'The system uses a moderate deficit and keeps protein high so habits, performance, and muscle retention work together.'],
   };
   return copy(...advice[goal]);
+}
+
+function mealSlotLabel(slot: CharacterMealSlot): string {
+  return ({
+    breakfast: copy('Frühstück', 'Breakfast'),
+    lunch: copy('Mittag', 'Lunch'),
+    snack: copy('Snack', 'Snack'),
+    dinner: copy('Abendessen', 'Dinner'),
+  })[slot];
+}
+
+function portionLabel(portions: number): string {
+  const value = Number.isInteger(portions) ? String(portions) : portions.toFixed(1).replace('.', ',');
+  return `${value}×`;
 }
 
 function inspirationCopy(id: InspirationProfileId): { tagline: string; description: string } {
@@ -538,6 +558,8 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
   const [generationNote, setGenerationNote] = useState('');
   const [generationOrigin, setGenerationOrigin] = useState<PlanGenerationOrigin>('local-rules');
   const [plan, setPlan] = useState<InitialPlan | null>(null);
+  const [foodPlanChoice, setFoodPlanChoice] = useState<CharacterFoodPlanChoice | null>(null);
+  const [foodPlanError, setFoodPlanError] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => { headingRef.current?.focus(); }, [step]);
@@ -561,6 +583,23 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     goal,
     difficulty,
   }), [mode, inspirationProfile, displayName, age, heightCm, weightKg, experience, daysPerWeek, equipment, diet, goal, difficulty]);
+
+  const previewProfile = useMemo(() => userProfileFromPlanInput(input, {
+    gender,
+    dietaryPreferences: stringList(lifestyleDraft.dietaryPreferences),
+    lifestyle: lifestyleFromDraft(lifestyleDraft),
+  }), [gender, input, lifestyleDraft]);
+
+  const characterFoodPlan = useMemo(() => (
+    plan && mode === 'inspiration' && inspirationProfile
+      ? buildCharacterFoodPlan(inspirationProfile, previewProfile, plan.nutritionTargets, lang === 'de' ? 'de' : 'en')
+      : null
+  ), [inspirationProfile, mode, plan, previewProfile]);
+
+  useEffect(() => {
+    setFoodPlanChoice(null);
+    setFoodPlanError('');
+  }, [inspirationProfile]);
 
   const updateLifestyle = <K extends keyof LifestyleDraft>(key: K, value: LifestyleDraft[K]) => {
     setLifestyleDraft((current) => ({ ...current, [key]: value }));
@@ -649,6 +688,8 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
       activityContext: profile.lifestyle.activityContext,
     });
     setPlan(nextPlan);
+    setFoodPlanChoice(null);
+    setFoodPlanError('');
     setGenerationOrigin(nextOrigin);
     setGenerationNote(nextNote);
     setIsGenerating(false);
@@ -657,6 +698,13 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
 
   const finish = async () => {
     if (!plan) return;
+    if (characterFoodPlan && !foodPlanChoice) {
+      setFoodPlanError(copy(
+        'Wähle zuerst den empfohlenen Food-Plan oder bestätige, dass du deinen eigenen nutzt.',
+        'Choose the recommended food plan or confirm that you use your own first.',
+      ));
+      return;
+    }
     const profile = userProfileFromPlanInput(input, {
       gender,
       dietaryPreferences: stringList(lifestyleDraft.dietaryPreferences),
@@ -664,6 +712,7 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     });
     const payload: OnboardingCompletePayload = { input, plan, profile, generationOrigin };
     setIsSaving(true);
+    if (characterFoodPlan && foodPlanChoice) saveCharacterFoodPlanChoice(characterFoodPlan, foodPlanChoice);
     if (onComplete) onComplete(payload);
     else {
       persistLocalResult(payload);
@@ -942,6 +991,48 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
             </dl>
             <p>{plan.nutritionTargets.note}</p>
           </section>
+
+          {characterFoodPlan && <section className="onboarding-food-protocol" aria-labelledby="character-food-plan-title">
+            <header>
+              <span><SystemIcon name="food" />{copy('FUEL-PROTOKOLL FREIGESCHALTET', 'FUEL PROTOCOL UNLOCKED')}</span>
+              <small>{characterFoodPlan.characterName} Path</small>
+            </header>
+            <div className="onboarding-food-protocol-copy">
+              <h3 id="character-food-plan-title">{characterFoodPlan.title}</h3>
+              <p>{characterFoodPlan.focus}</p>
+            </div>
+            <div className="onboarding-food-plan-meals">
+              {characterFoodPlan.meals.map(meal => <article key={meal.slot}>
+                <span>{mealSlotLabel(meal.slot)}</span>
+                <strong>{meal.title}</strong>
+                <small>{portionLabel(meal.portions)} · {meal.nutrition.kcal} kcal · {Math.round(meal.nutrition.prot)} g Protein</small>
+              </article>)}
+            </div>
+            <div className="onboarding-food-plan-total">
+              <span><small>{copy('PLAN-SUMME', 'PLAN TOTAL')}</small><strong>{characterFoodPlan.plannedNutrition.kcal} kcal</strong></span>
+              <span><small>{copy('DEIN ZIEL', 'YOUR TARGET')}</small><strong>{characterFoodPlan.targetCalories} kcal</strong></span>
+              <span><small>Protein</small><strong>{Math.round(characterFoodPlan.plannedNutrition.prot)} / {characterFoodPlan.targetProtein} g</strong></span>
+            </div>
+            <p className="onboarding-food-plan-note">{copy(
+              'Die Portionsvorschläge sind ein anpassbarer Tagesrahmen aus geprüften Rezepten – keine bereits gegessenen Mahlzeiten. Allergien und Ausschlüsse haben immer Vorrang.',
+              'Portion suggestions are an adjustable daily template from reviewed recipes — not meals already logged as eaten. Allergies and exclusions always take priority.',
+            )}</p>
+            <div className="onboarding-food-plan-choice" role="group" aria-label={copy('Food-Plan auswählen', 'Choose food plan')}>
+              <button
+                type="button"
+                className={foodPlanChoice === 'accepted' ? 'selected' : ''}
+                aria-pressed={foodPlanChoice === 'accepted'}
+                onClick={() => { setFoodPlanChoice('accepted'); setFoodPlanError(''); }}
+              ><SystemIcon name="check" /><span><strong>{copy('Plan annehmen', 'Accept food plan')}</strong><small>{copy('Im Ernährungsbereich ausrüsten', 'Equip it in Nutrition')}</small></span></button>
+              <button
+                type="button"
+                className={foodPlanChoice === 'own-plan' ? 'selected' : ''}
+                aria-pressed={foodPlanChoice === 'own-plan'}
+                onClick={() => { setFoodPlanChoice('own-plan'); setFoodPlanError(''); }}
+              ><SystemIcon name="edit" /><span><strong>{copy('Nein, eigener Plan', 'No, I use my own')}</strong><small>{copy('Nur Ziele und Rezepte behalten', 'Keep targets and recipes only')}</small></span></button>
+            </div>
+            {foodPlanError && <p className="onboarding-field-error onboarding-food-plan-error" role="alert">{foodPlanError}</p>}
+          </section>}
 
           <section className="onboarding-result-goals" aria-label={copy('Tägliche Empfehlungen', 'Daily recommendations')}>
             <article><SystemIcon name="water" /><strong>{hydrationLiters} L</strong><span>{copy('Hydration-Startwert', 'hydration starting point')}</span></article>

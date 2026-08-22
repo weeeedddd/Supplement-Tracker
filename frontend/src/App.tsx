@@ -9,6 +9,7 @@ import { KiScreen } from './components/KiScreen';
 import { GuildPanel } from './components/GuildPanel';
 import { WeeklyReportPanel } from './components/WeeklyReportPanel';
 import { NotificationCenter } from './components/NotificationCenter';
+import { NotificationActivationPrompt } from './components/NotificationActivationPrompt';
 import { ProfileEditor } from './components/ProfileEditor';
 import { SettingsPanel } from './components/SettingsPanel';
 import { ShoppingScreen } from './components/ShoppingScreen';
@@ -28,10 +29,16 @@ import { freeLocationSearchAvailable } from './lib/openStreetMap';
 import {
   NOTIFICATION_UPDATED_EVENT,
   getUnreadNotificationCount,
+  loadNotificationPreferences,
   processDueNotifications,
   snoozeLocalNotifications,
 } from './lib/notifications';
-import { snoozeClosedAppPush } from './lib/push';
+import {
+  enableClosedAppPush,
+  getClosedAppPushStatus,
+  snoozeClosedAppPush,
+  syncClosedAppPushPreferences,
+} from './lib/push';
 import { publishSocialPresence } from './lib/social';
 import type { InitialPlan } from './lib/plans';
 import { calculateNutritionTargetsForProfile, loadUserProfile } from './lib/profile';
@@ -58,6 +65,7 @@ const NAVIGATION: NavigationItem[] = [
 const FuelScreen = lazy(() => import('./components/FuelScreen').then((module) => ({ default: module.FuelScreen })));
 const TrainingScreen = lazy(() => import('./components/TrainingScreen').then((module) => ({ default: module.TrainingScreen })));
 const ProfileScreen = lazy(() => import('./components/ProfileScreen').then((module) => ({ default: module.ProfileScreen })));
+const NOTIFICATION_ACTIVATION_PROMPT_KEY = 'notification_activation_prompt_v1';
 
 function localCopy(de: string, en: string): string {
   return lang === 'de' ? de : en;
@@ -121,6 +129,7 @@ export default function App() {
   const screen = getScreen();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationActivationOpen, setNotificationActivationOpen] = useState(false);
   const [guildOpen, setGuildOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(() => getUnreadNotificationCount());
@@ -187,6 +196,36 @@ export default function App() {
       window.clearInterval(interval);
       window.removeEventListener(NOTIFICATION_UPDATED_EVENT, updateCount);
       document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [onApp]);
+
+  useEffect(() => {
+    if (!onApp || loadNotificationPreferences().enabled || S.get(NOTIFICATION_ACTIVATION_PROMPT_KEY)) return;
+    const timer = window.setTimeout(() => setNotificationActivationOpen(true), 500);
+    return () => window.clearTimeout(timer);
+  }, [onApp]);
+
+  useEffect(() => {
+    if (!onApp) return;
+    let stopped = false;
+    const connectBackgroundPush = async () => {
+      const preferences = loadNotificationPreferences();
+      if (!preferences.enabled || !getAccount() || !getBackendUrl()) return;
+      try {
+        const status = await getClosedAppPushStatus();
+        if (stopped) return;
+        if (status.state === 'ready') await enableClosedAppPush(preferences);
+        else if (status.state === 'subscribed') await syncClosedAppPushPreferences(preferences);
+      } catch { /* browser permission or service availability can be retried later */ }
+    };
+    const reconnect = () => { void connectBackgroundPush(); };
+    void connectBackgroundPush();
+    window.addEventListener(GUILD_UPDATED_EVENT, reconnect);
+    window.addEventListener(BACKEND_CONFIGURATION_EVENT, reconnect);
+    return () => {
+      stopped = true;
+      window.removeEventListener(GUILD_UPDATED_EVENT, reconnect);
+      window.removeEventListener(BACKEND_CONFIGURATION_EVENT, reconnect);
     };
   }, [onApp]);
 
@@ -447,6 +486,13 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         onLocalReset={resetWorkspace}
         onBackendStatusChange={setBackendCapabilities}
+      />
+      <NotificationActivationPrompt
+        open={notificationActivationOpen && onApp}
+        onClose={() => {
+          S.set(NOTIFICATION_ACTIVATION_PROMPT_KEY, { handledAt: new Date().toISOString() });
+          setNotificationActivationOpen(false);
+        }}
       />
       <NotificationCenter open={notificationsOpen && onApp} onClose={() => setNotificationsOpen(false)} />
       <GuildPanel open={guildOpen && onApp} onClose={() => setGuildOpen(false)} />

@@ -3,6 +3,12 @@ import { createPortal } from 'react-dom';
 
 import { calcConsumed, type Macros } from '../lib/engine';
 import {
+  buildCharacterFoodPlan,
+  loadCharacterFoodPlanChoice,
+  type CharacterMealSlot,
+} from '../lib/characterFoodPlans';
+import {
+  CURATED_DISHES,
   createDish,
   estimateCaloriesFromMacros,
   fetchDishes,
@@ -30,6 +36,17 @@ const CATEGORIES = ['all', 'breakfast', 'main', 'dessert', 'snack'];
 const EQUIPMENT = ['airfryer', 'ricecooker'];
 const PAGE_SIZE = 24;
 const copy = (de: string, en: string) => lang === 'de' ? de : en;
+
+const mealSlotLabel = (slot: CharacterMealSlot) => ({
+  breakfast: copy('Frühstück', 'Breakfast'),
+  lunch: copy('Mittag', 'Lunch'),
+  snack: copy('Snack', 'Snack'),
+  dinner: copy('Abendessen', 'Dinner'),
+})[slot];
+
+const formatPortions = (portions: number) => Number.isInteger(portions)
+  ? String(portions)
+  : portions.toFixed(1).replace('.', ',');
 
 const GOAL_LABELS: Record<TrainingGoal, { de: string; en: string }> = {
   general_fitness: { de: 'Allgemeine Fitness', en: 'General fitness' },
@@ -86,6 +103,19 @@ export function FuelScreen() {
   const goals = S.get<Macros>('macros');
   const targetDetails = S.get<NutritionTargets>('nutrition_targets_v2');
   const profile = loadUserProfile();
+  const storedFoodPlan = loadCharacterFoodPlanChoice();
+  const activeFoodPlan = storedFoodPlan?.choice === 'accepted'
+    && profile?.mode === 'inspiration'
+    && profile.inspirationProfile === storedFoodPlan.plan.characterId
+    && targetDetails
+    ? buildCharacterFoodPlan(
+      profile.inspirationProfile,
+      profile,
+      targetDetails,
+      lang === 'de' ? 'de' : 'en',
+      storedFoodPlan.plan.generatedAt,
+    )
+    : null;
   const consumed = calcConsumed();
   const bars: { key: keyof Macros; label: string; unit: string }[] = [
     { key: 'kcal', label: copy('Kalorien', 'Calories'), unit: 'kcal' },
@@ -146,6 +176,34 @@ export function FuelScreen() {
         />
 
         <div className="food-content">
+          {activeFoodPlan && (
+            <section className="character-food-plan-ledger" aria-labelledby="active-character-food-plan-title">
+              <header>
+                <span><SystemIcon name="spark" />{copy('AUSGERÜSTETES FUEL-PROTOKOLL', 'EQUIPPED FUEL PROTOCOL')}</span>
+                <small>{activeFoodPlan.characterName} Path</small>
+              </header>
+              <div className="character-food-plan-heading">
+                <div><h2 id="active-character-food-plan-title">{activeFoodPlan.title}</h2><p>{activeFoodPlan.focus}</p></div>
+                <span><small>{copy('TAGESRAHMEN', 'DAILY TEMPLATE')}</small><strong>{activeFoodPlan.plannedNutrition.kcal}</strong><em>kcal</em></span>
+              </div>
+              <div className="character-food-plan-meals">
+                {activeFoodPlan.meals.map(meal => {
+                  const recipe = CURATED_DISHES.find(dish => String(dish.id) === meal.recipeId);
+                  return <button key={meal.slot} type="button" disabled={!recipe} onClick={() => recipe && setDetail(recipe)}>
+                    <span>{mealSlotLabel(meal.slot)}</span>
+                    <strong>{meal.title}</strong>
+                    <small>{formatPortions(meal.portions)}× · {meal.nutrition.kcal} kcal · {Math.round(meal.nutrition.prot)} g P</small>
+                    {recipe && <b><SystemIcon name="chevron" /></b>}
+                  </button>;
+                })}
+              </div>
+              <p className="ledger-footnote"><SystemIcon name="info" /><span>{copy(
+                'Das ist ein anpassbarer Vorschlag, keine bereits protokollierte Mahlzeit. Öffne ein Rezept und erfasse nur die Portion, die du wirklich gegessen hast.',
+                'This is an adjustable suggestion, not an already logged meal. Open a recipe and log only the portion you actually ate.',
+              )}</span></p>
+            </section>
+          )}
+
           {goals && (
             <section className="system-ledger nutrition-target-ledger" aria-labelledby="nutrition-target-title">
               <header className="ledger-heading">

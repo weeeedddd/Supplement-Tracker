@@ -4,6 +4,7 @@ import { requestNearbyStores, type NearbyStoresEnvelope } from '../lib/integrati
 import { getBackendUrl } from '../lib/backend';
 import { lang } from '../lib/i18n';
 import { freeLocationSearchAvailable, requestOpenStreetMapStores } from '../lib/openStreetMap';
+import { loadSupplementShoppingIntent, onlineSupplementSearchUrl } from '../lib/shoppingIntent';
 import { SystemIcon } from './SystemIcon';
 
 type LocationChoice =
@@ -67,6 +68,7 @@ export function ShoppingScreen({
   const [status, setStatus] = useState('');
   const [pending, setPending] = useState(false);
   const [locating, setLocating] = useState(false);
+  const [shoppingIntent] = useState(() => loadSupplementShoppingIntent());
   const backendConfigured = Boolean(getBackendUrl());
   const freeLocationAvailable = freeLocationSearchAvailable();
   const effectiveProviderAvailable = providerAvailable || freeLocationAvailable;
@@ -204,6 +206,24 @@ export function ShoppingScreen({
           </div>
         </div>
 
+        {shoppingIntent && <section className="supplement-shopping-intent" aria-labelledby="supplement-shopping-intent-title">
+          <div className="supplement-shopping-intent-icon"><SystemIcon name="supplements" /></div>
+          <div>
+            <small>{copy('AKTIVE SUPPLEMENT-SUCHE', 'ACTIVE SUPPLEMENT SEARCH')}</small>
+            <h2 id="supplement-shopping-intent-title">{shoppingIntent.label}</h2>
+            <p>{copy(
+              'Die Standortsuche findet passende Händler in deiner Nähe, kann aber keinen Produktbestand bestätigen. Die Online-Suche öffnet neutrale Suchergebnisse ohne Affiliate-Link.',
+              'Location search finds relevant retailers nearby but cannot confirm product stock. Online search opens neutral results without an affiliate link.',
+            )}</p>
+          </div>
+          <a
+            className="system-button supplement-online-search"
+            href={onlineSupplementSearchUrl(shoppingIntent, country, lang === 'de' ? 'de' : 'en')}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+          ><SystemIcon name="external" />{copy('Online vergleichen', 'Compare online')}</a>
+        </section>}
+
         <div className="shopping-layout">
           <form className="shopping-form" onSubmit={submit} noValidate>
             <div className="shopping-field-grid">
@@ -276,12 +296,12 @@ export function ShoppingScreen({
             )}
 
             <button className="system-primary-action" type="submit" disabled={pending || !selectedLocationCanSearch}>
-              <SystemIcon name="search" /> {pending ? copy('Suche läuft', 'Searching') : copy('Supermärkte finden', 'Find supermarkets')}
+              <SystemIcon name="search" /> {pending ? copy('Suche läuft', 'Searching') : shoppingIntent ? copy('Passende Händler finden', 'Find relevant retailers') : copy('Geschäfte finden', 'Find stores')}
             </button>
             {status && <p className="shopping-budget-note" role="status">{status}</p>}
           </form>
 
-          <section className="shopping-results" aria-label={copy('Gefundene Supermärkte', 'Found supermarkets')} aria-busy={pending}>
+          <section className="shopping-results" aria-label={copy('Gefundene Geschäfte', 'Found stores')} aria-busy={pending}>
             {!result ? (
               <div className="shopping-state">
                 <div>
