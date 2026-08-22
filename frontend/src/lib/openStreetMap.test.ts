@@ -130,7 +130,7 @@ describe('free OpenStreetMap location search', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toContain('overpass-api.de');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('overpass.private.coffee');
     expect(result.location_source).toBe('coordinates');
     expect(result.results[0].primary_type).toBe('pharmacy');
     expect(result.budget_context.currency).toBe('MKD');
@@ -154,5 +154,30 @@ describe('free OpenStreetMap location search', () => {
       ...baseRequest,
       coordinates: { latitude: 52.52, longitude: 13.405 },
     })).rejects.toThrow('location service is busy');
+  });
+
+  it('switches to the second free provider when the first one is overloaded', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({}, 503))
+      .mockResolvedValueOnce(jsonResponse({
+        elements: [{
+          type: 'node',
+          id: 51,
+          lat: 52.5201,
+          lon: 13.4051,
+          tags: { name: 'Fallback Market', shop: 'supermarket' },
+        }],
+      }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await requestOpenStreetMapStores({
+      ...baseRequest,
+      coordinates: { latitude: 52.52, longitude: 13.405 },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('overpass.private.coffee');
+    expect(String(fetchMock.mock.calls[1][0])).toContain('overpass-api.de');
+    expect(result.results[0].name).toBe('Fallback Market');
   });
 });

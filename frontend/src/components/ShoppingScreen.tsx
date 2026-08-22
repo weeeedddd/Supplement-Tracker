@@ -139,7 +139,9 @@ export function ShoppingScreen({
     }
 
     setPending(true);
-    setStatus(copy('Supermärkte werden über den konfigurierten Kartenanbieter gesucht …', 'Searching supermarkets through the configured maps provider …'));
+    setStatus(usingFreeProvider
+      ? copy('Geschäfte werden kostenlos über OpenStreetMap gesucht …', 'Searching nearby stores free through OpenStreetMap …')
+      : copy('Supermärkte werden über den konfigurierten Kartenanbieter gesucht …', 'Searching supermarkets through the configured maps provider …'));
     try {
       const request = {
         location_consent: true,

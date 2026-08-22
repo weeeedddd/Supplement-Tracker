@@ -2,7 +2,10 @@ import type { NearbyStoresEnvelope, NearbyStoresRequest, StoreLocation } from '.
 import { timeoutSignal } from './storage';
 
 const NOMINATIM_SEARCH_URL = 'https://nominatim.openstreetmap.org/search';
-const OVERPASS_INTERPRETER_URL = 'https://overpass-api.de/api/interpreter';
+const OVERPASS_INTERPRETER_URLS = [
+  'https://overpass.private.coffee/api/interpreter',
+  'https://overpass-api.de/api/interpreter',
+] as const;
 const MAX_RESPONSE_BYTES = 768 * 1024;
 const GEOCODE_CACHE_MS = 15 * 60 * 1000;
 const GEOCODE_INTERVAL_MS = 1100;
@@ -30,7 +33,7 @@ async function readProviderResponse(
       ...init,
       headers: { Accept: 'application/json', ...init.headers },
       referrerPolicy: 'origin',
-      signal: timeoutSignal(20_000),
+      signal: timeoutSignal(15_000),
     });
   } catch {
     throw new Error('The free location service could not be reached. Please try again.');
@@ -187,16 +190,33 @@ export async function requestOpenStreetMapStores(
   const maxResults = Math.max(1, Math.min(20, Math.round(request.max_results ?? 10)));
   const around = `${radius},${center.latitude.toFixed(6)},${center.longitude.toFixed(6)}`;
   const categories = 'supermarket|convenience|greengrocer|health_food|nutrition_supplements|sports_nutrition|organic|chemist';
-  const query = `[out:json][timeout:12];(nwr["shop"~"^(${categories})$"]["name"](around:${around});nwr["amenity"="pharmacy"]["name"](around:${around}););out center ${Math.min(maxResults * 8, 100)};`;
+  const query = `[out:json][timeout:10];(nwr["shop"~"^(${categories})$"]["name"](around:${around});nwr["amenity"="pharmacy"]["name"](around:${around}););out center ${Math.min(maxResults * 8, 100)};`;
 
-  const response = await readProviderResponse(OVERPASS_INTERPRETER_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-    body: new URLSearchParams({ data: query }),
-  });
-
-  if (!Array.isArray(response.elements)) {
-    throw new Error('The free location service returned an invalid store list.');
+  let response: Record<string, unknown> | undefined;
+  let lastError: unknown;
+  for (const endpoint of OVERPASS_INTERPRETER_URLS) {
+    try {
+      const candidate = await readProviderResponse(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: new URLSearchParams({ data: query }),
+      });
+      if (!Array.isArray(candidate.elements)) {
+        throw new Error('The free location service returned an invalid store list.');
+      }
+      if (candidate.elements.length === 0 && typeof candidate.remark === 'string' && candidate.remark.trim()) {
+        throw new Error('The free location service is busy. Please wait a moment and try again.');
+      }
+      response = candidate;
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!response || !Array.isArray(response.elements)) {
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('The free location service is temporarily unavailable.');
   }
 
   const results = response.elements
