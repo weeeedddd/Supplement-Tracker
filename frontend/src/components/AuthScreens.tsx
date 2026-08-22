@@ -18,6 +18,7 @@ import {
   calculateNutritionTargetsForProfile,
   PROFILE_LIMITS,
   saveUserProfile,
+  tryUserProfileFromPlanInput,
   userProfileFromPlanInput,
   type CookingAccess,
   type LifestyleProfile,
@@ -584,14 +585,17 @@ export function OnboardScreen({ onComplete, onAiPlanRequest, onAiConsentChange }
     difficulty,
   }), [mode, inspirationProfile, displayName, age, heightCm, weightKg, experience, daysPerWeek, equipment, diet, goal, difficulty]);
 
-  const previewProfile = useMemo(() => userProfileFromPlanInput(input, {
+  // This runs on every render, including step 1 where the form is still empty.
+  // Deriving the profile must therefore never throw, or the whole onboarding
+  // screen is replaced by the error boundary before it can be filled in.
+  const previewProfile = useMemo(() => tryUserProfileFromPlanInput(input, {
     gender,
     dietaryPreferences: stringList(lifestyleDraft.dietaryPreferences),
     lifestyle: lifestyleFromDraft(lifestyleDraft),
   }), [gender, input, lifestyleDraft]);
 
   const characterFoodPlan = useMemo(() => (
-    plan && mode === 'inspiration' && inspirationProfile
+    plan && previewProfile && mode === 'inspiration' && inspirationProfile
       ? buildCharacterFoodPlan(inspirationProfile, previewProfile, plan.nutritionTargets, lang === 'de' ? 'de' : 'en')
       : null
   ), [inspirationProfile, mode, plan, previewProfile]);

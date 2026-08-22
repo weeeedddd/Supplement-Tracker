@@ -13,6 +13,7 @@ import {
   patchStoredUserProfile,
   patchUserProfile,
   saveUserProfile,
+  tryUserProfileFromPlanInput,
   userProfileFromPlanInput,
   userProfileToPlanInput,
   type ProfileStorage,
@@ -303,6 +304,30 @@ describe('non-destructive profile persistence', () => {
     expect(storage.values.get('train_user_plans')).toEqual(workouts);
     expect(storage.values.get('food_2026-08-07')).toEqual(foodLog);
     expect(storage.values.get('initial_plan')).toEqual({ id: 'existing-plan' });
+  });
+
+  it('returns null instead of throwing while the onboarding form is still incomplete', () => {
+    // The onboarding screen derives a preview profile on every render, so an
+    // empty step-1 form must not be able to take the whole screen down.
+    const emptyForm: PlanInput = {
+      mode: 'inspiration',
+      inspirationProfile: undefined,
+      displayName: '',
+      age: Number(''),
+      heightCm: Number(''),
+      weightKg: Number(''),
+      experience: 'beginner',
+      daysPerWeek: 3,
+      equipment: ['bodyweight'],
+      diet: 'flexible',
+      goal: 'general_fitness',
+      difficulty: 'medium',
+    };
+
+    expect(() => userProfileFromPlanInput(emptyForm)).toThrow(/Invalid profile input/);
+    expect(tryUserProfileFromPlanInput(emptyForm)).toBeNull();
+    expect(tryUserProfileFromPlanInput({ ...planInput, age: 4 })).toBeNull();
+    expect(tryUserProfileFromPlanInput(planInput, { gender: 'f' })?.displayName).toBe('Mira');
   });
 
   it('round-trips the existing deterministic PlanInput without adding medical or supplement fields', () => {
